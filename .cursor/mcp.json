@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "task-master-ai": {
+      "command": "npx",
+      "args": ["-y", "--package=task-master-ai", "task-master-ai"],
+      "env": {
+        "PERPLEXITY_API_KEY": "PERPLEXITY_API_KEY_HERE",
+        "XAI_API_KEY": "XAI_API_KEY_HERE",
+        "OPENROUTER_API_KEY": "OPENROUTER_API_KEY_HERE",
+        "MISTRAL_API_KEY": "MISTRAL_API_KEY_HERE",
+        "AZURE_OPENAI_API_KEY": "AZURE_OPENAI_API_KEY_HERE"
+      }
+    },
+    "next.js Docs": {
+      "url": "https://gitmcp.io/vercel/next.js"
+    },
+    "tailwindcss Docs": {
+      "url": "https://gitmcp.io/tailwindlabs/tailwindcss"
+    },
+    "trpc Docs": {
+      "url": "https://gitmcp.io/trpc/trpc"
+    },
+    "tanstack form Docs": {
+      "url": "https://gitmcp.io/tanstack/form"
+    },
+    "shadcn ui Docs": {
+      "url": "https://gitmcp.io/shadcn-ui/ui"
+    },
+    "prisma Docs": {
+      "url": "https://gitmcp.io/prisma/prisma"
+    },
+    "vercel/ai Docs": {
+      "url": "https://gitmcp.io/vercel/ai"
+    }
+  }
+}

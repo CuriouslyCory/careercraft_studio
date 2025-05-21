@@ -1,0 +1,83 @@
+# Product Requirements Document: Resume Master
+
+## 1. Introduction
+
+Resume Master is an LLM-enhanced web application designed to assist users in creating and tailoring their resumes for specific job applications. By leveraging AI and providing a user-friendly interface, the tool aims to simplify the process of resume building, skill highlighting, and generating application documents like resumes and cover letters.
+
+## 2. Goals
+
+- To provide users with an intuitive platform for managing and enhancing their resume content.
+- To utilize LLM capabilities for extracting resume data, assisting in content refinement, and tailoring resumes to job postings.
+- To enable users to easily generate and export customized resumes and cover letters in standard formats.
+- To create a robust and scalable application using modern web technologies.
+
+## 3. Target Audience
+
+- Individuals seeking to create or improve their resumes.
+- Job seekers who want to tailor their applications to specific roles.
+- Users who want to leverage AI to streamline the resume building process.
+
+## 4. Features and Functionality
+
+- **User Authentication:**
+    - "Create new user" and "Log in" options on the main landing page.
+- **Landing Page:**
+    - Describe the project "Resume Master".
+    - Provide links for registration, login, and other important pages (e.g., About, Contact - if applicable later).
+- **Resume Import:**
+    - Allow users to add resumes via drag-and-drop into a chat bar.
+    - Support multiple file formats: PDF, markdown, .doc, .docx, .txt.
+    - Use data parsing tools and an LLM to extract:
+        - User information (name, email, phone, website, etc.)
+        - Work experience
+        - Skills
+        - Education
+        - Miscellaneous sections.
+- **Data Editing Interface:**
+    - Components to display and allow manual editing of extracted resume data.
+    - A dedicated section to store "Key Achievements" and other details not explicitly in the original resume.
+- **LLM Chat Interface:**
+    - Allow users to chat with the LLM.
+    - Collaborate with the LLM to add details, define goals, and set preferences.
+- **Job Posting Analysis:**
+    - Users can submit a job posting (likely by pasting the text).
+    - The system will highlight matching skills from the user's profile based on the job posting.
+    - Identify missing skills or requirements mentioned in the job posting.
+    - Job postings should be labeled, saved, and accessible later via references in the UI.
+- **Document Generation:**
+    - Generate a resume and/or cover letter based on the user's profile, stored achievements, chat interactions, and a selected job posting.
+    - Export the generated documents as a PDF.
+
+## 5. Resume Sections (Generated Document)
+
+- Header (Name, job title, email, optional phone, links like personal website, GitHub, LinkedIn)
+- Professional summary
+- Work Experience
+- Skills (Comma-separated list, categorized if sufficient entries)
+- Education & Learning
+- Key Achievements
+
+## 6. Technical Requirements / Stack
+
+- **Framework:** Next.js (using App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **UI Components:** Shadcn UI
+- **API Layer:** tRPC
+- **Form Handling:** TanStack Form
+- **Schema Validation:** Zod
+- **ORM:** Prisma
+- **AI Integration:** Vercel/AI
+- **Project Structure:** Use a `./src` directory for main code.
+
+## 7. Deployment
+
+- Deploy to Vercel.
+- Domain: resume-master.curiouslycory.com.
+
+## 8. Future Considerations (Optional for V1, but good to note)
+
+- Support for additional resume sections.
+- More advanced AI features (e.g., suggesting wording, tailoring experience descriptions).
+- Analytics on job posting matches.
+- Integration with job boards. 

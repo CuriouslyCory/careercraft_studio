@@ -14,16 +14,26 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+// Enums
+enum EducationType {
+    HIGH_SCHOOL
+    GED
+    ASSOCIATES
+    BACHELORS
+    MASTERS
+    DOCTORATE
+    CERTIFICATION
+    OTHER
+}
 
-    createdBy   User   @relation(fields: [createdById], references: [id])
-    createdById String
-
-    @@index([name])
+enum UserDetailCategory {
+    MOTIVATION
+    INTEREST
+    CAREER_GOAL
+    STRENGTH
+    WEAKNESS
+    WORK_PREFERENCE
+    OTHER
 }
 
 // Necessary for Next auth
@@ -33,15 +43,15 @@ model Account {
     type                     String
     provider                 String
     providerAccountId        String
-    refresh_token            String? // @db.Text
-    access_token             String? // @db.Text
+    refresh_token            String? @db.Text
+    access_token             String? @db.Text
     expires_at               Int?
     token_type               String?
     scope                    String?
-    id_token                 String? // @db.Text
+    id_token                 String? @db.Text
     session_state            String?
     user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-    refresh_token_expires_in Int?
+    refresh_token_expires_in Int? // Example field for some providers
 
     @@unique([provider, providerAccountId])
 }
@@ -62,7 +72,13 @@ model User {
     image         String?
     accounts      Account[]
     sessions      Session[]
-    posts         Post[]
+
+    resumes         Resume[]
+    workHistories   WorkHistory[]
+    educations      Education[]
+    keyAchievements KeyAchievement[]
+    userDetails     UserDetail[]
+    jobPostings     JobPosting[]
 }
 
 model VerificationToken {
@@ -71,4 +87,118 @@ model VerificationToken {
     expires    DateTime
 
     @@unique([identifier, token])
+}
+
+model Resume {
+    id        String   @id @default(cuid())
+    title     String // Auto-generated based on content or user input
+    content   String // Stores the full extracted text of a resume
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    @@index([userId])
+}
+
+model WorkHistory {
+    id          String    @id @default(cuid())
+    companyName String
+    jobTitle    String
+    startDate   DateTime
+    endDate     DateTime?
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    achievements WorkAchievement[]
+    skills       WorkSkill[]
+
+    @@index([userId])
+}
+
+model WorkAchievement {
+    id          String   @id @default(cuid())
+    description String
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    workHistory   WorkHistory @relation(fields: [workHistoryId], references: [id], onDelete: Cascade)
+    workHistoryId String
+
+    @@index([workHistoryId])
+}
+
+model WorkSkill {
+    id        String   @id @default(cuid())
+    name      String // e.g., "React", "Project Management"
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    workHistory   WorkHistory @relation(fields: [workHistoryId], references: [id], onDelete: Cascade)
+    workHistoryId String
+
+    @@index([workHistoryId])
+}
+
+model Education {
+    id               String        @id @default(cuid())
+    type             EducationType
+    institutionName  String
+    degreeOrCertName String? // e.g., "B.S. Computer Science", "CompTIA A+"
+    description      String // For additional details
+    dateCompleted    DateTime?
+    createdAt        DateTime      @default(now())
+    updatedAt        DateTime      @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    @@index([userId])
+}
+
+model KeyAchievement {
+    id        String   @id @default(cuid())
+    content   String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    @@index([userId])
+}
+
+model UserDetail {
+    id        String             @id @default(cuid())
+    category  UserDetailCategory
+    content   String
+    createdAt DateTime           @default(now())
+    updatedAt DateTime           @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    @@index([userId])
+}
+
+model JobPosting {
+    id          String   @id @default(cuid())
+    title       String
+    description String
+    company     String
+    location    String
+    url         String?
+    status      String?
+    notes       String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    @@index([userId])
 }
