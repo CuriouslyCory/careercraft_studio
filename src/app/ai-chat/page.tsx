@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTrpcChat, type UISimpleMessage } from "~/lib/hooks/useTrpcChat";
+import DocumentUpload from "~/app/_components/document-upload";
 
 export default function AIChatPage() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } =
@@ -11,6 +12,9 @@ export default function AIChatPage() {
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 p-4 md:p-6">
+      <div className="mb-6">
+        <DocumentUpload />
+      </div>
       <div className="mb-4 border-b border-gray-200 pb-2 text-center">
         <h1 className="text-2xl font-bold text-gray-900">
           Resume Master AI Assistant

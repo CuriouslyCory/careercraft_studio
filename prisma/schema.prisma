@@ -73,7 +73,7 @@ model User {
     accounts      Account[]
     sessions      Session[]
 
-    resumes         Resume[]
+    documents       Document[]
     workHistories   WorkHistory[]
     educations      Education[]
     keyAchievements KeyAchievement[]
@@ -89,10 +89,11 @@ model VerificationToken {
     @@unique([identifier, token])
 }
 
-model Resume {
+model Document {
     id        String   @id @default(cuid())
     title     String // Auto-generated based on content or user input
-    content   String // Stores the full extracted text of a resume
+    content   String // Stores the full extracted text of the document
+    type      String // e.g., 'resume', 'cover_letter', 'article', 'blog_post', etc.
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 

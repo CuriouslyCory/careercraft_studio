@@ -6,7 +6,6 @@ import {
   type BaseMessage,
 } from "@langchain/core/messages";
 import { z } from "zod";
-import { tool } from "@langchain/core/tools";
 import { env } from "~/env";
 import { type StructuredTool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt"; // Corrected import path
@@ -17,33 +16,47 @@ export const ResumeDataSchema = z.object({
     .string()
     .optional()
     .describe(
-      "A brief professional summary from the resume, if present (2-4 sentences).",
+      "A brief professional summary from the resume, if present (2-4 sentences). If no summary is present, generate one based on the resume.",
     ),
   skills: z
-    .array(z.string())
+    .array(z.string().describe("A key skill, technology, or proficiency."))
+    .optional()
     .describe(
-      "List of key skills, technologies, and proficiencies extracted from the resume. Be comprehensive.",
+      "Flat array of key skills, technologies, and proficiencies extracted from the resume or other document. Be comprehensive.",
     ),
-  experience: z
+  work_experience: z
     .array(
       z.object({
         jobTitle: z.string().optional().describe("The job title."),
         company: z.string().optional().describe("The company name."),
         location: z.string().optional().describe("The location of the job."),
-        dates: z
+        startDate: z
           .string()
           .optional()
           .describe(
-            "Employment dates (e.g., 'Jan 2020 - Present' or '2018-2020').",
+            "Employment start date (e.g., 'Jan 2020', '2020', '1/2020', etc).",
           ),
-        responsibilities: z
+        endDate: z
+          .string()
+          .optional()
+          .describe(
+            "Employment dates (e.g., 'Present', 'March 2020', '1/2020', etc).",
+          ),
+        achievements: z
           .array(z.string())
           .optional()
           .describe(
             "Key responsibilities or achievements in this role as bullet points or short descriptions.",
           ),
+        skills: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Key skills or technologies used in this role as bullet points or short descriptions.",
+          ),
       }),
     )
+    .optional()
     .describe(
       "List of professional experiences. Include all distinct roles found.",
     ),
@@ -82,144 +95,24 @@ export const ResumeDataSchema = z.object({
     })
     .optional()
     .describe("Contact information extracted from the resume."),
-  otherSections: z
-    .record(z.string(), z.any())
+  key_achievements: z
+    .array(z.string())
     .optional()
     .describe(
-      "Any other relevant sections found in the resume (e.g., Awards, Certifications, Projects) as key-value pairs, where the key is the section title and the value could be a string or array of strings.",
+      "Key achievements, awards, and accomplishments from the resume as bullet points or short descriptions.",
     ),
+  // otherSections: z
+  //   .record(z.string(), z.any())
+  //   .optional()
+  //   .describe(
+  //     "Any other relevant sections found in the resume (e.g., Awards, Certifications, Projects) as key-value pairs, where the key is the section title and the value could be a string or array of strings.",
+  //   ),
 });
 
 export type ParsedResumeData = z.infer<typeof ResumeDataSchema>;
 
-// Define tools for the agent
-const parseResumeTool = tool(
-  async ({ resumeText }: { resumeText: string }) => {
-    try {
-      console.log("Parsing resume text with LLM, length:", resumeText.length);
-      const llm = createLLM(); // Get an instance of the LLM
-      const llmWithParsing = llm.withStructuredOutput(ResumeDataSchema, {
-        name: "parseResume", // Optional: Helps in debugging and can be used by the LLM
-      });
-
-      const prompt = `Please parse the following resume text and extract the information according to the provided schema.
-Focus on accurately identifying and categorizing skills, work experience (including job titles, companies, dates, and responsibilities), and education (including institution, degree, field of study, and graduation dates).
-Also extract contact information if available (email, phone, LinkedIn, GitHub, portfolio).
-Capture any other distinct sections like 'Projects', 'Awards', or 'Certifications' under 'otherSections'.
-If a section is not present or information is missing, omit it or use an empty array/object as appropriate for the schema.
-
-Resume Text:
----
-${resumeText}
----`;
-
-      const result = await llmWithParsing.invoke(prompt);
-      console.log("Resume parsing successful:", result);
-      return result;
-    } catch (error) {
-      console.error("Error parsing resume with LLM:", error);
-      // Return a more specific error or the schema's default/empty state
-      return {
-        summary: "Error parsing resume.",
-        skills: [],
-        experience: [],
-        education: [],
-        // contactInfo: {}, // Optional, so can be omitted
-        // otherSections: {}, // Optional
-      };
-    }
-  },
-  {
-    name: "parseResume",
-    description: "Parse resume text into structured information",
-    schema: z.object({
-      resumeText: z.string().describe("The full text of the resume to parse"),
-    }),
-  },
-);
-
-const analyzeJobTool = tool(
-  async ({ jobDescription }: { jobDescription: string }) => {
-    // In a real implementation, you might use more sophisticated analysis
-    try {
-      console.log("Analyzing job description, length:", jobDescription.length);
-      return `Analyzed job requirements: Required skills, qualifications, responsibilities and preferred experiences extracted from the provided job description.`;
-    } catch (error) {
-      console.error("Error analyzing job:", error);
-      return "Error analyzing job description. Please try again with a valid job description.";
-    }
-  },
-  {
-    name: "analyzeJob",
-    description: "Analyze a job description for requirements and skills",
-    schema: z.object({
-      jobDescription: z
-        .string()
-        .describe("The full text of the job description to analyze"),
-    }),
-  },
-);
-
-const matchResumeToJobTool = tool(
-  async ({ resumeData, jobData }: { resumeData: string; jobData: string }) => {
-    // In a real implementation, you would compare resume against job requirements
-    try {
-      console.log("Matching resume to job");
-      return `Matched resume against job requirements. Identified matching skills and qualifications, and highlighted missing requirements that could be addressed in a cover letter.`;
-    } catch (error) {
-      console.error("Error matching resume to job:", error);
-      return "Error matching resume to job. Please ensure both resume and job data are provided.";
-    }
-  },
-  {
-    name: "matchResumeToJob",
-    description: "Match resume data against job description data",
-    schema: z.object({
-      resumeData: z.string().describe("Structured resume data"),
-      jobData: z.string().describe("Structured job description data"),
-    }),
-  },
-);
-
-const generateCoverLetterTool = tool(
-  async ({
-    resumeData,
-    jobData,
-    userPreferences,
-  }: {
-    resumeData: string;
-    jobData: string;
-    userPreferences: string;
-  }) => {
-    try {
-      console.log("Generating cover letter");
-      return `Generated a personalized cover letter that highlights relevant skills and experience from the resume that match the job requirements, while incorporating the user's preferences for tone and focus.`;
-    } catch (error) {
-      console.error("Error generating cover letter:", error);
-      return "Error generating cover letter. Please ensure all required data is provided.";
-    }
-  },
-  {
-    name: "generateCoverLetter",
-    description:
-      "Generate a cover letter based on resume, job data, and user preferences",
-    schema: z.object({
-      resumeData: z.string().describe("Structured resume data"),
-      jobData: z.string().describe("Structured job description data"),
-      userPreferences: z
-        .string()
-        .describe("User preferences for the cover letter"),
-    }),
-  },
-);
-
 // Define the tools we'll use
-const tools: StructuredTool[] = [
-  parseResumeTool,
-  analyzeJobTool,
-  matchResumeToJobTool,
-  generateCoverLetterTool,
-];
+const tools: StructuredTool[] = [];
 
 // Create a system message with instructions for the agent
 const systemMessage = `You are Resume Master, an AI assistant that helps users create professional resumes and cover letters.
@@ -246,11 +139,8 @@ export function createLLM() {
 
     return new ChatGoogleGenerativeAI({
       apiKey: GOOGLE_API_KEY,
-      model: "gemini-1.5-flash", // Use a more stable model
-      maxOutputTokens: 2048,
-      temperature: 0.7,
-      topP: 0.8,
-      topK: 40,
+      model: "gemini-2.5-flash-preview-05-20",
+      temperature: 0.1,
     });
   } catch (error) {
     console.error("Error initializing language model:", error);
