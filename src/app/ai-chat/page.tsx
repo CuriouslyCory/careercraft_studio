@@ -15,9 +15,6 @@ export default function AIChatPage() {
         <h1 className="text-2xl font-bold text-gray-900">
           Resume Master AI Assistant
         </h1>
-        <p className="text-sm text-gray-600">
-          Powered by LangChain + LangGraph
-        </p>
       </div>
 
       <div className="mb-4 flex-grow overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm">

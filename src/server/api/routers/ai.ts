@@ -4,6 +4,8 @@ import { observable } from "@trpc/server/observable";
 import {
   createAgent,
   convertToLangChainMessages,
+  type ParsedResumeData,
+  ResumeDataSchema,
 } from "~/server/langchain/agent";
 import { AIMessage } from "@langchain/core/messages";
 
@@ -127,35 +129,66 @@ export const aiRouter = createTRPCRouter({
   }),
 
   resumeParsing: publicProcedure
-    .input(z.object({ resumeText: z.string() }))
-    .mutation(async ({ input }) => {
+    .input(
+      z.object({
+        resumeText: z.string().min(1, "Resume text cannot be empty"),
+      }),
+    )
+    .mutation(async ({ input }): Promise<ParsedResumeData> => {
       try {
-        // Create the agent
+        console.log("tRPC resumeParsing: Invoking agent to parse resume.");
         const agent = createAgent();
 
-        // Invoke the agent with a structured prompt
-        const result = await agent.invoke({
+        const agentResponse = await agent.invoke({
           messages: convertToLangChainMessages([
             {
               role: "user",
-              content: `Parse the following resume and extract key information such as name, contact details, skills, experience, and education. Format the output as JSON: ${input.resumeText}`,
+              content: `Please parse the following resume text and return the structured data. Resume text: """${input.resumeText}"""`,
             },
           ]),
         });
 
-        // Safely extract content
-        let content = "No result";
-        if (result && isContentChunk(result)) {
-          content = result.content;
-        } else if (result && typeof result === "object") {
-          content = JSON.stringify(result);
+        console.log(
+          "tRPC resumeParsing: Agent response received:",
+          agentResponse,
+        );
+
+        let parsedData: unknown;
+        if (typeof agentResponse === "object" && agentResponse !== null) {
+          if ("output" in agentResponse) {
+            parsedData = agentResponse.output;
+          } else {
+            parsedData = agentResponse;
+          }
         }
 
-        // Return the result
-        return { result: content };
+        // Validate the extracted data against the schema using the static import
+        const validationResult = ResumeDataSchema.safeParse(parsedData);
+
+        if (validationResult.success) {
+          console.log(
+            "tRPC resumeParsing: Successfully parsed and validated resume data.",
+          );
+          return validationResult.data;
+        } else {
+          console.error(
+            "tRPC resumeParsing: Failed to validate parsed data:",
+            validationResult.error.format(),
+          );
+          throw new Error(
+            "Failed to parse resume into the expected format. Validation errors: " +
+              JSON.stringify(validationResult.error.format()),
+          );
+        }
       } catch (error) {
-        console.error("Resume parsing error:", error);
-        throw error;
+        console.error(
+          "tRPC resumeParsing: Error during resume parsing:",
+          error,
+        );
+        if (error instanceof Error) {
+          throw new Error(`Resume parsing failed: ${error.message}`);
+        }
+        throw new Error("Resume parsing failed due to an unknown error.");
       }
     }),
 
@@ -163,32 +196,35 @@ export const aiRouter = createTRPCRouter({
     .input(z.object({ jobDescription: z.string() }))
     .mutation(async ({ input }) => {
       try {
-        // Create the agent
         const agent = createAgent();
-
-        // Invoke the agent with a structured prompt
-        const result = await agent.invoke({
+        const agentResponse = await agent.invoke({
           messages: convertToLangChainMessages([
             {
               role: "user",
-              content: `Analyze the following job description and extract key requirements, responsibilities, and desired skills. Format the output as JSON: ${input.jobDescription}`,
+              content: `Analyze the following job description: """${input.jobDescription}"""`,
             },
           ]),
         });
-
-        // Safely extract content
-        let content = "No result";
-        if (result && isContentChunk(result)) {
-          content = result.content;
-        } else if (result && typeof result === "object") {
-          content = JSON.stringify(result);
+        // Placeholder: Actual parsing and validation would be needed here
+        // For now, just stringify the response or a part of it.
+        let output = "Error or no parsable output from jobAnalysis";
+        if (agentResponse && typeof agentResponse === "object") {
+          if (
+            "output" in agentResponse &&
+            typeof agentResponse.output === "string"
+          ) {
+            output = agentResponse.output;
+          } else {
+            output = JSON.stringify(agentResponse);
+          }
         }
-
-        // Return the result
-        return { result: content };
+        return { result: output };
       } catch (error) {
         console.error("Job analysis error:", error);
-        throw error;
+        if (error instanceof Error) {
+          throw new Error(`Job analysis failed: ${error.message}`);
+        }
+        throw new Error("Job analysis failed due to an unknown error.");
       }
     }),
 });

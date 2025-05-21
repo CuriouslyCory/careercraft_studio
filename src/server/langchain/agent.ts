@@ -9,17 +9,124 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { env } from "~/env";
 import { type StructuredTool } from "@langchain/core/tools";
+import { createReactAgent } from "@langchain/langgraph/prebuilt"; // Corrected import path
+
+// Define the output schema for parsed resume data
+export const ResumeDataSchema = z.object({
+  summary: z
+    .string()
+    .optional()
+    .describe(
+      "A brief professional summary from the resume, if present (2-4 sentences).",
+    ),
+  skills: z
+    .array(z.string())
+    .describe(
+      "List of key skills, technologies, and proficiencies extracted from the resume. Be comprehensive.",
+    ),
+  experience: z
+    .array(
+      z.object({
+        jobTitle: z.string().optional().describe("The job title."),
+        company: z.string().optional().describe("The company name."),
+        location: z.string().optional().describe("The location of the job."),
+        dates: z
+          .string()
+          .optional()
+          .describe(
+            "Employment dates (e.g., 'Jan 2020 - Present' or '2018-2020').",
+          ),
+        responsibilities: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Key responsibilities or achievements in this role as bullet points or short descriptions.",
+          ),
+      }),
+    )
+    .describe(
+      "List of professional experiences. Include all distinct roles found.",
+    ),
+  education: z
+    .array(
+      z.object({
+        institution: z
+          .string()
+          .optional()
+          .describe("Name of the educational institution."),
+        degree: z
+          .string()
+          .optional()
+          .describe("Degree or certification obtained."),
+        fieldOfStudy: z
+          .string()
+          .optional()
+          .describe("Field of study or major."),
+        graduationDate: z
+          .string()
+          .optional()
+          .describe("Graduation date or expected graduation date."),
+      }),
+    )
+    .describe("List of educational qualifications."),
+  contactInfo: z
+    .object({
+      email: z.string().optional().describe("Email address."),
+      phone: z.string().optional().describe("Phone number."),
+      linkedin: z.string().optional().describe("LinkedIn profile URL."),
+      github: z.string().optional().describe("GitHub profile URL."),
+      portfolio: z
+        .string()
+        .optional()
+        .describe("Portfolio or personal website URL."),
+    })
+    .optional()
+    .describe("Contact information extracted from the resume."),
+  otherSections: z
+    .record(z.string(), z.any())
+    .optional()
+    .describe(
+      "Any other relevant sections found in the resume (e.g., Awards, Certifications, Projects) as key-value pairs, where the key is the section title and the value could be a string or array of strings.",
+    ),
+});
+
+export type ParsedResumeData = z.infer<typeof ResumeDataSchema>;
 
 // Define tools for the agent
 const parseResumeTool = tool(
   async ({ resumeText }: { resumeText: string }) => {
-    // In a real implementation, you might use more sophisticated parsing logic
     try {
-      console.log("Parsing resume text, length:", resumeText.length);
-      return `Parsed resume data: Skills extracted, experience catalogued, education identified from the provided resume text.`;
+      console.log("Parsing resume text with LLM, length:", resumeText.length);
+      const llm = createLLM(); // Get an instance of the LLM
+      const llmWithParsing = llm.withStructuredOutput(ResumeDataSchema, {
+        name: "parseResume", // Optional: Helps in debugging and can be used by the LLM
+      });
+
+      const prompt = `Please parse the following resume text and extract the information according to the provided schema.
+Focus on accurately identifying and categorizing skills, work experience (including job titles, companies, dates, and responsibilities), and education (including institution, degree, field of study, and graduation dates).
+Also extract contact information if available (email, phone, LinkedIn, GitHub, portfolio).
+Capture any other distinct sections like 'Projects', 'Awards', or 'Certifications' under 'otherSections'.
+If a section is not present or information is missing, omit it or use an empty array/object as appropriate for the schema.
+
+Resume Text:
+---
+${resumeText}
+---`;
+
+      const result = await llmWithParsing.invoke(prompt);
+      console.log("Resume parsing successful:", result);
+      return result;
     } catch (error) {
-      console.error("Error parsing resume:", error);
-      return "Error parsing resume. Please try again with a valid resume text.";
+      console.error("Error parsing resume with LLM:", error);
+      // Return a more specific error or the schema's default/empty state
+      return {
+        summary: "Error parsing resume.",
+        skills: [],
+        experience: [],
+        education: [],
+        // contactInfo: {}, // Optional, so can be omitted
+        // otherSections: {}, // Optional
+      };
     }
   },
   {
@@ -195,27 +302,35 @@ export function createDirectChatAgent() {
 // Create the agent with the tools
 export function createAgent() {
   try {
-    // First try the direct chat agent which is more reliable
-    return createDirectChatAgent();
+    // return createDirectChatAgent(); // Commenting this out to try the tool-using agent
 
-    // Leaving the code for the React agent as a fallback if we need to return to it
-    /*
     const llm = createLLM();
 
-    // Use the predefined createReactAgent from LangGraph
+    if (!tools || tools.length === 0) {
+      console.warn("Tools array is empty. Agent will not have any tools.");
+    }
+    console.log(
+      "Creating agent with tools:",
+      tools.map((t) => t.name),
+    );
+
+    // createReactAgent is a prebuilt graph. It expects an LLM that supports tool calling (like OpenAI functions or Gemini tool calling)
+    // and a list of tools.
     const agent = createReactAgent({
       llm,
       tools,
+      // System message can be part of the input to the agent when invoking it, or sometimes as a configuration.
+      // For createReactAgent, it's typically passed during invocation with the HumanMessage.
     });
 
     return agent;
-    */
   } catch (error) {
     console.error("Error creating agent:", error);
-    throw new Error(
-      "Failed to initialize AI agent: " +
-        (error instanceof Error ? error.message : String(error)),
-    );
+    // Ensure a more specific error is thrown or re-throw with better typing
+    if (error instanceof Error) {
+      throw new Error(`Failed to initialize AI agent: ${error.message}`);
+    }
+    throw new Error("Failed to initialize AI agent: An unknown error occurred");
   }
 }
 
