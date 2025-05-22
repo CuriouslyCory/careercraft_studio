@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
-import { WorkHistoryForm } from "./WorkHistoryForm";
+import { WorkHistoryForm } from "./work-history-form";
 import {
   workHistorySchema,
   workHistoryFormSchema,
   type WorkHistoryFormValues,
-} from "./workHistorySchema";
+} from "./work-history-schema";
 import { z } from "zod";
 
 export function WorkHistoryPanel() {

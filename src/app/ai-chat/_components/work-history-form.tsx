@@ -1,6 +1,6 @@
 "use client";
 
-import { type WorkHistoryFormValues } from "./workHistorySchema";
+import { type WorkHistoryFormValues } from "./work-history-schema";
 
 interface WorkHistoryFormProps {
   values: WorkHistoryFormValues;

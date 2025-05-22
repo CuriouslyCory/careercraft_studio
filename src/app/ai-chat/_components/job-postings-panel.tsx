@@ -682,7 +682,11 @@ export function JobPostingsPanel() {
                           size="sm"
                           variant="outline"
                           onClick={() =>
-                            handleViewContent(job.id, job.content, job.title)
+                            handleViewContent(
+                              String(job.id),
+                              String(job.content),
+                              String(job.title),
+                            )
                           }
                         >
                           View

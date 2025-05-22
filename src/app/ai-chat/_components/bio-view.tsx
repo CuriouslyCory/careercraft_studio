@@ -1,11 +1,11 @@
 "use client";
 
-import { DocumentsPanel } from "./DocumentsPanel";
-import { WorkHistoryPanel } from "./WorkHistoryPanel";
-import { KeyAchievementsPanel } from "./KeyAchievementsPanel";
-import { SkillsPanel } from "./SkillsPanel";
-import { EducationPanel } from "./EducationPanel";
-import { JobPostingsPanel } from "./JobPostingsPanel";
+import { DocumentsPanel } from "./documents-panel";
+import { WorkHistoryPanel } from "./work-history-panel";
+import { KeyAchievementsPanel } from "./key-achievements-panel";
+import { SkillsPanel } from "./skills-panel";
+import { EducationPanel } from "./education-panel";
+import { JobPostingsPanel } from "./job-postings-panel";
 
 interface BioViewProps {
   view: string;

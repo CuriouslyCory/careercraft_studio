@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BioView } from "./_components/BioView";
-import { ChatInterface } from "./_components/ChatInterface";
+import { BioView } from "./_components/bio-view";
+import { ChatInterface } from "./_components/chat-interface";
 
 export default function AIChatPage() {
   const searchParams = useSearchParams();
