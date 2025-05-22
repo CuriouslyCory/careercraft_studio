@@ -36,6 +36,13 @@ enum UserDetailCategory {
     OTHER
 }
 
+enum MessageRole {
+    USER
+    ASSISTANT
+    SYSTEM
+    TOOL
+}
+
 // Necessary for Next auth
 model Account {
     id                       String  @id @default(cuid())
@@ -79,6 +86,7 @@ model User {
     keyAchievements KeyAchievement[]
     userDetails     UserDetail[]
     jobPostings     JobPosting[]
+    chatMessages    ChatMessage[]
 }
 
 model VerificationToken {
@@ -87,6 +95,23 @@ model VerificationToken {
     expires    DateTime
 
     @@unique([identifier, token])
+}
+
+model ChatMessage {
+    id        String      @id @default(cuid())
+    role      MessageRole
+    content   String      @db.Text
+    createdAt DateTime    @default(now())
+    metadata  Json? // For storing additional metadata (e.g., agent info, tool calls)
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    // For conversation threading
+    conversationId String?
+
+    @@index([userId])
+    @@index([conversationId])
 }
 
 model Document {

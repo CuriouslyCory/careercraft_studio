@@ -10,11 +10,15 @@ export default function DocumentUpload() {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const utils = api.useUtils();
+
   const uploadMutation = api.document.upload.useMutation({
     onSuccess: (data) => {
       setSuccess(`Uploaded: ${data.title}`);
       setError(null);
       setUploading(false);
+      // Invalidate the documents query cache to refresh the list
+      void utils.document.listDocuments.invalidate();
     },
     onError: (err) => {
       setError(err.message);

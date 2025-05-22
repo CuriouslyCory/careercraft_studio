@@ -1,177 +1,219 @@
-import { useState, useCallback } from "react";
-import { api, type RouterInputs } from "~/trpc/react";
-import { type TRPCClientErrorLike } from "@trpc/client";
-import { type AppRouter } from "~/server/api/root";
-
-// Infer types from your tRPC router
-type AIChatInput = RouterInputs["ai"]["chat"];
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useSession } from "next-auth/react";
+import { v4 as uuidv4 } from "uuid";
+import { api } from "~/trpc/react";
+import { type ChatMessage } from "@prisma/client";
 
 // Simplified message structure for UI state management
 export type UISimpleMessage = {
   id: string;
-  role: "user" | "assistant" | "system"; // Include system role
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
 };
 
 export function useTrpcChat() {
   const [messages, setMessages] = useState<UISimpleMessage[]>([]);
   const [input, setInput] = useState("");
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<TRPCClientErrorLike<AppRouter> | null>(
-    null,
+  const [error, setError] = useState<Error | null>(null);
+  const { data: session, status } = useSession();
+  const initializationRef = useRef(false);
+  const sessionLoadedRef = useRef(false);
+  const pendingMessageRef = useRef<string | null>(null);
+  const assistantMessageIdRef = useRef<string | null>(null);
+
+  // Create a new conversation if needed
+  const createConversationMutation = api.ai.createConversation.useMutation();
+
+  // Fetch existing conversation messages
+  const getConversation = api.ai.getConversation.useQuery(
+    { conversationId: conversationId ?? "" },
+    {
+      enabled: !!conversationId && !!session?.user,
+    },
   );
-  // State to hold the input for the subscription; defaults to empty messages
-  const [subscriptionPayload, setSubscriptionPayload] = useState<AIChatInput>({
-    messages: [],
-  });
-  // State to explicitly enable/disable the subscription
-  const [isSubscriptionEnabled, setIsSubscriptionEnabled] = useState(false);
 
-  // Temporary state to hold new user message before subscription kicks in
-  const [pendingUserMessage, setPendingUserMessage] =
-    useState<UISimpleMessage | null>(null);
-
-  // State for the current assistant message being built
-  const [currentAssistantMessage, setCurrentAssistantMessage] =
-    useState<UISimpleMessage | null>(null);
-
-  // Add a system message at the beginning for our chat
-  const addSystemMessageIfNeeded = useCallback(() => {
-    const hasSystemMessage = messages.some((msg) => msg.role === "system");
-
-    if (!hasSystemMessage) {
-      setMessages((prev) => [
-        {
-          id: "system-1",
-          role: "system",
-          content:
-            "I am Resume Master, an AI assistant that helps you create resumes and cover letters tailored to specific job descriptions. I can analyze both your resume and job postings to highlight matches and suggest improvements.",
-        },
-        ...prev,
-      ]);
+  // Process conversation data when it's loaded
+  useEffect(() => {
+    if (getConversation.data && getConversation.data.length > 0) {
+      const typedData = getConversation.data as unknown as ChatMessage[];
+      setMessages(
+        typedData.map((msg) => ({
+          id: msg.id,
+          role: msg.role.toLowerCase() as
+            | "user"
+            | "assistant"
+            | "system"
+            | "tool",
+          content: msg.content,
+        })),
+      );
     }
-  }, [messages]);
+  }, [getConversation.data]);
 
-  api.ai.chat.useSubscription(subscriptionPayload, {
-    enabled: isSubscriptionEnabled,
-    onStarted: () => {
-      setIsLoading(true);
-      setError(null);
-      console.log("Subscription started with payload:", subscriptionPayload);
-      if (pendingUserMessage) {
-        setMessages((prev) => [...prev, pendingUserMessage]);
-        setPendingUserMessage(null);
-      }
-      const assistantId = Date.now().toString();
-      const newAssistantMessage = {
-        id: assistantId,
-        role: "assistant" as const,
-        content: "▋",
-      };
-      setCurrentAssistantMessage(newAssistantMessage);
-      setMessages((prev) => [...prev, newAssistantMessage]);
-    },
-    onData: (textChunk: string) => {
-      setCurrentAssistantMessage((prevMsg) => {
-        if (!prevMsg) return null; // Should not happen
-        const updatedContent =
-          prevMsg.content === "▋"
-            ? textChunk
-            : prevMsg.content.slice(0, -1) + textChunk + "▋";
+  // Wait for session to be fully loaded before initialization
+  useEffect(() => {
+    if (status === "authenticated" && !sessionLoadedRef.current) {
+      sessionLoadedRef.current = true;
+    }
+  }, [status]);
 
-        setMessages((prevMsgs) =>
-          prevMsgs.map((m) =>
-            m.id === prevMsg.id ? { ...m, content: updatedContent } : m,
-          ),
-        );
-        return { ...prevMsg, content: updatedContent };
+  // Initialize conversation
+  useEffect(() => {
+    // Only run this effect when:
+    // 1. Session is authenticated
+    // 2. sessionLoadedRef is true (prevents premature initialization)
+    // 3. We don't have a conversation ID yet
+    // 4. We haven't started initialization
+    if (
+      session?.user &&
+      sessionLoadedRef.current &&
+      !conversationId &&
+      !initializationRef.current
+    ) {
+      console.log("Starting conversation initialization");
+      initializationRef.current = true;
+
+      createConversationMutation.mutate(undefined, {
+        onSuccess: (data: { conversationId: string }) => {
+          console.log("Conversation created:", data.conversationId);
+          setConversationId(data.conversationId);
+        },
+        onError: (err: { message: string }) => {
+          console.error("Failed to create conversation:", err.message);
+          setError(new Error(`Failed to create conversation: ${err.message}`));
+          // Only reset the initialization ref on error so we can retry
+          initializationRef.current = false;
+        },
       });
-    },
-    onError: (err: TRPCClientErrorLike<AppRouter>) => {
-      console.error("Subscription error:", err);
-      setError(err);
-      if (currentAssistantMessage) {
-        setMessages((prevMsgs) =>
-          prevMsgs.map((m) =>
-            m.id === currentAssistantMessage.id
-              ? { ...m, content: `Error: ${err.message}` }
-              : m,
-          ),
-        );
-      }
-      setIsLoading(false);
-      setIsSubscriptionEnabled(false); // Disable subscription on error
-      setCurrentAssistantMessage(null);
-    },
-    onComplete: () => {
-      console.log("Subscription completed");
-      if (currentAssistantMessage) {
-        const finalContent = currentAssistantMessage.content.endsWith("▋")
-          ? currentAssistantMessage.content.slice(0, -1)
-          : currentAssistantMessage.content;
+    }
+  }, [
+    session,
+    sessionLoadedRef.current,
+    conversationId,
+    createConversationMutation,
+  ]);
 
-        setMessages((prevMsgs) =>
-          prevMsgs.map((m) =>
-            m.id === currentAssistantMessage.id
-              ? { ...m, content: finalContent }
-              : m,
+  // Manually execute the mutation
+  const manualSubmit = api.ai.manualChat.useMutation({
+    onSuccess: (data) => {
+      // When we get a successful response, update the assistant message
+      if (assistantMessageIdRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageIdRef.current
+              ? { ...msg, content: data }
+              : msg,
           ),
         );
       }
       setIsLoading(false);
-      setIsSubscriptionEnabled(false); // Disable subscription on completion
-      setCurrentAssistantMessage(null);
+    },
+    onError: (error) => {
+      console.error("Chat error:", error);
+      // Update the assistant message with the error
+      if (assistantMessageIdRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageIdRef.current
+              ? {
+                  ...msg,
+                  content:
+                    "I'm sorry, I encountered an error while processing your request. Please try again.",
+                }
+              : msg,
+          ),
+        );
+      }
+      setError(new Error(error.message));
+      setIsLoading(false);
     },
   });
 
   const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       setInput(e.target.value);
     },
     [],
   );
 
   const handleSubmit = useCallback(
-    (e?: React.FormEvent<HTMLFormElement>) => {
-      if (e) e.preventDefault();
-      if (!input.trim()) return;
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!input.trim() || isLoading || !session?.user) return;
 
-      // Add system message if this is the first message
-      addSystemMessageIfNeeded();
+      setIsLoading(true);
+      setError(null);
 
-      const newUserMessage: UISimpleMessage = {
-        id: Date.now().toString(),
+      // Add user message to UI
+      const userMessageId = uuidv4();
+      const userMessage: UISimpleMessage = {
+        id: userMessageId,
         role: "user",
         content: input,
       };
 
-      setPendingUserMessage(newUserMessage);
-
-      // Include all previous messages including system message
-      const messagesForApiInput: AIChatInput["messages"] = [
-        ...messages,
-        newUserMessage,
-      ].map((m) => ({
-        role: m.role,
-        content: m.content,
-        ...(m.id && { id: m.id }),
-      }));
-
-      setSubscriptionPayload({ messages: messagesForApiInput });
-      setIsSubscriptionEnabled(true); // Enable the subscription
+      setMessages((prev) => [...prev, userMessage]);
       setInput("");
+
+      // Store the current message to process
+      pendingMessageRef.current = input;
+
+      try {
+        // Prepare messages for API call
+        const apiMessages = messages.concat(userMessage);
+
+        // Add placeholder for assistant response
+        const assistantMessageId = uuidv4();
+        assistantMessageIdRef.current = assistantMessageId;
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: assistantMessageId,
+            role: "assistant",
+            content: "Thinking...",
+          },
+        ]);
+
+        // Call the manual mutation instead of using subscription
+        manualSubmit.mutate({
+          messages: apiMessages,
+          conversationId: conversationId ?? undefined,
+        });
+      } catch (err) {
+        console.error("Failed to send message:", err);
+        // Update the assistant message with the error
+        if (assistantMessageIdRef.current) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageIdRef.current
+                ? {
+                    ...msg,
+                    content: "Chat failed. Please try again later.",
+                  }
+                : msg,
+            ),
+          );
+        }
+
+        setError(
+          err instanceof Error ? err : new Error("Failed to send message"),
+        );
+        setIsLoading(false);
+      }
     },
-    [input, messages, addSystemMessageIfNeeded],
+    [input, isLoading, messages, conversationId, session, manualSubmit],
   );
 
   return {
     messages,
     input,
-    isLoading,
-    error,
     handleInputChange,
     handleSubmit,
-    setInput,
-    setMessages,
+    isLoading,
+    error,
+    conversationId,
   };
 }

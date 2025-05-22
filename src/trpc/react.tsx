@@ -11,6 +11,8 @@ import { createTRPCReact } from "@trpc/react-query";
 import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { useState } from "react";
 import SuperJSON from "superjson";
+import { SessionProvider } from "next-auth/react";
+import { type Session } from "next-auth";
 
 import { type AppRouter } from "~/server/api/root";
 import { createQueryClient } from "./query-client";
@@ -43,7 +45,10 @@ export type RouterInputs = inferRouterInputs<AppRouter>;
  */
 export type RouterOutputs = inferRouterOutputs<AppRouter>;
 
-export function TRPCReactProvider(props: { children: React.ReactNode }) {
+export function TRPCReactProvider(props: {
+  children: React.ReactNode;
+  session?: Session | null; // Properly typed session from next-auth
+}) {
   const queryClient = getQueryClient();
 
   const [trpcClient] = useState(() =>
@@ -61,6 +66,10 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
             transformer: SuperJSON, // Assuming subscriptions also use SuperJSON
             // Headers are typically handled by cookies for same-domain SSE
             // or via eventSourceOptions for more complex scenarios.
+            eventSourceOptions: {
+              withCredentials: true, // Make sure cookies are sent with requests
+              heartbeatTimeout: 60000, // 60 seconds timeout
+            },
           }),
           false: httpBatchStreamLink({
             transformer: SuperJSON,
@@ -77,11 +86,13 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <api.Provider client={trpcClient} queryClient={queryClient}>
-        {props.children}
-      </api.Provider>
-    </QueryClientProvider>
+    <SessionProvider session={props.session}>
+      <QueryClientProvider client={queryClient}>
+        <api.Provider client={trpcClient} queryClient={queryClient}>
+          {props.children}
+        </api.Provider>
+      </QueryClientProvider>
+    </SessionProvider>
   );
 }
 
