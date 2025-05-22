@@ -1,17 +1,7 @@
 import { z } from "zod";
 
-// Experience requirement object schema
-const ExperienceRequirementSchema = z.object({
-  years: z.number().optional().describe("Number of years required"),
-  description: z.string().describe("Description of the experience requirement"),
-  category: z
-    .string()
-    .optional()
-    .describe("Category like 'management', 'technical', 'industry'"),
-});
-
 // Schema for job posting details that will be extracted by the LLM
-// Note: We inline the requirements structure to avoid $ref issues with Google AI
+// Note: We completely inline all structures to avoid any $ref issues with Google AI
 export const JobPostingDetailsSchema = z.object({
   // Structured requirements for compatibility analysis
   requirements: z
@@ -37,9 +27,20 @@ export const JobPostingDetailsSchema = z.object({
           "Education requirements including degree level, field of study, professional certifications, licenses, and credentials",
         ),
 
-      // Experience requirements with years and context
+      // Experience requirements with years and context (completely inlined)
       experienceRequirements: z
-        .array(ExperienceRequirementSchema)
+        .array(
+          z.object({
+            years: z.number().optional().describe("Number of years required"),
+            description: z
+              .string()
+              .describe("Description of the experience requirement"),
+            category: z
+              .string()
+              .optional()
+              .describe("Category like 'management', 'technical', 'industry'"),
+          }),
+        )
         .describe("Experience requirements broken down by years and type"),
 
       // Industry-specific requirements
@@ -53,7 +54,7 @@ export const JobPostingDetailsSchema = z.object({
       "Detailed breakdown of job requirements for compatibility analysis",
     ),
 
-  // Bonus/preferred requirements using same structure (inlined to avoid $ref)
+  // Bonus/preferred requirements using same structure (completely inlined to avoid $ref)
   bonusRequirements: z
     .object({
       // Technical skills extracted from the posting
@@ -77,9 +78,20 @@ export const JobPostingDetailsSchema = z.object({
           "Education requirements including degree level, field of study, professional certifications, licenses, and credentials",
         ),
 
-      // Experience requirements with years and context
+      // Experience requirements with years and context (completely inlined)
       experienceRequirements: z
-        .array(ExperienceRequirementSchema)
+        .array(
+          z.object({
+            years: z.number().optional().describe("Number of years required"),
+            description: z
+              .string()
+              .describe("Description of the experience requirement"),
+            category: z
+              .string()
+              .optional()
+              .describe("Category like 'management', 'technical', 'industry'"),
+          }),
+        )
         .describe("Experience requirements broken down by years and type"),
 
       // Industry-specific requirements
@@ -114,7 +126,11 @@ export const ParsedJobPostingSchema = z.object({
 });
 
 // Infer types from schemas
-export type ExperienceRequirement = z.infer<typeof ExperienceRequirementSchema>;
+export type ExperienceRequirement = {
+  years?: number;
+  description: string;
+  category?: string;
+};
 export type JobPostingDetails = z.infer<typeof JobPostingDetailsSchema>;
 export type JobPostingData = z.infer<typeof JobPostingDataSchema>;
 export type ParsedJobPosting = z.infer<typeof ParsedJobPostingSchema>;
