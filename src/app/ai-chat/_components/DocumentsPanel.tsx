@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
+import DocumentUpload from "~/app/_components/document-upload";
 
 export function DocumentsPanel() {
   const [editId, setEditId] = useState<string | null>(null);
@@ -103,6 +104,9 @@ export function DocumentsPanel() {
 
   return (
     <div className="h-full">
+      <div className="mb-4">
+        <DocumentUpload />
+      </div>
       <h2 className="mb-4 text-xl font-semibold">Your Documents</h2>
 
       {documents.length === 0 ? (

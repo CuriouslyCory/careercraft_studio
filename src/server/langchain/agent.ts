@@ -10,128 +10,142 @@ import { env } from "~/env";
 import { type StructuredTool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt"; // Corrected import path
 
-// Define the output schema for parsed resume data
-export const ResumeDataSchema = z.object({
-  summary: z
+// Define individual schemas for each section
+export const SkillSchema = z
+  .string()
+  .describe("A key skill, technology, or proficiency.");
+
+export const WorkExperienceSchema = z.object({
+  jobTitle: z.string().optional().describe("The job title."),
+  company: z.string().optional().describe("The company name."),
+  location: z.string().optional().describe("The location of the job."),
+  startDate: z
     .string()
+    .pipe(z.coerce.date())
     .optional()
     .describe(
-      "A brief professional summary from the resume, if present (2-4 sentences). If no summary is present, generate one based on the resume.",
+      "Employment start date. Format as ISO 8601 date string (e.g., '2020-01-01'). If no day is present use the first day of the month.",
     ),
-  skills: z
-    .array(z.string().describe("A key skill, technology, or proficiency."))
+  endDate: z
+    .string()
+    .pipe(z.coerce.date())
     .optional()
     .describe(
-      "Flat array of key skills, technologies, and proficiencies extracted from the resume or other document. Be comprehensive.",
+      [
+        "Employment end date. Format as ISO 8601 date string (e.g., '2020-01-01').",
+        "If no day is present use the last day of the month.",
+        "If the end date is 'current' or 'present', allow the endDate to be undefined.",
+      ].join("\n"),
     ),
-  work_experience: z
-    .array(
-      z.object({
-        jobTitle: z.string().optional().describe("The job title."),
-        company: z.string().optional().describe("The company name."),
-        location: z.string().optional().describe("The location of the job."),
-        startDate: z
-          .string()
-          .pipe(z.coerce.date())
-          .optional()
-          .describe(
-            "Employment start date. Format as ISO 8601 date string (e.g., '2020-01-01'). If no day is present use the first day of the month.",
-          ),
-        endDate: z
-          .string()
-          .pipe(z.coerce.date())
-          .optional()
-          .describe(
-            [
-              "Employment end date. Format as ISO 8601 date string (e.g., '2020-01-01').",
-              "If no day is present use the last day of the month.",
-              "If the end date is 'current' or 'present', allow the endDate to be undefined.",
-            ].join("\n"),
-          ),
-        achievements: z
-          .array(z.string())
-          .optional()
-          .describe(
-            "Key responsibilities or achievements in this role as bullet points or short descriptions.",
-          ),
-        skills: z
-          .array(z.string())
-          .optional()
-          .describe(
-            "Key skills or technologies used in this role as bullet points or short descriptions.",
-          ),
-      }),
-    )
-    .optional()
-    .describe(
-      "List of professional experiences. Include all distinct roles found.",
-    ),
-  education: z
-    .array(
-      z.object({
-        type: z
-          .enum([
-            "HIGH_SCHOOL",
-            "GED",
-            "ASSOCIATES",
-            "BACHELORS",
-            "MASTERS",
-            "DOCTORATE",
-            "CERTIFICATION",
-            "OTHER",
-          ])
-          .describe(
-            "Education type. Must be one of: HIGH_SCHOOL, GED, ASSOCIATES, BACHELORS, MASTERS, DOCTORATE, CERTIFICATION, OTHER.",
-          ),
-        institutionName: z
-          .string()
-          .describe("Name of the educational institution."),
-        degreeOrCertName: z
-          .string()
-          .optional()
-          .describe("Degree or certification obtained."),
-        description: z
-          .string()
-          .describe("Additional details, e.g., field of study."),
-        dateCompleted: z
-          .string()
-          .pipe(z.coerce.date())
-          .optional()
-          .describe(
-            "The date the education was completed (if listed) as ISO 8601 string. If no date is listed allow the value to be undefined.",
-          ),
-      }),
-    )
-    .describe("List of educational qualifications."),
-  contactInfo: z
-    .object({
-      email: z.string().optional().describe("Email address."),
-      phone: z.string().optional().describe("Phone number."),
-      linkedin: z.string().optional().describe("LinkedIn profile URL."),
-      github: z.string().optional().describe("GitHub profile URL."),
-      portfolio: z
-        .string()
-        .optional()
-        .describe("Portfolio or personal website URL."),
-    })
-    .optional()
-    .describe("Contact information extracted from the resume."),
-  key_achievements: z
+  achievements: z
     .array(z.string())
     .optional()
     .describe(
-      "Key achievements, awards, and accomplishments from the resume as bullet points or short descriptions.",
+      "Key responsibilities or achievements in this role as bullet points or short descriptions.",
     ),
-  // otherSections: z
-  //   .record(z.string(), z.any())
-  //   .optional()
-  //   .describe(
-  //     "Any other relevant sections found in the resume (e.g., Awards, Certifications, Projects) as key-value pairs, where the key is the section title and the value could be a string or array of strings.",
-  //   ),
+  skills: z
+    .array(SkillSchema)
+    .optional()
+    .describe(
+      "Key skills or technologies used in this role as bullet points or short descriptions.",
+    ),
+});
+
+export const EducationTypeEnum = z.enum([
+  "HIGH_SCHOOL",
+  "GED",
+  "ASSOCIATES",
+  "BACHELORS",
+  "MASTERS",
+  "DOCTORATE",
+  "CERTIFICATION",
+  "OTHER",
+]);
+
+export const EducationSchema = z.object({
+  type: EducationTypeEnum.describe(
+    "Education type. Must be one of: HIGH_SCHOOL, GED, ASSOCIATES, BACHELORS, MASTERS, DOCTORATE, CERTIFICATION, OTHER.",
+  ),
+  institutionName: z.string().describe("Name of the educational institution."),
+  degreeOrCertName: z
+    .string()
+    .optional()
+    .describe("Degree or certification obtained."),
+  description: z.string().describe("Additional details, e.g., field of study."),
+  dateCompleted: z
+    .string()
+    .pipe(z.coerce.date())
+    .optional()
+    .describe(
+      "The date the education was completed (if listed) as ISO 8601 string. If no date is listed allow the value to be undefined.",
+    ),
+});
+
+export const ContactInfoSchema = z
+  .object({
+    email: z.string().optional().describe("Email address."),
+    phone: z.string().optional().describe("Phone number."),
+    linkedin: z.string().optional().describe("LinkedIn profile URL."),
+    github: z.string().optional().describe("GitHub profile URL."),
+    portfolio: z
+      .string()
+      .optional()
+      .describe("Portfolio or personal website URL."),
+  })
+  .optional()
+  .describe("Contact information extracted from the document.");
+
+export const SummarySchema = z
+  .string()
+  .optional()
+  .describe(
+    "A brief professional summary from the resume, if present (2-4 sentences). If no summary is present, generate one based on the resume.",
+  );
+
+export const SkillsArraySchema = z
+  .array(SkillSchema)
+  .optional()
+  .describe(
+    "Flat array of key skills, technologies, and proficiencies extracted from the resume or other document. Be comprehensive.",
+  );
+
+export const WorkExperienceArraySchema = z
+  .array(WorkExperienceSchema)
+  .optional()
+  .describe(
+    "List of professional experiences. Include all distinct roles found.",
+  );
+
+export const EducationArraySchema = z
+  .array(EducationSchema)
+  .describe(
+    "List of educational qualifications. Includes all distinct degrees, certifications, or other education.",
+  );
+
+export const KeyAchievementsArraySchema = z
+  .array(z.string())
+  .optional()
+  .describe(
+    "Key achievements, awards, and accomplishments from the resume as bullet points or short descriptions.",
+  );
+
+// Now compose the main schema using the individual schemas
+export const ResumeDataSchema = z.object({
+  summary: SummarySchema,
+  skills: SkillsArraySchema,
+  work_experience: WorkExperienceArraySchema,
+  education: EducationArraySchema,
+  contact_info: ContactInfoSchema,
+  key_achievements: KeyAchievementsArraySchema,
 });
 
 export type ParsedResumeData = z.infer<typeof ResumeDataSchema>;
-
+export type SkillData = z.infer<typeof SkillSchema>;
+export type WorkExperienceData = z.infer<typeof WorkExperienceSchema>;
+export type EducationType = z.infer<typeof EducationTypeEnum>;
+export type EducationData = z.infer<typeof EducationSchema>;
+export type ContactInfoData = z.infer<typeof ContactInfoSchema>;
+export type KeyAchievementsData = z.infer<typeof KeyAchievementsArraySchema>;
 // Define the tools we'll use
 const tools: StructuredTool[] = [];
 

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useTrpcChat, type UISimpleMessage } from "~/lib/hooks/useTrpcChat";
-import DocumentUpload from "~/app/_components/document-upload";
 
 export function ChatInterface() {
   const {
@@ -18,9 +17,7 @@ export function ChatInterface() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-6">
-        <DocumentUpload />
-      </div>
+      <div className="mb-6"></div>
       <div className="mb-4 flex items-center gap-4">
         <div className="flex-grow border-b border-gray-200 pb-2 text-center">
           <h1 className="text-2xl font-bold text-gray-900">

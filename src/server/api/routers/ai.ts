@@ -10,16 +10,10 @@ import {
 import {
   createAgentTeam,
   convertToAgentStateInput,
-  createLLM,
-  type AgentStateType,
 } from "~/server/langchain/agentTeam";
-import {
-  type BaseMessage,
-  SystemMessage,
-  HumanMessage,
-  AIMessage,
-} from "@langchain/core/messages";
+import { type BaseMessage } from "@langchain/core/messages";
 import { MessageRole } from "@prisma/client";
+import { type PrismaClient } from "@prisma/client";
 
 // Schema for messages
 const MessageSchema = z
@@ -36,37 +30,66 @@ const ChatInputSchema = z.object({
 export type AIChatInput = z.infer<typeof ChatInputSchema>;
 
 // Type for chunks with content
-interface ContentChunk {
+type ContentChunk = {
   content: string;
-}
+};
 
 // Type for agent messages
-interface AgentMessage {
+type AgentMessage = {
   content: string;
   name?: string;
   additional_kwargs?: Record<string, unknown>;
   response_metadata?: Record<string, unknown>;
-}
+};
 
 // Type for agent output in stream chunks
-interface AgentOutput {
+type AgentOutput = {
   messages?: AgentMessage[];
   next?: string;
-}
+};
 
 // Type for stream chunks from LangGraph
-interface StreamChunk {
+type StreamChunk = {
   __end__?: boolean;
   [agentType: string]: AgentOutput | boolean | undefined;
-}
+};
 
 // Define the agent state type
-interface AgentState {
+type AgentState = {
   messages: BaseMessage[];
   next: string;
+};
+
+// Helper function to save a chat message to the database
+async function saveChatMessage(
+  db: PrismaClient,
+  role: MessageRole,
+  content: string,
+  conversationId: string | undefined,
+  userId: string,
+) {
+  try {
+    await db.chatMessage.create({
+      data: {
+        role,
+        content,
+        conversationId,
+        userId,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to save chat message to database:", error);
+  }
 }
 
+/**
+ * TRPC router for AI-related procedures.
+ */
 export const aiRouter = createTRPCRouter({
+  /**
+   * Streams AI chat responses.
+   * Stores user and assistant messages in the database.
+   */
   chat: protectedProcedure
     .input(ChatInputSchema)
     .subscription(({ input, ctx }) => {
@@ -90,14 +113,13 @@ export const aiRouter = createTRPCRouter({
             // Store the user message in the database
             const lastMessage = input.messages[input.messages.length - 1];
             if (lastMessage?.role === "user") {
-              await ctx.db.chatMessage.create({
-                data: {
-                  role: MessageRole.USER,
-                  content: lastMessage.content,
-                  conversationId: input.conversationId,
-                  userId: ctx.session.user.id,
-                },
-              });
+              await saveChatMessage(
+                ctx.db,
+                MessageRole.USER,
+                lastMessage.content,
+                input.conversationId,
+                ctx.session.user.id,
+              );
             }
 
             // Send an initial message to the client
@@ -175,14 +197,13 @@ export const aiRouter = createTRPCRouter({
 
               // Store the final assistant response in the database
               if (finalResponse) {
-                await ctx.db.chatMessage.create({
-                  data: {
-                    role: MessageRole.ASSISTANT,
-                    content: finalResponse,
-                    conversationId: input.conversationId,
-                    userId: ctx.session.user.id,
-                  },
-                });
+                await saveChatMessage(
+                  ctx.db,
+                  MessageRole.ASSISTANT,
+                  finalResponse,
+                  input.conversationId,
+                  ctx.session.user.id,
+                );
               }
 
               console.log("Stream completed successfully.");
@@ -195,14 +216,13 @@ export const aiRouter = createTRPCRouter({
               emit.next(errorMessage);
 
               // Store the error response
-              await ctx.db.chatMessage.create({
-                data: {
-                  role: MessageRole.ASSISTANT,
-                  content: errorMessage,
-                  conversationId: input.conversationId,
-                  userId: ctx.session.user.id,
-                },
-              });
+              await saveChatMessage(
+                ctx.db,
+                MessageRole.ASSISTANT,
+                errorMessage,
+                input.conversationId,
+                ctx.session.user.id,
+              );
 
               // Complete the stream instead of throwing an error
               emit.complete();
@@ -215,14 +235,13 @@ export const aiRouter = createTRPCRouter({
 
             try {
               // Try to store the error response
-              await ctx.db.chatMessage.create({
-                data: {
-                  role: MessageRole.ASSISTANT,
-                  content: errorMessage,
-                  conversationId: input.conversationId ?? "error-session",
-                  userId: ctx.session.user.id,
-                },
-              });
+              await saveChatMessage(
+                ctx.db,
+                MessageRole.ASSISTANT,
+                errorMessage,
+                input.conversationId ?? "error-session",
+                ctx.session.user.id,
+              );
             } catch (dbError) {
               console.error("Failed to store error message:", dbError);
             }
@@ -247,21 +266,27 @@ export const aiRouter = createTRPCRouter({
       });
     }),
 
-  // Create a new conversation
+  /**
+   * Create a new conversation.
+   * @returns The ID of the newly created conversation.
+   */
   createConversation: protectedProcedure.mutation(async ({ ctx }) => {
     const conversationId = crypto.randomUUID();
-    await ctx.db.chatMessage.create({
-      data: {
-        role: MessageRole.SYSTEM,
-        content: "Welcome to Resume Master! How can I help you today?",
-        conversationId,
-        userId: ctx.session.user.id,
-      },
-    });
+    await saveChatMessage(
+      ctx.db,
+      MessageRole.ASSISTANT,
+      "Welcome to Resume Master! How can I help you today?",
+      conversationId,
+      ctx.session.user.id,
+    );
     return { conversationId };
   }),
 
-  // Get conversation messages
+  /**
+   * Get conversation messages.
+   * @param input - Object containing the conversationId.
+   * @returns An array of chat messages for the conversation.
+   */
   getConversation: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -274,6 +299,12 @@ export const aiRouter = createTRPCRouter({
       });
     }),
 
+  /**
+   * Parses resume text using an AI agent.
+   * @param input - Object containing the resumeText.
+   * @returns Structured data parsed from the resume.
+   * @throws If parsing or validation fails.
+   */
   resumeParsing: protectedProcedure
     .input(
       z.object({
@@ -338,6 +369,12 @@ export const aiRouter = createTRPCRouter({
       }
     }),
 
+  /**
+   * Analyzes a job description using an AI agent.
+   * @param input - Object containing the jobDescription.
+   * @returns An object with the analysis result string.
+   * @throws If the analysis fails.
+   */
   jobAnalysis: protectedProcedure
     .input(z.object({ jobDescription: z.string() }))
     .mutation(async ({ input }) => {
@@ -374,7 +411,13 @@ export const aiRouter = createTRPCRouter({
       }
     }),
 
-  // Add a regular mutation endpoint for non-streaming chat
+  /**
+   * Handles non-streaming chat interactions.
+   * Stores user and assistant messages in the database.
+   * @param input - Object containing messages and optional conversationId.
+   * @returns The final assistant response string.
+   * @throws If chat processing fails.
+   */
   manualChat: protectedProcedure
     .input(ChatInputSchema)
     .mutation(async ({ input, ctx }) => {
@@ -395,14 +438,13 @@ export const aiRouter = createTRPCRouter({
         // Store the user message in the database
         const lastMessage = input.messages[input.messages.length - 1];
         if (lastMessage?.role === "user") {
-          await ctx.db.chatMessage.create({
-            data: {
-              role: MessageRole.USER,
-              content: lastMessage.content,
-              conversationId: input.conversationId,
-              userId: ctx.session.user.id,
-            },
-          });
+          await saveChatMessage(
+            ctx.db,
+            MessageRole.USER,
+            lastMessage.content,
+            input.conversationId,
+            ctx.session.user.id,
+          );
         }
 
         // Create the agent team
@@ -456,14 +498,13 @@ export const aiRouter = createTRPCRouter({
         }
 
         // Store the final assistant response in the database
-        await ctx.db.chatMessage.create({
-          data: {
-            role: MessageRole.ASSISTANT,
-            content: finalResponse,
-            conversationId: input.conversationId,
-            userId: ctx.session.user.id,
-          },
-        });
+        await saveChatMessage(
+          ctx.db,
+          MessageRole.ASSISTANT,
+          finalResponse,
+          input.conversationId,
+          ctx.session.user.id,
+        );
 
         return finalResponse;
       } catch (error) {
@@ -475,14 +516,13 @@ export const aiRouter = createTRPCRouter({
 
         // Try to store the error response
         try {
-          await ctx.db.chatMessage.create({
-            data: {
-              role: MessageRole.ASSISTANT,
-              content: errorMessage,
-              conversationId: input.conversationId ?? "error-session",
-              userId: ctx.session.user.id,
-            },
-          });
+          await saveChatMessage(
+            ctx.db,
+            MessageRole.ASSISTANT,
+            errorMessage,
+            input.conversationId ?? "error-session",
+            ctx.session.user.id,
+          );
         } catch (dbError) {
           console.error("Failed to store error message:", dbError);
         }
@@ -493,46 +533,5 @@ export const aiRouter = createTRPCRouter({
       }
     }),
 });
-
-// Type guard to check if an object has a content property of type string
-function isContentChunk(obj: unknown): obj is ContentChunk {
-  return Boolean(
-    obj &&
-      typeof obj === "object" &&
-      "content" in obj &&
-      typeof (obj as ContentChunk).content === "string",
-  );
-}
-
-// Helper function to extract content from unknown chunk formats
-function extractContentFromUnknownChunk(chunk: unknown): string | null {
-  try {
-    if (!chunk) return null;
-
-    // If it's a string, return it directly
-    if (typeof chunk === "string") return chunk;
-
-    // If it has a content property that's a string, use our type guard
-    if (isContentChunk(chunk)) {
-      return chunk.content;
-    }
-
-    // If it's an object, try to check for a text property
-    if (typeof chunk === "object" && chunk !== null) {
-      const objWithText = chunk as { text?: string };
-      if (objWithText.text && typeof objWithText.text === "string") {
-        return objWithText.text;
-      }
-
-      // Try to convert entire object to string
-      return JSON.stringify(chunk);
-    }
-
-    return null;
-  } catch (error) {
-    console.error("Error extracting content from chunk:", error);
-    return null;
-  }
-}
 
 export type AIRouter = typeof aiRouter;
