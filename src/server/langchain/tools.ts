@@ -4,6 +4,8 @@ import { db } from "~/server/db";
 import { createLLM } from "./agent";
 import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import { END } from "@langchain/langgraph";
+import { parseJobPosting } from "./jobPostingParser";
+import { type ParsedJobPosting } from "./jobPostingSchemas";
 
 // =============================================================================
 // USER PROFILE TOOLS
@@ -460,6 +462,103 @@ Merged list:`;
 });
 
 // =============================================================================
+// JOB POSTING TOOLS
+// =============================================================================
+
+/**
+ * Tool to parse job posting content and extract structured data
+ */
+export const parseJobPostingTool = new DynamicStructuredTool({
+  name: "parse_job_posting",
+  description:
+    "Parse a job posting text and extract structured information including title, company, location, industry, responsibilities, qualifications, and bonus qualifications",
+  schema: z.object({
+    content: z.string().describe("The raw job posting content/text to parse"),
+  }),
+  func: async ({ content }) => {
+    console.log("Parsing job posting content using LLM...");
+
+    try {
+      const parsedData = await parseJobPosting(content);
+      console.log("Successfully parsed job posting data");
+      return JSON.stringify(parsedData);
+    } catch (error) {
+      console.error("Error parsing job posting:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return `Error parsing job posting: ${errorMessage}`;
+    }
+  },
+});
+
+/**
+ * Tool to store parsed job posting data in the database
+ * TODO: This requires Prisma client regeneration after schema changes
+ */
+export function createStoreJobPostingTool(
+  userId: string,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
+    name: "store_job_posting",
+    description: "Store a parsed job posting in the database with all details",
+    schema: z.object({
+      parsedJobPosting: z
+        .string()
+        .describe("JSON string of the parsed job posting data"),
+    }),
+    func: async ({ parsedJobPosting }: { parsedJobPosting: string }) => {
+      console.log(`Storing job posting data for user ID: ${userId}`);
+
+      try {
+        if (!userId) {
+          return "User ID is required but not provided. Please ensure you're logged in.";
+        }
+
+        // Parse the JSON string with proper type checking
+        let jobData: ParsedJobPosting;
+        try {
+          jobData = JSON.parse(parsedJobPosting) as ParsedJobPosting;
+        } catch (parseError) {
+          return "Error: Invalid JSON format for job posting data";
+        }
+
+        const { jobPosting } = jobData;
+
+        // Create the job posting record
+        const createdJobPosting = await db.jobPosting.create({
+          data: {
+            title: jobPosting.title,
+            content: parsedJobPosting,
+            company: jobPosting.company,
+            location: jobPosting.location,
+            industry: jobPosting.industry ?? undefined,
+            user: { connect: { id: userId } },
+          },
+        });
+
+        // Create the job posting details
+        await db.jobPostingDetails.create({
+          data: {
+            responsibilities: jobPosting.details.responsibilities,
+            qualifications: jobPosting.details.qualifications,
+            bonusQualifications: jobPosting.details.bonusQualifications,
+            jobPosting: { connect: { id: createdJobPosting.id } },
+          },
+        });
+
+        console.log("Successfully stored job posting and details");
+        return `Successfully stored job posting: "${jobPosting.title}" at ${jobPosting.company}`;
+      } catch (error) {
+        console.error("Error processing job posting:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return `Error processing job posting: ${errorMessage}`;
+      }
+    },
+  });
+}
+
+// =============================================================================
 // ROUTING TOOLS
 // =============================================================================
 
@@ -526,6 +625,13 @@ export function getCoverLetterGeneratorTools(
  */
 export function getUserProfileTools(userId: string): DynamicStructuredTool[] {
   return [createUserProfileTool(userId)];
+}
+
+/**
+ * Get job posting tools for the job posting manager agent
+ */
+export function getJobPostingTools(userId: string): DynamicStructuredTool[] {
+  return [parseJobPostingTool, createStoreJobPostingTool(userId)];
 }
 
 /**

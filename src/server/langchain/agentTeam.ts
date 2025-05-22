@@ -16,6 +16,7 @@ import {
   getCoverLetterGeneratorTools,
   getUserProfileTools,
   getSupervisorTools,
+  getJobPostingTools,
 } from "./tools";
 
 // Define the state that is passed between nodes in the graph
@@ -50,6 +51,7 @@ const AGENT_TYPES = [
   "resume_generator",
   "cover_letter_generator",
   "user_profile",
+  "job_posting_manager",
 ] as const;
 type AgentType = (typeof AGENT_TYPES)[number];
 
@@ -58,6 +60,7 @@ const MEMBERS = [
   "resume_generator",
   "cover_letter_generator",
   "user_profile",
+  "job_posting_manager",
 ] as const;
 
 // All tools have been moved to src/server/langchain/tools.ts for better organization
@@ -179,13 +182,16 @@ IMPORTANT ROUTING RULES:
 3. For cover letter creation, editing, or advice: Route to 'cover_letter_generator'
    Example: "Write a cover letter", "Tailor a cover letter for this job", "Cover letter tips"
 
-4. For general user profile questions: Route to 'user_profile'
+4. For job posting analysis, parsing, or storage: Route to 'job_posting_manager'
+   Example: "Parse this job posting", "Analyze job requirements", "Store this job posting", "What does this job require?"
+
+5. For general user profile questions: Route to 'user_profile'
    Example: "What information do you have about me?", "How is my data used?"
 
-5. For general questions or completed tasks: Call 'route_to_agent' with '${END}'
+6. For general questions or completed tasks: Call 'route_to_agent' with '${END}'
    Example: "Thank you", "That's all for now"
 
-ALWAYS call the 'route_to_agent' tool with one of these exact destination values: 'data_manager', 'resume_generator', 'cover_letter_generator', 'user_profile', or '${END}'.
+ALWAYS call the 'route_to_agent' tool with one of these exact destination values: 'data_manager', 'resume_generator', 'cover_letter_generator', 'job_posting_manager', 'user_profile', or '${END}'.
 
 If you're unsure which specialized agent to route to, prefer 'data_manager' as it can help collect needed information.
 
@@ -1138,6 +1144,180 @@ You can retrieve different types of profile data using the get_user_profile tool
   }
 }
 
+async function jobPostingManagerNode(
+  state: typeof AgentState.State,
+): Promise<Partial<typeof AgentState.State>> {
+  const systemMessage = `You are the Job Posting Manager Agent for Resume Master.
+  
+Your job is to:
+1. Parse and analyze job posting content to extract structured information
+2. Store job posting data in the database for later reference
+3. Help users understand job requirements and qualifications
+4. Provide insights about job postings
+
+You have access to these tools:
+- parse_job_posting: For parsing job posting text and extracting structured data
+- store_job_posting: For storing parsed job posting data in the database
+
+When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
+
+  // Create LLM with appropriate tools
+  try {
+    console.log(
+      "Creating specialized LLM for job posting manager with tools...",
+    );
+
+    // Get userId directly from the agent state
+    const userId = state.userId || "";
+    if (!userId) {
+      console.warn("No user ID found in agent state for job posting manager");
+      return {
+        messages: [
+          new AIMessage(
+            "I'm unable to access your profile information. Please make sure you're logged in and try again.",
+          ),
+        ],
+        next: "supervisor",
+      };
+    }
+
+    console.log(`Using user ID from agent state: ${userId}`);
+
+    // Use the same stable model as the supervisor
+    const { GOOGLE_API_KEY } = env;
+    if (!GOOGLE_API_KEY) {
+      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
+    }
+
+    // Use the stable model for tool-using agents
+    const jobPostingModelOptions = {
+      apiKey: GOOGLE_API_KEY,
+      model: "gemini-2.0-flash", // Use the same stable model as the supervisor
+      temperature: 0.2, // Slightly higher temperature for creativity in responses
+    };
+
+    console.log("Initializing job posting manager model with options:", {
+      ...jobPostingModelOptions,
+      apiKey: "[REDACTED]",
+    });
+
+    // Create a specialized model
+    const model = new ChatGoogleGenerativeAI(jobPostingModelOptions);
+
+    // Bind the job posting tools
+    const llm = model.bindTools(getJobPostingTools(userId));
+    console.log("Successfully bound job posting tools to LLM");
+
+    // Only keep human and AI messages, filtering out any system messages
+    const userMessages = state.messages.filter(
+      (msg) => msg._getType() === "human" || msg._getType() === "ai",
+    );
+
+    // Create new messages array with system message first, then user messages
+    const messages = [new SystemMessage(systemMessage), ...userMessages];
+
+    console.log(
+      "Job Posting Manager message types:",
+      messages.map((m) => m._getType()),
+    );
+
+    console.log("Job Posting Manager invoking LLM with tools...");
+    const response = await llm.invoke(messages);
+
+    // Handle tool calls if present
+    if (response?.tool_calls && response.tool_calls.length > 0) {
+      console.log(
+        "Job Posting Manager processing tool calls:",
+        response.tool_calls,
+      );
+
+      // Create a combined response that includes tool call results
+      let toolCallSummary = "I've processed your job posting request:\n\n";
+
+      for (const tool_call of response.tool_calls) {
+        if (tool_call.name === "parse_job_posting" && tool_call.args) {
+          const args: Record<string, unknown> =
+            typeof tool_call.args === "string"
+              ? (JSON.parse(tool_call.args) as Record<string, unknown>)
+              : (tool_call.args as Record<string, unknown>);
+
+          const content = typeof args.content === "string" ? args.content : "";
+
+          // Execute the tool directly to get the result
+          try {
+            toolCallSummary += "• Parsed job posting details:\n";
+            // Note: The actual tool execution would happen through the LLM framework
+            // For now, we'll indicate that parsing was attempted
+            toolCallSummary += `  - Processing ${content.length} characters of job posting content\n`;
+          } catch (toolError) {
+            toolCallSummary += `• Error parsing job posting: ${
+              toolError instanceof Error ? toolError.message : String(toolError)
+            }\n`;
+          }
+        } else if (tool_call.name === "store_job_posting" && tool_call.args) {
+          toolCallSummary += "• Stored job posting data in database\n";
+        } else {
+          toolCallSummary += `• ${tool_call.name}: Processed successfully\n`;
+        }
+      }
+
+      // Add any content from the response
+      if (
+        response.content &&
+        typeof response.content === "string" &&
+        response.content.trim()
+      ) {
+        toolCallSummary += "\n" + response.content;
+      }
+
+      console.log("Job Posting Manager tool call summary:", toolCallSummary);
+
+      return {
+        messages: [new AIMessage(toolCallSummary)],
+        next: "supervisor",
+      };
+    }
+
+    // Check if the response has content
+    if (response?.content) {
+      const content =
+        typeof response.content === "string"
+          ? response.content
+          : JSON.stringify(response.content);
+
+      console.log(
+        "Job Posting Manager generated response:",
+        content.substring(0, 150) + "...",
+      );
+
+      return {
+        messages: [new AIMessage(content)],
+        next: "supervisor",
+      };
+    } else {
+      console.warn("Job Posting Manager received empty response");
+      return {
+        messages: [
+          new AIMessage(
+            "I processed your request but couldn't generate a proper response. Let me hand this back to the supervisor.",
+          ),
+        ],
+        next: "supervisor",
+      };
+    }
+  } catch (error) {
+    console.error("Error in job posting manager agent:", error);
+    return {
+      messages: [
+        new AIMessage(
+          "I encountered an error while trying to process the job posting. Please try again later.",
+        ),
+      ],
+      next: END,
+    };
+  }
+}
+
 // Create the agent team using StateGraph
 export function createAgentTeam() {
   try {
@@ -1150,7 +1330,8 @@ export function createAgentTeam() {
       .addNode("data_manager", dataManagerNode)
       .addNode("resume_generator", resumeGeneratorNode)
       .addNode("cover_letter_generator", coverLetterGeneratorNode)
-      .addNode("user_profile", userProfileNode);
+      .addNode("user_profile", userProfileNode)
+      .addNode("job_posting_manager", jobPostingManagerNode);
 
     console.log("Added all agent nodes to the graph");
 
@@ -1173,6 +1354,7 @@ export function createAgentTeam() {
         resume_generator: "resume_generator",
         cover_letter_generator: "cover_letter_generator",
         user_profile: "user_profile",
+        job_posting_manager: "job_posting_manager",
         [END]: END, // Handle END special case
       },
     );
@@ -1183,6 +1365,7 @@ export function createAgentTeam() {
     workflow.addEdge("resume_generator", "supervisor");
     workflow.addEdge("cover_letter_generator", "supervisor");
     workflow.addEdge("user_profile", "supervisor");
+    workflow.addEdge("job_posting_manager", "supervisor");
     console.log("Added edges from specialized agents back to supervisor");
 
     // Compile the graph

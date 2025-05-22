@@ -7,6 +7,8 @@ import { createLLM } from "~/server/langchain/agent";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { EducationType } from "@prisma/client";
 import { HumanMessage } from "@langchain/core/messages";
+import { parseJobPosting } from "~/server/langchain/jobPostingParser";
+import { type PrismaClient } from "@prisma/client";
 
 // Minimal types for pdf2json output
 interface PDFTextBlock {
@@ -119,6 +121,48 @@ Merged list:`;
   }
 }
 
+// Helper function to detect document type (resume vs job posting)
+async function detectDocumentType(
+  content: string,
+): Promise<"resume" | "job_posting"> {
+  console.log("Detecting document type for content...");
+
+  try {
+    const llm = createLLM();
+
+    const prompt = `You are a document type classifier. Your task is to determine if the provided content is a RESUME or a JOB POSTING.
+
+Guidelines:
+- RESUME: Contains personal information, work history, education, skills, achievements of an individual seeking employment
+- JOB POSTING: Contains job description, requirements, qualifications, responsibilities for a position an employer is trying to fill
+
+Analyze the content and respond with ONLY one word: "resume" or "job_posting"
+
+Content to analyze:
+"""
+${content.substring(0, 2000)}
+"""
+
+Document type:`;
+
+    const response = await llm.invoke([new HumanMessage(prompt)]);
+    const result = extractContent(response).toLowerCase().trim();
+
+    console.log("Document type detection result:", result);
+
+    // Return the detected type or default to resume
+    if (result.includes("job_posting") || result.includes("job")) {
+      return "job_posting";
+    } else {
+      return "resume";
+    }
+  } catch (error) {
+    console.error("Error detecting document type:", error);
+    // Default to resume if detection fails
+    return "resume";
+  }
+}
+
 // Helper function to check if two work history records match
 function doWorkHistoryRecordsMatch(
   existing: {
@@ -173,6 +217,57 @@ function doWorkHistoryRecordsMatch(
   return existingEndMonth === newEndMonth;
 }
 
+// Helper function to process and store job posting data
+async function processJobPosting(
+  content: string,
+  userId: string,
+  db: PrismaClient,
+): Promise<void> {
+  console.log("Processing job posting content...");
+
+  try {
+    // Parse the job posting using our parser
+    const parsedJobPosting = await parseJobPosting(content);
+    const { jobPosting } = parsedJobPosting;
+
+    console.log(
+      "Successfully parsed job posting:",
+      jobPosting.title,
+      "at",
+      jobPosting.company,
+    );
+
+    // Create the job posting record
+    const createdJobPosting = await db.jobPosting.create({
+      data: {
+        title: jobPosting.title,
+        content: JSON.stringify(parsedJobPosting), // Store the full parsed content as JSON
+        company: jobPosting.company,
+        location: jobPosting.location,
+        industry: jobPosting.industry ?? undefined,
+        user: { connect: { id: userId } },
+      },
+    });
+
+    // Create the job posting details
+    await db.jobPostingDetails.create({
+      data: {
+        responsibilities: jobPosting.details.responsibilities,
+        qualifications: jobPosting.details.qualifications,
+        bonusQualifications: jobPosting.details.bonusQualifications,
+        jobPosting: { connect: { id: createdJobPosting.id } },
+      },
+    });
+
+    console.log("Successfully stored job posting and details in database");
+  } catch (error) {
+    console.error("Error processing job posting:", error);
+    throw new Error(
+      `Failed to process job posting: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 export const documentRouter = createTRPCRouter({
   upload: protectedProcedure
     .input(
@@ -186,20 +281,15 @@ export const documentRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { fileBase64, fileType, originalName, title, type } = input;
-      let content = "";
-      let agentOutput: string | undefined = undefined;
+      let rawContent = "";
+      let processedContent = "";
+      let detectedType: "resume" | "job_posting" = "resume";
       let pdfBuffer: Buffer | undefined = undefined;
 
-      // --- Strict schema prompt (dynamic) ---
-      const resumeJsonSchema = JSON.stringify(
-        zodToJsonSchema(ResumeDataSchema),
-        null,
-        2,
-      );
-      const schemaDescription = `\nReturn the data as JSON matching this schema exactly (do not add, remove, or rename fields):\n\n${resumeJsonSchema}\nIf a value is missing, use an empty string or omit the field (if optional). For date fields, either provide a valid ISO 8601 date string or omit the field entirely - never use null. All arrays must be arrays, not objects. Do not add, remove, or rename any fields.\n`;
+      // Step 1: Extract raw content from the file
       if (fileType === "application/pdf") {
-        // Parse PDF using pdf2json
-        content = await new Promise<string>((resolve, reject) => {
+        // Parse PDF using pdf2json to extract raw text
+        rawContent = await new Promise<string>((resolve, reject) => {
           const pdfParser = new PDFParser();
           pdfParser.on("pdfParser_dataError", (errData: unknown) => {
             let message = "Failed to parse PDF";
@@ -233,15 +323,15 @@ export const documentRouter = createTRPCRouter({
           pdfBuffer = Buffer.from(fileBase64, "base64");
           pdfParser.parseBuffer(pdfBuffer);
         });
-        // If no text was extracted, treat as image-based and use direct LLM call
-        if (!content?.trim()) {
+
+        // If no text was extracted from PDF, try to extract using LLM for image-based PDFs
+        if (!rawContent?.trim()) {
           try {
             const llm = createLLM();
-            llm.withStructuredOutput(ResumeDataSchema);
             const llmResponse = await llm.invoke([
               [
                 "system",
-                `Please extract all relevant resume or document data from the file and return it as structured JSON. ${schemaDescription}`,
+                "Please extract all text content from this document. Return only the extracted text without any formatting or structure.",
               ],
               [
                 "user",
@@ -252,42 +342,61 @@ export const documentRouter = createTRPCRouter({
                   },
                   {
                     type: "text",
-                    text: `Please extract all relevant resume or document data from the file and return it as structured JSON. ${schemaDescription}`,
+                    text: "Please extract all text content from this PDF file.",
                   },
                 ],
               ],
             ]);
-            agentOutput = extractContent(llmResponse);
-            content = agentOutput;
-            console.log("LLM output (image-based PDF):", agentOutput);
+            rawContent = extractContent(llmResponse);
+            console.log("LLM extracted content from image-based PDF");
           } catch (err) {
-            console.error("Error in LLM (image-based PDF):", err);
-            content = "[Error: Could not extract content from image-based PDF]";
-          }
-        } else {
-          // If text was extracted, use direct LLM call for further extraction/structuring
-          try {
-            const llm = createLLM();
-            llm.withStructuredOutput(ResumeDataSchema);
-            const llmResponse = await llm.invoke([
-              [
-                "system",
-                `Please parse the following resume text and return the structured data. ${schemaDescription}`,
-              ],
-              ["user", `Resume text: """${content}"""`],
-            ]);
-            agentOutput = extractContent(llmResponse);
-            content = agentOutput;
-            console.log("LLM output (text-based PDF):", agentOutput);
-          } catch (err) {
-            // If LLM fails, fallback to raw extracted text
-            console.error("Error in LLM (text-based PDF):", err);
+            console.error(
+              "Error extracting content from image-based PDF:",
+              err,
+            );
+            rawContent =
+              "[Error: Could not extract content from image-based PDF]";
           }
         }
       } else if (fileType === "text/plain") {
-        // Decode base64 to string and run direct LLM for extraction
-        content = Buffer.from(fileBase64, "base64").toString("utf-8");
+        // Decode base64 to string for text files
+        rawContent = Buffer.from(fileBase64, "base64").toString("utf-8");
+        console.log("Extracted content from plain text file");
+      } else {
+        throw new Error("Unsupported file type");
+      }
+
+      // Step 2: Detect document type (resume vs job posting)
+      console.log("Detecting document type...");
+      detectedType = await detectDocumentType(rawContent);
+      console.log("Detected document type:", detectedType);
+
+      // Step 3: Process content based on detected type
+      if (detectedType === "job_posting") {
+        // Process as job posting
+        console.log("Processing as job posting...");
         try {
+          await processJobPosting(rawContent, ctx.session.user.id, ctx.db);
+          processedContent = JSON.stringify({
+            type: "job_posting",
+            message: "Job posting processed successfully",
+            content: rawContent.substring(0, 500) + "...",
+          });
+        } catch (error) {
+          console.error("Error processing job posting:", error);
+          processedContent = `Error processing job posting: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      } else {
+        // Process as resume (existing logic)
+        console.log("Processing as resume...");
+        try {
+          const resumeJsonSchema = JSON.stringify(
+            zodToJsonSchema(ResumeDataSchema),
+            null,
+            2,
+          );
+          const schemaDescription = `\nReturn the data as JSON matching this schema exactly (do not add, remove, or rename fields):\n\n${resumeJsonSchema}\nIf a value is missing, use an empty string or omit the field (if optional). For date fields, either provide a valid ISO 8601 date string or omit the field entirely - never use null. All arrays must be arrays, not objects. Do not add, remove, or rename any fields.\n`;
+
           const llm = createLLM();
           llm.withStructuredOutput(ResumeDataSchema);
           const llmResponse = await llm.invoke([
@@ -295,202 +404,201 @@ export const documentRouter = createTRPCRouter({
               "system",
               `Please parse the following resume text and return the structured data. ${schemaDescription}`,
             ],
-            ["user", `Resume text: """${content}"""`],
+            ["user", `Resume text: """${rawContent}"""`],
           ]);
-          agentOutput = extractContent(llmResponse);
-          content = agentOutput;
-          console.log("LLM output (plain text):", agentOutput);
+          processedContent = extractContent(llmResponse);
+          console.log("LLM processed resume content");
         } catch (err) {
-          // If LLM fails, fallback to raw extracted text
-          console.error("Error in LLM (plain text):", err);
+          console.error("Error processing resume content:", err);
+          processedContent = rawContent; // Fallback to raw content
         }
-      } else {
-        throw new Error("Unsupported file type");
       }
 
-      // Save to database (content is now just the extracted string)
+      // Step 4: Save to database
       const doc = await ctx.db.document.create({
         data: {
           title: title ?? originalName,
-          content,
-          type,
+          content: processedContent,
+          type: detectedType, // Use detected type instead of input type
           user: { connect: { id: ctx.session.user.id } },
         },
       });
 
-      // --- Parse content and insert related records ---
-      try {
-        // Remove code block markers if present
-        let clean = content.trim();
-        if (clean.startsWith("```json"))
-          clean = clean.replace(/^```json\n?/, "");
-        if (clean.endsWith("```")) clean = clean.replace(/```$/, "");
-        const parsed = ResumeDataSchema.parse(JSON.parse(clean));
-        const userId = ctx.session.user.id;
+      // Step 5: Parse and store structured data (only for resumes)
+      if (detectedType === "resume") {
+        try {
+          // Remove code block markers if present
+          let clean = processedContent.trim();
+          if (clean.startsWith("```json"))
+            clean = clean.replace(/^```json\n?/, "");
+          if (clean.endsWith("```")) clean = clean.replace(/```$/, "");
+          const parsed = ResumeDataSchema.parse(JSON.parse(clean));
+          const userId = ctx.session.user.id;
 
-        // WorkHistory, WorkAchievement, WorkSkill with deduplication
-        const workExperience = Array.isArray(parsed.work_experience)
-          ? parsed.work_experience
-          : [];
+          // WorkHistory, WorkAchievement, WorkSkill with deduplication
+          const workExperience = Array.isArray(parsed.work_experience)
+            ? parsed.work_experience
+            : [];
 
-        // First, get all existing work history for the user
-        const existingWorkHistory = await ctx.db.workHistory.findMany({
-          where: { userId },
-          include: {
-            achievements: true,
-            skills: true,
-          },
-        });
+          // First, get all existing work history for the user
+          const existingWorkHistory = await ctx.db.workHistory.findMany({
+            where: { userId },
+            include: {
+              achievements: true,
+              skills: true,
+            },
+          });
 
-        for (const expRaw of workExperience) {
-          // Safe due to schema enforcement
-          const exp = expRaw;
+          for (const expRaw of workExperience) {
+            // Safe due to schema enforcement
+            const exp = expRaw;
 
-          // Check if this work experience matches an existing record
-          const matchingRecord = existingWorkHistory.find((existing) =>
-            doWorkHistoryRecordsMatch(existing, exp),
-          );
-
-          let workHistoryId: string;
-
-          if (matchingRecord) {
-            // Update existing record - merge achievements and upsert skills
-            console.log(
-              `Found matching work history: ${matchingRecord.companyName} - ${matchingRecord.jobTitle}`,
+            // Check if this work experience matches an existing record
+            const matchingRecord = existingWorkHistory.find((existing) =>
+              doWorkHistoryRecordsMatch(existing, exp),
             );
 
-            // Get existing achievements as strings
-            const existingAchievements = matchingRecord.achievements.map(
-              (a) => a.description,
-            );
+            let workHistoryId: string;
 
-            // Get new achievements
-            const newAchievements = Array.isArray(exp.achievements)
-              ? exp.achievements.filter(
-                  (a): a is string => typeof a === "string",
-                )
-              : [];
+            if (matchingRecord) {
+              // Update existing record - merge achievements and upsert skills
+              console.log(
+                `Found matching work history: ${matchingRecord.companyName} - ${matchingRecord.jobTitle}`,
+              );
 
-            // Merge achievements using LLM
-            const mergedAchievements = await mergeWorkAchievements(
-              existingAchievements,
-              newAchievements,
-            );
+              // Get existing achievements as strings
+              const existingAchievements = matchingRecord.achievements.map(
+                (a) => a.description,
+              );
 
-            // Update the work history record (in case job title or other details changed)
-            await ctx.db.workHistory.update({
-              where: { id: matchingRecord.id },
-              data: {
-                jobTitle: exp.jobTitle ?? matchingRecord.jobTitle,
-                // Keep the original dates but allow updates if more specific
-                startDate: exp.startDate ?? matchingRecord.startDate,
-                endDate: exp.endDate ?? matchingRecord.endDate,
-              },
-            });
+              // Get new achievements
+              const newAchievements = Array.isArray(exp.achievements)
+                ? exp.achievements.filter(
+                    (a): a is string => typeof a === "string",
+                  )
+                : [];
 
-            // Delete existing achievements and replace with merged ones
-            await ctx.db.workAchievement.deleteMany({
-              where: { workHistoryId: matchingRecord.id },
-            });
+              // Merge achievements using LLM
+              const mergedAchievements = await mergeWorkAchievements(
+                existingAchievements,
+                newAchievements,
+              );
 
-            for (const desc of mergedAchievements) {
-              await ctx.db.workAchievement.create({
+              // Update the work history record (in case job title or other details changed)
+              await ctx.db.workHistory.update({
+                where: { id: matchingRecord.id },
                 data: {
-                  description: desc,
-                  workHistory: { connect: { id: matchingRecord.id } },
+                  jobTitle: exp.jobTitle ?? matchingRecord.jobTitle,
+                  // Keep the original dates but allow updates if more specific
+                  startDate: exp.startDate ?? matchingRecord.startDate,
+                  endDate: exp.endDate ?? matchingRecord.endDate,
                 },
               });
-            }
 
-            workHistoryId = matchingRecord.id;
-          } else {
-            // Create new work history record
-            const wh = await ctx.db.workHistory.create({
-              data: {
-                companyName: exp.company ?? "",
-                jobTitle: exp.jobTitle ?? "",
-                startDate: exp.startDate ?? new Date(),
-                endDate: exp.endDate,
-                user: { connect: { id: userId } },
-              },
-            });
+              // Delete existing achievements and replace with merged ones
+              await ctx.db.workAchievement.deleteMany({
+                where: { workHistoryId: matchingRecord.id },
+              });
 
-            // Add achievements for new record
-            const responsibilities = Array.isArray(exp.achievements)
-              ? exp.achievements
-              : [];
-            for (const desc of responsibilities) {
-              if (typeof desc === "string") {
+              for (const desc of mergedAchievements) {
                 await ctx.db.workAchievement.create({
                   data: {
                     description: desc,
-                    workHistory: { connect: { id: wh.id } },
+                    workHistory: { connect: { id: matchingRecord.id } },
                   },
                 });
               }
-            }
 
-            workHistoryId = wh.id;
-          }
-
-          // Upsert skills to avoid duplicates
-          const skills = Array.isArray(exp.skills) ? exp.skills : [];
-          for (const skill of skills) {
-            if (typeof skill === "string") {
-              // Check if skill already exists for this work history
-              const existingSkill = await ctx.db.workSkill.findFirst({
-                where: {
-                  workHistoryId,
-                  name: skill,
+              workHistoryId = matchingRecord.id;
+            } else {
+              // Create new work history record
+              const wh = await ctx.db.workHistory.create({
+                data: {
+                  companyName: exp.company ?? "",
+                  jobTitle: exp.jobTitle ?? "",
+                  startDate: exp.startDate ?? new Date(),
+                  endDate: exp.endDate,
+                  user: { connect: { id: userId } },
                 },
               });
 
-              if (!existingSkill) {
-                await ctx.db.workSkill.create({
-                  data: {
+              // Add achievements for new record
+              const responsibilities = Array.isArray(exp.achievements)
+                ? exp.achievements
+                : [];
+              for (const desc of responsibilities) {
+                if (typeof desc === "string") {
+                  await ctx.db.workAchievement.create({
+                    data: {
+                      description: desc,
+                      workHistory: { connect: { id: wh.id } },
+                    },
+                  });
+                }
+              }
+
+              workHistoryId = wh.id;
+            }
+
+            // Upsert skills to avoid duplicates
+            const skills = Array.isArray(exp.skills) ? exp.skills : [];
+            for (const skill of skills) {
+              if (typeof skill === "string") {
+                // Check if skill already exists for this work history
+                const existingSkill = await ctx.db.workSkill.findFirst({
+                  where: {
+                    workHistoryId,
                     name: skill,
-                    workHistory: { connect: { id: workHistoryId } },
                   },
                 });
+
+                if (!existingSkill) {
+                  await ctx.db.workSkill.create({
+                    data: {
+                      name: skill,
+                      workHistory: { connect: { id: workHistoryId } },
+                    },
+                  });
+                }
               }
             }
           }
-        }
-        // Education
-        const educationArr = Array.isArray(parsed.education)
-          ? parsed.education
-          : [];
-        for (const eduRaw of educationArr) {
-          // Safe due to schema enforcement
-          const edu = eduRaw;
-          await ctx.db.education.create({
-            data: {
-              type: edu.type ?? "OTHER",
-              institutionName: edu.institutionName ?? "",
-              degreeOrCertName: edu.degreeOrCertName,
-              description: edu.description ?? "",
-              dateCompleted: edu.dateCompleted,
-              user: { connect: { id: userId } },
-            },
-          });
-        }
-        // KeyAchievements
-        const keyAchievements = Array.isArray(parsed.key_achievements)
-          ? parsed.key_achievements
-          : [];
-        for (const ach of keyAchievements) {
-          if (typeof ach === "string") {
-            await ctx.db.keyAchievement.create({
+          // Education
+          const educationArr = Array.isArray(parsed.education)
+            ? parsed.education
+            : [];
+          for (const eduRaw of educationArr) {
+            // Safe due to schema enforcement
+            const edu = eduRaw;
+            await ctx.db.education.create({
               data: {
-                content: ach,
+                type: edu.type ?? "OTHER",
+                institutionName: edu.institutionName ?? "",
+                degreeOrCertName: edu.degreeOrCertName,
+                description: edu.description ?? "",
+                dateCompleted: edu.dateCompleted,
                 user: { connect: { id: userId } },
               },
             });
           }
+          // KeyAchievements
+          const keyAchievements = Array.isArray(parsed.key_achievements)
+            ? parsed.key_achievements
+            : [];
+          for (const ach of keyAchievements) {
+            if (typeof ach === "string") {
+              await ctx.db.keyAchievement.create({
+                data: {
+                  content: ach,
+                  user: { connect: { id: userId } },
+                },
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Error parsing or inserting related records:", err);
+          // Do not throw, just log
         }
-      } catch (err) {
-        console.error("Error parsing or inserting related records:", err);
-        // Do not throw, just log
       }
 
       return doc;

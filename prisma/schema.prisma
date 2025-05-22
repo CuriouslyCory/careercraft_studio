@@ -212,19 +212,35 @@ model UserDetail {
 }
 
 model JobPosting {
-    id          String   @id @default(cuid())
-    title       String
-    description String
-    company     String
-    location    String
-    url         String?
-    status      String?
-    notes       String?
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
+    id        String   @id @default(cuid())
+    title     String
+    content   String   @db.Text // Changed from description to content, using Text for longer content
+    company   String
+    location  String
+    industry  String? // New field for industry
+    url       String?
+    status    String?
+    notes     String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
-    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-    userId String
+    user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId  String
+    details JobPostingDetails?
 
     @@index([userId])
+}
+
+model JobPostingDetails {
+    id                  String   @id @default(cuid())
+    responsibilities    String[] // Array of responsibility strings
+    qualifications      String[] // Array of required qualification strings
+    bonusQualifications String[] // Array of bonus/optional qualification strings
+    createdAt           DateTime @default(now())
+    updatedAt           DateTime @updatedAt
+
+    jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+    jobPostingId String     @unique
+
+    @@index([jobPostingId])
 }
