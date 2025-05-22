@@ -2,8 +2,9 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import PDFParser from "pdf2json";
 import { Buffer } from "buffer";
-import { createAgent, ResumeDataSchema } from "~/server/langchain/agent";
+import { ResumeDataSchema } from "~/server/langchain/agent";
 import { createLLM } from "~/server/langchain/agent";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 // Minimal types for pdf2json output
 interface PDFTextBlock {
@@ -57,6 +58,13 @@ export const documentRouter = createTRPCRouter({
       let agentOutput: string | undefined = undefined;
       let pdfBuffer: Buffer | undefined = undefined;
 
+      // --- Strict schema prompt (dynamic) ---
+      const resumeJsonSchema = JSON.stringify(
+        zodToJsonSchema(ResumeDataSchema),
+        null,
+        2,
+      );
+      const schemaDescription = `\nReturn the data as JSON matching this schema exactly (do not add, remove, or rename fields):\n\n${resumeJsonSchema}\nIf a value is missing, use an empty string or omit the field (if optional). Do not use null. All arrays must be arrays, not objects. Do not add, remove, or rename any fields.\n`;
       if (fileType === "application/pdf") {
         // Parse PDF using pdf2json
         content = await new Promise<string>((resolve, reject) => {
@@ -101,7 +109,7 @@ export const documentRouter = createTRPCRouter({
             const llmResponse = await llm.invoke([
               [
                 "system",
-                "Please extract all relevant resume or document data from the file and return it as structured JSON.",
+                `Please extract all relevant resume or document data from the file and return it as structured JSON. ${schemaDescription}`,
               ],
               [
                 "user",
@@ -112,7 +120,7 @@ export const documentRouter = createTRPCRouter({
                   },
                   {
                     type: "text",
-                    text: "Please extract all relevant resume or document data from the file and return it as structured JSON.",
+                    text: `Please extract all relevant resume or document data from the file and return it as structured JSON. ${schemaDescription}`,
                   },
                 ],
               ],
@@ -132,7 +140,7 @@ export const documentRouter = createTRPCRouter({
             const llmResponse = await llm.invoke([
               [
                 "system",
-                "Please parse the following resume text and return the structured data.",
+                `Please parse the following resume text and return the structured data. ${schemaDescription}`,
               ],
               ["user", `Resume text: """${content}"""`],
             ]);
@@ -153,7 +161,7 @@ export const documentRouter = createTRPCRouter({
           const llmResponse = await llm.invoke([
             [
               "system",
-              "Please parse the following resume text and return the structured data.",
+              `Please parse the following resume text and return the structured data. ${schemaDescription}`,
             ],
             ["user", `Resume text: """${content}"""`],
           ]);
@@ -197,14 +205,13 @@ export const documentRouter = createTRPCRouter({
           const exp = expRaw;
           const wh = await ctx.db.workHistory.create({
             data: {
-              companyName: typeof exp.company === "string" ? exp.company : "",
-              jobTitle: typeof exp.jobTitle === "string" ? exp.jobTitle : "",
+              companyName: exp.company ?? "",
+              jobTitle: exp.jobTitle ?? "",
               startDate:
                 typeof exp.startDate === "string"
                   ? new Date(exp.startDate)
-                  : new Date(),
-              endDate:
-                typeof exp.endDate === "string" ? new Date(exp.endDate) : null,
+                  : (exp.startDate ?? new Date()),
+              endDate: exp.endDate,
               user: { connect: { id: userId } },
             },
           });
@@ -244,17 +251,11 @@ export const documentRouter = createTRPCRouter({
           const edu = eduRaw;
           await ctx.db.education.create({
             data: {
-              type: "OTHER", // Could be improved with mapping
-              institutionName:
-                typeof edu.institution === "string" ? edu.institution : "",
-              degreeOrCertName:
-                typeof edu.degree === "string" ? edu.degree : "",
-              description:
-                typeof edu.fieldOfStudy === "string" ? edu.fieldOfStudy : "",
-              dateCompleted:
-                typeof edu.graduationDate === "string"
-                  ? new Date(edu.graduationDate)
-                  : null,
+              type: edu.type ?? "OTHER",
+              institutionName: edu.institutionName ?? "",
+              degreeOrCertName: edu.degreeOrCertName,
+              description: edu.description ?? "",
+              dateCompleted: edu.dateCompleted,
               user: { connect: { id: userId } },
             },
           });
@@ -280,4 +281,17 @@ export const documentRouter = createTRPCRouter({
 
       return doc;
     }),
+  truncateAllUserData: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    // Delete in order of dependencies
+    await ctx.db.workSkill.deleteMany({ where: { workHistory: { userId } } });
+    await ctx.db.workAchievement.deleteMany({
+      where: { workHistory: { userId } },
+    });
+    await ctx.db.workHistory.deleteMany({ where: { userId } });
+    await ctx.db.education.deleteMany({ where: { userId } });
+    await ctx.db.keyAchievement.deleteMany({ where: { userId } });
+    await ctx.db.document.deleteMany({ where: { userId } });
+    return { success: true };
+  }),
 });

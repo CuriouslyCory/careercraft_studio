@@ -32,15 +32,21 @@ export const ResumeDataSchema = z.object({
         location: z.string().optional().describe("The location of the job."),
         startDate: z
           .string()
+          .pipe(z.coerce.date())
           .optional()
           .describe(
-            "Employment start date (e.g., 'Jan 2020', '2020', '1/2020', etc).",
+            "Employment start date. Format as ISO 8601 date string (e.g., '2020-01-01'). If no day is present use the first day of the month.",
           ),
         endDate: z
           .string()
+          .pipe(z.coerce.date())
           .optional()
           .describe(
-            "Employment dates (e.g., 'Present', 'March 2020', '1/2020', etc).",
+            [
+              "Employment end date. Format as ISO 8601 date string (e.g., '2020-01-01').",
+              "If no day is present use the last day of the month.",
+              "If the end date is 'current' or 'present', allow the endDate to be undefined.",
+            ].join("\n"),
           ),
         achievements: z
           .array(z.string())
@@ -63,22 +69,37 @@ export const ResumeDataSchema = z.object({
   education: z
     .array(
       z.object({
-        institution: z
+        type: z
+          .enum([
+            "HIGH_SCHOOL",
+            "GED",
+            "ASSOCIATES",
+            "BACHELORS",
+            "MASTERS",
+            "DOCTORATE",
+            "CERTIFICATION",
+            "OTHER",
+          ])
+          .describe(
+            "Education type. Must be one of: HIGH_SCHOOL, GED, ASSOCIATES, BACHELORS, MASTERS, DOCTORATE, CERTIFICATION, OTHER.",
+          ),
+        institutionName: z
           .string()
-          .optional()
           .describe("Name of the educational institution."),
-        degree: z
+        degreeOrCertName: z
           .string()
           .optional()
           .describe("Degree or certification obtained."),
-        fieldOfStudy: z
+        description: z
           .string()
-          .optional()
-          .describe("Field of study or major."),
-        graduationDate: z
+          .describe("Additional details, e.g., field of study."),
+        dateCompleted: z
           .string()
+          .pipe(z.coerce.date())
           .optional()
-          .describe("Graduation date or expected graduation date."),
+          .describe(
+            "The date the education was completed (if listed) as ISO 8601 string. If no date is listed allow the value to be undefined.",
+          ),
       }),
     )
     .describe("List of educational qualifications."),

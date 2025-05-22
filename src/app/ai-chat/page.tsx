@@ -3,23 +3,67 @@
 import { useState } from "react";
 import { useTrpcChat, type UISimpleMessage } from "~/lib/hooks/useTrpcChat";
 import DocumentUpload from "~/app/_components/document-upload";
+import { api } from "~/trpc/react";
 
 export default function AIChatPage() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } =
     useTrpcChat();
 
   const [showIntro, setShowIntro] = useState(true);
+  const [truncateStatus, setTruncateStatus] = useState<
+    null | "success" | "error"
+  >(null);
+  const [truncateLoading, setTruncateLoading] = useState(false);
+  const truncateMutation = api.document.truncateAllUserData.useMutation();
+
+  const handleTruncate = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete all your resume data? This cannot be undone.",
+      )
+    )
+      return;
+    setTruncateLoading(true);
+    setTruncateStatus(null);
+    try {
+      await truncateMutation.mutateAsync();
+      setTruncateStatus("success");
+    } catch (e) {
+      setTruncateStatus("error");
+    } finally {
+      setTruncateLoading(false);
+    }
+  };
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 p-4 md:p-6">
       <div className="mb-6">
         <DocumentUpload />
       </div>
-      <div className="mb-4 border-b border-gray-200 pb-2 text-center">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Resume Master AI Assistant
-        </h1>
+      <div className="mb-4 flex items-center gap-4">
+        <div className="flex-grow border-b border-gray-200 pb-2 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Resume Master AI Assistant
+          </h1>
+        </div>
+        <button
+          onClick={handleTruncate}
+          className={`ml-4 rounded bg-red-600 px-4 py-2 font-semibold text-white shadow hover:bg-red-700 disabled:opacity-60`}
+          disabled={truncateLoading}
+        >
+          {truncateLoading ? "Truncating..." : "Truncate"}
+        </button>
       </div>
+      {truncateStatus === "success" && (
+        <div className="mb-4 rounded bg-green-100 p-2 text-center text-green-800">
+          All resume data deleted.
+        </div>
+      )}
+      {truncateStatus === "error" && (
+        <div className="mb-4 rounded bg-red-100 p-2 text-center text-red-800">
+          Failed to delete data. Please try again.
+        </div>
+      )}
 
       <div className="mb-4 flex-grow overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
         {showIntro && messages.length === 0 && !isLoading && (
