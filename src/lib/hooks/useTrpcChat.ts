@@ -20,8 +20,13 @@ export function useTrpcChat() {
   const { data: session, status } = useSession();
   const initializationRef = useRef(false);
   const sessionLoadedRef = useRef(false);
-  const pendingMessageRef = useRef<string | null>(null);
   const assistantMessageIdRef = useRef<string | null>(null);
+
+  // Subscription state
+  const [subscriptionInput, setSubscriptionInput] = useState<{
+    messages: UISimpleMessage[];
+    conversationId?: string;
+  } | null>(null);
 
   // Create a new conversation if needed
   const createConversationMutation = api.ai.createConversation.useMutation();
@@ -33,6 +38,45 @@ export function useTrpcChat() {
       enabled: !!conversationId && !!session?.user,
     },
   );
+
+  // Set up the subscription
+  api.ai.chat.useSubscription(subscriptionInput ?? { messages: [] }, {
+    enabled: !!subscriptionInput,
+    onData: (chunk: string) => {
+      if (assistantMessageIdRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageIdRef.current
+              ? { ...msg, content: msg.content + chunk }
+              : msg,
+          ),
+        );
+      }
+    },
+    onError: (err) => {
+      console.error("Chat subscription error:", err);
+      if (assistantMessageIdRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageIdRef.current
+              ? {
+                  ...msg,
+                  content:
+                    "I'm sorry, I encountered an error while processing your request. Please try again.",
+                }
+              : msg,
+          ),
+        );
+      }
+      setError(new Error(err.message));
+      setIsLoading(false);
+      setSubscriptionInput(null);
+    },
+    onComplete: () => {
+      setIsLoading(false);
+      setSubscriptionInput(null);
+    },
+  });
 
   // Process conversation data when it's loaded
   useEffect(() => {
@@ -95,42 +139,6 @@ export function useTrpcChat() {
     createConversationMutation,
   ]);
 
-  // Manually execute the mutation
-  const manualSubmit = api.ai.manualChat.useMutation({
-    onSuccess: (data) => {
-      // When we get a successful response, update the assistant message
-      if (assistantMessageIdRef.current) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessageIdRef.current
-              ? { ...msg, content: data }
-              : msg,
-          ),
-        );
-      }
-      setIsLoading(false);
-    },
-    onError: (error) => {
-      console.error("Chat error:", error);
-      // Update the assistant message with the error
-      if (assistantMessageIdRef.current) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessageIdRef.current
-              ? {
-                  ...msg,
-                  content:
-                    "I'm sorry, I encountered an error while processing your request. Please try again.",
-                }
-              : msg,
-          ),
-        );
-      }
-      setError(new Error(error.message));
-      setIsLoading(false);
-    },
-  });
-
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setInput(e.target.value);
@@ -146,6 +154,9 @@ export function useTrpcChat() {
       setIsLoading(true);
       setError(null);
 
+      // Stop any existing subscription
+      setSubscriptionInput(null);
+
       // Add user message to UI
       const userMessageId = uuidv4();
       const userMessage: UISimpleMessage = {
@@ -156,9 +167,6 @@ export function useTrpcChat() {
 
       setMessages((prev) => [...prev, userMessage]);
       setInput("");
-
-      // Store the current message to process
-      pendingMessageRef.current = input;
 
       try {
         // Prepare messages for API call
@@ -173,12 +181,12 @@ export function useTrpcChat() {
           {
             id: assistantMessageId,
             role: "assistant",
-            content: "Thinking...",
+            content: "",
           },
         ]);
 
-        // Call the manual mutation instead of using subscription
-        manualSubmit.mutate({
+        // Start the subscription
+        setSubscriptionInput({
           messages: apiMessages,
           conversationId: conversationId ?? undefined,
         });
@@ -204,7 +212,7 @@ export function useTrpcChat() {
         setIsLoading(false);
       }
     },
-    [input, isLoading, messages, conversationId, session, manualSubmit],
+    [input, isLoading, messages, conversationId, session],
   );
 
   return {

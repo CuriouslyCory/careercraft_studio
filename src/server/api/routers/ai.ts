@@ -99,74 +99,46 @@ export const aiRouter = createTRPCRouter({
               });
             }
 
-            // Create the agent team
-            console.log("Creating agent team...");
-            const agentTeam = createAgentTeam();
-            if (!agentTeam) {
-              throw new Error("Failed to create AI agent team");
-            }
-
-            // Convert messages to LangChain format for the agent team
-            const agentState = convertToAgentStateInput(
-              input.messages,
-            ) as AgentState;
-
-            console.log(
-              "Starting agent team stream with messages:",
-              agentState.messages.map(
-                (m: BaseMessage) =>
-                  `${m._getType()}: ${typeof m.content === "string" ? m.content.substring(0, 50) + "..." : "[complex content]"}`,
-              ),
-            );
-
             // Send an initial message to the client
             emit.next("I'm thinking about how to respond to your question...");
 
             try {
-              // Invoke the agent team with streaming
-              const result = await agentTeam.stream(agentState, {
-                recursionLimit: 10,
+              // Create LLM directly instead of using agent team
+              console.log("Creating LLM for streaming response...");
+              const llm = createLLM(0.7);
+
+              // Prepare messages with proper formatting
+              const messagesToSend: BaseMessage[] = [
+                new SystemMessage(
+                  "You are Resume Master, an AI assistant that helps with resume writing, cover letters, and job applications. Be helpful, concise, and professional.",
+                ),
+              ];
+
+              // Add user and assistant messages with proper types
+              for (const msg of input.messages) {
+                if (msg.role === "user") {
+                  messagesToSend.push(new HumanMessage(msg.content));
+                } else if (msg.role === "assistant") {
+                  messagesToSend.push(new AIMessage(msg.content));
+                }
+              }
+
+              // Use streaming directly with the LLM
+              const stream = await llm.stream(messagesToSend, {
                 signal: abortController.signal,
               });
-
-              if (!result) {
-                throw new Error("Agent team returned empty result stream");
-              }
 
               let finalResponse = "";
               let hasEmittedContent = false;
 
-              // Process the stream
-              for await (const chunk of result) {
-                // Skip end state
-                if ((chunk as StreamChunk)?.__end__) continue;
-
-                // Process each agent's output
-                for (const agentType of Object.keys(
-                  (chunk as Record<string, unknown>) ?? {},
-                )) {
-                  // Skip supervisor outputs to avoid confusion
-                  if (agentType === "supervisor") continue;
-
-                  const agentOutput = (chunk as StreamChunk)[
-                    agentType
-                  ] as AgentOutput;
-                  if (
-                    agentOutput?.messages &&
-                    agentOutput.messages.length > 0
-                  ) {
-                    const agentMessage = agentOutput.messages[0];
-
-                    if (
-                      agentMessage &&
-                      typeof agentMessage.content === "string"
-                    ) {
-                      const content = agentMessage.content;
-                      console.log(`${agentType} output:`, content);
-                      emit.next(content);
-                      hasEmittedContent = true;
-                      finalResponse = content; // Keep track of final response
-                    }
+              // Process the stream chunks
+              for await (const chunk of stream) {
+                if (chunk && typeof chunk.content === "string") {
+                  const content = chunk.content;
+                  if (content.trim()) {
+                    emit.next(content);
+                    finalResponse += content;
+                    hasEmittedContent = true;
                   }
                 }
               }
@@ -194,8 +166,8 @@ export const aiRouter = createTRPCRouter({
               console.log("Stream completed successfully.");
               emit.complete();
             } catch (error) {
-              // Handle errors from the agent team stream
-              console.error("Error from agent team stream:", error);
+              // Handle errors from the stream
+              console.error("Error from LLM stream:", error);
               const errorMessage =
                 "I'm sorry, I encountered an error while processing your request. Could you try again?";
               emit.next(errorMessage);
@@ -211,7 +183,6 @@ export const aiRouter = createTRPCRouter({
               });
 
               // Complete the stream instead of throwing an error
-              // This prevents the subscription from failing
               emit.complete();
             }
           } catch (error) {
@@ -234,7 +205,6 @@ export const aiRouter = createTRPCRouter({
               console.error("Failed to store error message:", dbError);
             }
 
-            // Complete the stream instead of throwing an error
             emit.complete();
           }
         };
