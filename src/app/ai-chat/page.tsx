@@ -8,7 +8,7 @@ import { ChatInterface } from "./_components/ChatInterface";
 export default function AIChatPage() {
   const searchParams = useSearchParams();
   const activeView = searchParams.get("bio") ?? "documents";
-  const [mobileTab, setMobileTab] = useState<"chat" | "bio">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "bio">("bio");
 
   // Responsive layout: desktop = side-by-side, mobile = tabs
   return (
