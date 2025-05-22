@@ -1278,9 +1278,20 @@ When using these tools, you only need to specify the required parameters - all a
                     location?: string;
                     industry?: string;
                     details?: {
-                      responsibilities?: string[];
-                      qualifications?: string[];
-                      bonusQualifications?: string[];
+                      requirements?: {
+                        technicalSkills?: string[];
+                        softSkills?: string[];
+                        educationRequirements?: string[];
+                        experienceRequirements?: unknown[];
+                        industryKnowledge?: string[];
+                      };
+                      bonusRequirements?: {
+                        technicalSkills?: string[];
+                        softSkills?: string[];
+                        educationRequirements?: string[];
+                        experienceRequirements?: unknown[];
+                        industryKnowledge?: string[];
+                      };
                     };
                   };
 
@@ -1289,9 +1300,40 @@ When using these tools, you only need to specify the required parameters - all a
                   toolCallSummary += `  - Company: ${jobPosting.company ?? "Unknown"}\n`;
                   toolCallSummary += `  - Location: ${jobPosting.location ?? "Unknown"}\n`;
                   toolCallSummary += `  - Industry: ${jobPosting.industry ?? "Not specified"}\n`;
-                  toolCallSummary += `  - Responsibilities: ${jobPosting.details?.responsibilities?.length ?? 0} items\n`;
-                  toolCallSummary += `  - Required qualifications: ${jobPosting.details?.qualifications?.length ?? 0} items\n`;
-                  toolCallSummary += `  - Bonus qualifications: ${jobPosting.details?.bonusQualifications?.length ?? 0} items\n\n`;
+
+                  // Show required requirements statistics
+                  const reqs = jobPosting.details?.requirements;
+                  const totalRequiredSkills =
+                    (reqs?.technicalSkills?.length ?? 0) +
+                    (reqs?.softSkills?.length ?? 0);
+                  const totalRequiredEducation =
+                    reqs?.educationRequirements?.length ?? 0;
+                  const totalRequiredExperience =
+                    reqs?.experienceRequirements?.length ?? 0;
+                  const totalRequiredIndustry =
+                    reqs?.industryKnowledge?.length ?? 0;
+
+                  toolCallSummary += `  - Required Skills: ${totalRequiredSkills} (${reqs?.technicalSkills?.length ?? 0} technical, ${reqs?.softSkills?.length ?? 0} soft)\n`;
+                  toolCallSummary += `  - Required Education: ${totalRequiredEducation} items\n`;
+                  toolCallSummary += `  - Required Experience: ${totalRequiredExperience} items\n`;
+                  toolCallSummary += `  - Required Industry Knowledge: ${totalRequiredIndustry} items\n`;
+
+                  // Show bonus requirements statistics
+                  const bonusReqs = jobPosting.details?.bonusRequirements;
+                  const totalBonusSkills =
+                    (bonusReqs?.technicalSkills?.length ?? 0) +
+                    (bonusReqs?.softSkills?.length ?? 0);
+                  const totalBonusEducation =
+                    bonusReqs?.educationRequirements?.length ?? 0;
+                  const totalBonusExperience =
+                    bonusReqs?.experienceRequirements?.length ?? 0;
+                  const totalBonusIndustry =
+                    bonusReqs?.industryKnowledge?.length ?? 0;
+
+                  toolCallSummary += `  - Bonus Skills: ${totalBonusSkills} (${bonusReqs?.technicalSkills?.length ?? 0} technical, ${bonusReqs?.softSkills?.length ?? 0} soft)\n`;
+                  toolCallSummary += `  - Bonus Education: ${totalBonusEducation} items\n`;
+                  toolCallSummary += `  - Bonus Experience: ${totalBonusExperience} items\n`;
+                  toolCallSummary += `  - Bonus Industry Knowledge: ${totalBonusIndustry} items\n\n`;
                 } else {
                   toolCallSummary += `• Parsed job posting (${content.length} characters)\n\n`;
                 }

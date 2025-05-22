@@ -98,7 +98,7 @@ export async function processJobPosting(
     const createdJobPosting = await db.jobPosting.create({
       data: {
         title: jobPosting.title,
-        content: JSON.stringify(parsedJobPosting), // Store the full parsed content as JSON
+        content, // Store the original document content
         company: jobPosting.company,
         location: jobPosting.location,
         industry: jobPosting.industry ?? undefined,

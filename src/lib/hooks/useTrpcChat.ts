@@ -4,6 +4,13 @@ import { v4 as uuidv4 } from "uuid";
 import { api } from "~/trpc/react";
 import { type ChatMessage } from "@prisma/client";
 
+// Type for processing metadata
+type ProcessingMetadata = {
+  jobPostingsCreated: number;
+  resumesProcessed: number;
+  documentsProcessed: string[];
+};
+
 // Simplified message structure for UI state management
 export type UISimpleMessage = {
   id: string;
@@ -21,6 +28,9 @@ export function useTrpcChat() {
   const initializationRef = useRef(false);
   const sessionLoadedRef = useRef(false);
   const assistantMessageIdRef = useRef<string | null>(null);
+
+  // Get query utils for invalidating queries
+  const queryUtils = api.useUtils();
 
   // Subscription state
   const [subscriptionInput, setSubscriptionInput] = useState<{
@@ -42,15 +52,32 @@ export function useTrpcChat() {
   // Set up the subscription
   api.ai.chat.useSubscription(subscriptionInput ?? { messages: [] }, {
     enabled: !!subscriptionInput,
-    onData: (chunk: string) => {
-      if (assistantMessageIdRef.current) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessageIdRef.current
-              ? { ...msg, content: msg.content + chunk }
-              : msg,
-          ),
-        );
+    onData: (
+      chunk: string | { type: "metadata"; data: ProcessingMetadata },
+    ) => {
+      if (typeof chunk === "string") {
+        // Handle text content
+        if (assistantMessageIdRef.current) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageIdRef.current
+                ? { ...msg, content: msg.content + chunk }
+                : msg,
+            ),
+          );
+        }
+      } else if (chunk.type === "metadata") {
+        // Handle metadata
+        const metadata: ProcessingMetadata = chunk.data;
+        console.log("Received processing metadata:", metadata);
+
+        // Invalidate queries based on what was processed
+        if (metadata.jobPostingsCreated > 0) {
+          void queryUtils.document.listJobPostings.invalidate();
+        }
+        if (metadata.resumesProcessed > 0) {
+          void queryUtils.document.listDocuments.invalidate();
+        }
       }
     },
     onError: (err) => {

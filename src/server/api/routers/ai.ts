@@ -27,7 +27,16 @@ const ChatInputSchema = z.object({
   messages: z.array(MessageSchema),
   conversationId: z.string().optional(),
 });
+
+// Add metadata schema for tracking processed documents
+const ProcessingMetadataSchema = z.object({
+  jobPostingsCreated: z.number().default(0),
+  resumesProcessed: z.number().default(0),
+  documentsProcessed: z.array(z.string()).default([]),
+});
+
 export type AIChatInput = z.infer<typeof ChatInputSchema>;
+export type ProcessingMetadata = z.infer<typeof ProcessingMetadataSchema>;
 
 // Type for chunks with content
 type ContentChunk = {
@@ -93,7 +102,9 @@ export const aiRouter = createTRPCRouter({
   chat: protectedProcedure
     .input(ChatInputSchema)
     .subscription(({ input, ctx }) => {
-      return observable<string>((emit) => {
+      return observable<
+        string | { type: "metadata"; data: ProcessingMetadata }
+      >((emit) => {
         const abortController = new AbortController();
         const processStream = async () => {
           try {
@@ -123,7 +134,7 @@ export const aiRouter = createTRPCRouter({
             }
 
             // Send an initial message to the client
-            emit.next("I'm thinking about how to respond to your question...");
+            emit.next("Thinking...");
 
             try {
               // Create the agent team
@@ -154,6 +165,19 @@ export const aiRouter = createTRPCRouter({
 
               let finalResponse = "";
               let hasEmittedContent = false;
+              const processingMetadata: ProcessingMetadata = {
+                jobPostingsCreated: 0,
+                resumesProcessed: 0,
+                documentsProcessed: [],
+              };
+
+              // Get initial counts to track what was created during processing
+              const initialJobPostingCount = await ctx.db.jobPosting.count({
+                where: { userId: ctx.session.user.id },
+              });
+              const initialDocumentCount = await ctx.db.document.count({
+                where: { userId: ctx.session.user.id },
+              });
 
               // Process the stream chunks
               for await (const chunk of await stream) {
@@ -205,6 +229,41 @@ export const aiRouter = createTRPCRouter({
                   ctx.session.user.id,
                 );
               }
+
+              // Calculate what was actually processed by comparing counts
+              const finalJobPostingCount = await ctx.db.jobPosting.count({
+                where: { userId: ctx.session.user.id },
+              });
+              const finalDocumentCount = await ctx.db.document.count({
+                where: { userId: ctx.session.user.id },
+              });
+
+              // Update metadata with actual processing results
+              processingMetadata.jobPostingsCreated =
+                finalJobPostingCount - initialJobPostingCount;
+              processingMetadata.resumesProcessed =
+                finalDocumentCount - initialDocumentCount;
+
+              // Get list of documents created during this session for more detailed tracking
+              if (processingMetadata.resumesProcessed > 0) {
+                const recentDocuments = await ctx.db.document.findMany({
+                  where: {
+                    userId: ctx.session.user.id,
+                    createdAt: {
+                      gte: new Date(Date.now() - 60000), // Created in last minute
+                    },
+                  },
+                  select: { id: true, type: true },
+                  orderBy: { createdAt: "desc" },
+                  take: processingMetadata.resumesProcessed,
+                });
+                processingMetadata.documentsProcessed = recentDocuments.map(
+                  (doc) => `${doc.type}:${doc.id}`,
+                );
+              }
+
+              // Emit metadata about what was processed
+              emit.next({ type: "metadata", data: processingMetadata });
 
               console.log("Stream completed successfully.");
               emit.complete();
