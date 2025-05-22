@@ -20,6 +20,7 @@ const BIO_VIEWS = [
   { key: "keyAchievements", label: "Key Achievements" },
   { key: "skills", label: "Skills" },
   { key: "education", label: "Education" },
+  { key: "jobPostings", label: "Job Postings" },
 ];
 
 export function BioSidebar() {

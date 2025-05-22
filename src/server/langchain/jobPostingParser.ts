@@ -1,5 +1,4 @@
 import { createLLM } from "./agent";
-import { HumanMessage } from "@langchain/core/messages";
 import {
   ParsedJobPostingSchema,
   type ParsedJobPosting,
@@ -32,15 +31,33 @@ export async function parseJobPosting(
       2,
     );
 
-    const systemPrompt = `You are a job posting analysis expert. Your task is to extract structured information from job posting content.
+    const systemPrompt = `You are a job posting analysis expert. Your task is to extract structured information from job posting content for compatibility analysis.
 
 IMPORTANT INSTRUCTIONS:
 1. Extract the job title, company name, location, and industry from the content
 2. Identify and categorize responsibilities/duties that describe day-to-day work
 3. Separate required qualifications from bonus/optional qualifications
 4. Look for keywords like "preferred", "bonus", "nice-to-have", "a plus" for bonus qualifications
-5. Include all relevant skills, education, certifications, and experience requirements
-6. Return the data as JSON matching this exact schema:
+
+DETAILED REQUIREMENT EXTRACTION:
+For both required and bonus requirements, extract:
+
+- **Technical Skills**: Programming languages (JavaScript, Python, React, etc.), frameworks, tools, platforms, software, databases, cloud services (AWS, Azure), methodologies (Agile, DevOps), etc.
+- **Soft Skills**: Communication, leadership, teamwork, problem-solving, analytical thinking, creativity, time management, etc.
+- **Education Requirements**: Degree level (Bachelor's, Master's, PhD), field of study (Computer Science, Engineering), professional certifications, licenses, industry credentials (PMP, AWS Certified, etc.), specific programs or schools
+- **Experience Requirements**: Years of experience with specific context (e.g., "5+ years managing teams", "10+ years in B2B products")
+  - Extract both the number of years and description
+  - Categorize as 'management', 'technical', 'industry', 'general', etc.
+- **Industry Knowledge**: Domain-specific expertise, regulatory knowledge, business understanding
+
+PARSING GUIDELINES:
+- Be specific with technical skills (extract "React" not just "front-end frameworks")
+- Include version numbers or specificity when mentioned (e.g., "React 18", "Node.js 16+")
+- For experience, always try to extract years as numbers when mentioned
+- Separate general skills from domain-specific knowledge
+- If a requirement appears in both required and bonus, prioritize the required section
+
+Return the data as JSON matching this exact schema:
 
 ${jobPostingJsonSchema}
 
@@ -68,12 +85,15 @@ Return only the JSON data matching the required schema.`;
     console.log("Job posting parser: Received LLM response", {
       hasTitle: !!response?.jobPosting?.title,
       hasCompany: !!response?.jobPosting?.company,
-      responsibilitiesCount:
-        response?.jobPosting?.details?.responsibilities?.length ?? 0,
-      qualificationsCount:
-        response?.jobPosting?.details?.qualifications?.length ?? 0,
-      bonusQualificationsCount:
-        response?.jobPosting?.details?.bonusQualifications?.length ?? 0,
+      technicalSkillsCount:
+        response?.jobPosting?.details?.requirements?.technicalSkills?.length ??
+        0,
+      educationRequirementsCount:
+        response?.jobPosting?.details?.requirements?.educationRequirements
+          ?.length ?? 0,
+      experienceRequirementsCount:
+        response?.jobPosting?.details?.requirements?.experienceRequirements
+          ?.length ?? 0,
     });
 
     // Validate the response

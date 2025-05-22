@@ -1,22 +1,95 @@
 import { z } from "zod";
 
+// Experience requirement object schema
+const ExperienceRequirementSchema = z.object({
+  years: z.number().optional().describe("Number of years required"),
+  description: z.string().describe("Description of the experience requirement"),
+  category: z
+    .string()
+    .optional()
+    .describe("Category like 'management', 'technical', 'industry'"),
+});
+
 // Schema for job posting details that will be extracted by the LLM
+// Note: We inline the requirements structure to avoid $ref issues with Google AI
 export const JobPostingDetailsSchema = z.object({
-  responsibilities: z
-    .array(z.string())
+  // Structured requirements for compatibility analysis
+  requirements: z
+    .object({
+      // Technical skills extracted from the posting
+      technicalSkills: z
+        .array(z.string())
+        .describe(
+          "Specific technical skills, programming languages, frameworks, tools, and technologies mentioned",
+        ),
+
+      // Soft skills and general competencies
+      softSkills: z
+        .array(z.string())
+        .describe(
+          "Soft skills like communication, leadership, problem-solving, teamwork, etc.",
+        ),
+
+      // Education and certification requirements combined
+      educationRequirements: z
+        .array(z.string())
+        .describe(
+          "Education requirements including degree level, field of study, professional certifications, licenses, and credentials",
+        ),
+
+      // Experience requirements with years and context
+      experienceRequirements: z
+        .array(ExperienceRequirementSchema)
+        .describe("Experience requirements broken down by years and type"),
+
+      // Industry-specific requirements
+      industryKnowledge: z
+        .array(z.string())
+        .describe(
+          "Industry-specific knowledge, domain expertise, or regulatory requirements",
+        ),
+    })
     .describe(
-      "Array of day-to-day responsibilities and duties described in the job posting",
+      "Detailed breakdown of job requirements for compatibility analysis",
     ),
-  qualifications: z
-    .array(z.string())
-    .describe(
-      "Array of required qualifications, skills, education, certifications, and experience",
-    ),
-  bonusQualifications: z
-    .array(z.string())
-    .describe(
-      "Array of optional, preferred, bonus, or 'nice-to-have' qualifications",
-    ),
+
+  // Bonus/preferred requirements using same structure (inlined to avoid $ref)
+  bonusRequirements: z
+    .object({
+      // Technical skills extracted from the posting
+      technicalSkills: z
+        .array(z.string())
+        .describe(
+          "Specific technical skills, programming languages, frameworks, tools, and technologies mentioned",
+        ),
+
+      // Soft skills and general competencies
+      softSkills: z
+        .array(z.string())
+        .describe(
+          "Soft skills like communication, leadership, problem-solving, teamwork, etc.",
+        ),
+
+      // Education and certification requirements combined
+      educationRequirements: z
+        .array(z.string())
+        .describe(
+          "Education requirements including degree level, field of study, professional certifications, licenses, and credentials",
+        ),
+
+      // Experience requirements with years and context
+      experienceRequirements: z
+        .array(ExperienceRequirementSchema)
+        .describe("Experience requirements broken down by years and type"),
+
+      // Industry-specific requirements
+      industryKnowledge: z
+        .array(z.string())
+        .describe(
+          "Industry-specific knowledge, domain expertise, or regulatory requirements",
+        ),
+    })
+    .describe("Detailed breakdown of bonus/preferred requirements"),
 });
 
 // Schema for the main job posting data
@@ -41,6 +114,10 @@ export const ParsedJobPostingSchema = z.object({
 });
 
 // Infer types from schemas
+export type ExperienceRequirement = z.infer<typeof ExperienceRequirementSchema>;
 export type JobPostingDetails = z.infer<typeof JobPostingDetailsSchema>;
 export type JobPostingData = z.infer<typeof JobPostingDataSchema>;
 export type ParsedJobPosting = z.infer<typeof ParsedJobPostingSchema>;
+
+// Legacy type for backward compatibility
+export type JobRequirements = JobPostingDetails["requirements"];

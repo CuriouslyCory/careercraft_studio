@@ -1159,6 +1159,10 @@ You have access to these tools:
 - parse_job_posting: For parsing job posting text and extracting structured data
 - store_job_posting: For storing parsed job posting data in the database
 
+IMPORTANT: When a user provides job posting content, you should:
+1. First call parse_job_posting with the content to extract structured data
+2. Then call store_job_posting with the parsed data to save it to the database
+
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
 
   // Create LLM with appropriate tools
@@ -1233,6 +1237,7 @@ When using these tools, you only need to specify the required parameters - all a
 
       // Create a combined response that includes tool call results
       let toolCallSummary = "I've processed your job posting request:\n\n";
+      let parsedJobPostingData: string | null = null;
 
       for (const tool_call of response.tool_calls) {
         if (tool_call.name === "parse_job_posting" && tool_call.args) {
@@ -1243,21 +1248,123 @@ When using these tools, you only need to specify the required parameters - all a
 
           const content = typeof args.content === "string" ? args.content : "";
 
-          // Execute the tool directly to get the result
+          // Execute the parse_job_posting tool directly
           try {
-            toolCallSummary += "• Parsed job posting details:\n";
-            // Note: The actual tool execution would happen through the LLM framework
-            // For now, we'll indicate that parsing was attempted
-            toolCallSummary += `  - Processing ${content.length} characters of job posting content\n`;
+            // Get the actual tools
+            const tools = getJobPostingTools(userId);
+            const parseJobPostingTool = tools.find(
+              (t) => t.name === "parse_job_posting",
+            );
+
+            if (parseJobPostingTool) {
+              const result: string = (await parseJobPostingTool.invoke({
+                content,
+              })) as string;
+              parsedJobPostingData = result;
+
+              // Parse the result to show summary info
+              try {
+                const parsed: unknown = JSON.parse(result);
+                if (
+                  parsed &&
+                  typeof parsed === "object" &&
+                  "jobPosting" in parsed &&
+                  parsed.jobPosting &&
+                  typeof parsed.jobPosting === "object"
+                ) {
+                  const jobPosting = parsed.jobPosting as {
+                    title?: string;
+                    company?: string;
+                    location?: string;
+                    industry?: string;
+                    details?: {
+                      responsibilities?: string[];
+                      qualifications?: string[];
+                      bonusQualifications?: string[];
+                    };
+                  };
+
+                  toolCallSummary += `• Successfully parsed job posting:\n`;
+                  toolCallSummary += `  - Title: ${jobPosting.title ?? "Unknown"}\n`;
+                  toolCallSummary += `  - Company: ${jobPosting.company ?? "Unknown"}\n`;
+                  toolCallSummary += `  - Location: ${jobPosting.location ?? "Unknown"}\n`;
+                  toolCallSummary += `  - Industry: ${jobPosting.industry ?? "Not specified"}\n`;
+                  toolCallSummary += `  - Responsibilities: ${jobPosting.details?.responsibilities?.length ?? 0} items\n`;
+                  toolCallSummary += `  - Required qualifications: ${jobPosting.details?.qualifications?.length ?? 0} items\n`;
+                  toolCallSummary += `  - Bonus qualifications: ${jobPosting.details?.bonusQualifications?.length ?? 0} items\n\n`;
+                } else {
+                  toolCallSummary += `• Parsed job posting (${content.length} characters)\n\n`;
+                }
+              } catch (parseError) {
+                toolCallSummary += `• Parsed job posting (${content.length} characters)\n\n`;
+              }
+            } else {
+              toolCallSummary += `• Error: Could not find parse_job_posting tool\n`;
+            }
           } catch (toolError) {
             toolCallSummary += `• Error parsing job posting: ${
               toolError instanceof Error ? toolError.message : String(toolError)
             }\n`;
           }
         } else if (tool_call.name === "store_job_posting" && tool_call.args) {
-          toolCallSummary += "• Stored job posting data in database\n";
+          const args: Record<string, unknown> =
+            typeof tool_call.args === "string"
+              ? (JSON.parse(tool_call.args) as Record<string, unknown>)
+              : (tool_call.args as Record<string, unknown>);
+
+          const parsedJobPosting =
+            typeof args.parsedJobPosting === "string"
+              ? args.parsedJobPosting
+              : "";
+
+          // Execute the store_job_posting tool directly
+          try {
+            const tools = getJobPostingTools(userId);
+            const storeJobPostingTool = tools.find(
+              (t) => t.name === "store_job_posting",
+            );
+
+            if (storeJobPostingTool) {
+              const result: string = (await storeJobPostingTool.invoke({
+                parsedJobPosting,
+              })) as string;
+              toolCallSummary += `• ${result}\n`;
+            } else {
+              toolCallSummary += `• Error: Could not find store_job_posting tool\n`;
+            }
+          } catch (toolError) {
+            toolCallSummary += `• Error storing job posting: ${
+              toolError instanceof Error ? toolError.message : String(toolError)
+            }\n`;
+          }
         } else {
           toolCallSummary += `• ${tool_call.name}: Processed successfully\n`;
+        }
+      }
+
+      // If we parsed a job posting but didn't get a store_job_posting call, automatically store it
+      if (
+        parsedJobPostingData &&
+        !response.tool_calls.some((tc) => tc.name === "store_job_posting")
+      ) {
+        try {
+          const tools = getJobPostingTools(userId);
+          const storeJobPostingTool = tools.find(
+            (t) => t.name === "store_job_posting",
+          );
+
+          if (storeJobPostingTool) {
+            const result: string = (await storeJobPostingTool.invoke({
+              parsedJobPosting: parsedJobPostingData,
+            })) as string;
+            toolCallSummary += `• Auto-stored: ${result}\n`;
+          }
+        } catch (autoStoreError) {
+          toolCallSummary += `• Error auto-storing job posting: ${
+            autoStoreError instanceof Error
+              ? autoStoreError.message
+              : String(autoStoreError)
+          }\n`;
         }
       }
 

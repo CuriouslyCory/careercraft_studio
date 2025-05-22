@@ -5,6 +5,7 @@ import { WorkHistoryPanel } from "./WorkHistoryPanel";
 import { KeyAchievementsPanel } from "./KeyAchievementsPanel";
 import { SkillsPanel } from "./SkillsPanel";
 import { EducationPanel } from "./EducationPanel";
+import { JobPostingsPanel } from "./JobPostingsPanel";
 
 interface BioViewProps {
   view: string;
@@ -22,6 +23,8 @@ export function BioView({ view }: BioViewProps) {
       return <SkillsPanel />;
     case "education":
       return <EducationPanel />;
+    case "jobPostings":
+      return <JobPostingsPanel />;
     default:
       return <div>Select a bio section</div>;
   }

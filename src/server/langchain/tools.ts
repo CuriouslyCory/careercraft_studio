@@ -539,9 +539,27 @@ export function createStoreJobPostingTool(
         // Create the job posting details
         await db.jobPostingDetails.create({
           data: {
-            responsibilities: jobPosting.details.responsibilities,
-            qualifications: jobPosting.details.qualifications,
-            bonusQualifications: jobPosting.details.bonusQualifications,
+            // Required structured requirements
+            technicalSkills: jobPosting.details.requirements.technicalSkills,
+            softSkills: jobPosting.details.requirements.softSkills,
+            educationRequirements:
+              jobPosting.details.requirements.educationRequirements,
+            experienceRequirements:
+              jobPosting.details.requirements.experienceRequirements,
+            industryKnowledge:
+              jobPosting.details.requirements.industryKnowledge,
+
+            // Bonus/preferred structured requirements
+            bonusTechnicalSkills:
+              jobPosting.details.bonusRequirements.technicalSkills,
+            bonusSoftSkills: jobPosting.details.bonusRequirements.softSkills,
+            bonusEducationRequirements:
+              jobPosting.details.bonusRequirements.educationRequirements,
+            bonusExperienceRequirements:
+              jobPosting.details.bonusRequirements.experienceRequirements,
+            bonusIndustryKnowledge:
+              jobPosting.details.bonusRequirements.industryKnowledge,
+
             jobPosting: { connect: { id: createdJobPosting.id } },
           },
         });

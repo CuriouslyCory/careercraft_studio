@@ -249,12 +249,29 @@ async function processJobPosting(
       },
     });
 
-    // Create the job posting details
+    // Create the job posting details with structured requirements
     await db.jobPostingDetails.create({
       data: {
-        responsibilities: jobPosting.details.responsibilities,
-        qualifications: jobPosting.details.qualifications,
-        bonusQualifications: jobPosting.details.bonusQualifications,
+        // Required structured requirements
+        technicalSkills: jobPosting.details.requirements.technicalSkills,
+        softSkills: jobPosting.details.requirements.softSkills,
+        educationRequirements:
+          jobPosting.details.requirements.educationRequirements,
+        experienceRequirements:
+          jobPosting.details.requirements.experienceRequirements,
+        industryKnowledge: jobPosting.details.requirements.industryKnowledge,
+
+        // Bonus/preferred structured requirements
+        bonusTechnicalSkills:
+          jobPosting.details.bonusRequirements.technicalSkills,
+        bonusSoftSkills: jobPosting.details.bonusRequirements.softSkills,
+        bonusEducationRequirements:
+          jobPosting.details.bonusRequirements.educationRequirements,
+        bonusExperienceRequirements:
+          jobPosting.details.bonusRequirements.experienceRequirements,
+        bonusIndustryKnowledge:
+          jobPosting.details.bonusRequirements.industryKnowledge,
+
         jobPosting: { connect: { id: createdJobPosting.id } },
       },
     });
@@ -861,6 +878,72 @@ export const documentRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.db.education.delete({
+        where: { id: input.id, userId: ctx.session.user.id },
+      });
+    }),
+
+  // JobPosting CRUD
+  listJobPostings: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.jobPosting.findMany({
+      where: { userId: ctx.session.user.id },
+      include: { details: true },
+      orderBy: { createdAt: "desc" },
+    });
+  }),
+  createJobPosting: protectedProcedure
+    .input(
+      z.object({
+        title: z.string(),
+        content: z.string(),
+        company: z.string(),
+        location: z.string(),
+        industry: z.string().optional(),
+        url: z.string().optional(),
+        status: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.jobPosting.create({
+        data: {
+          ...input,
+          user: { connect: { id: ctx.session.user.id } },
+        },
+        include: { details: true },
+      });
+    }),
+  updateJobPosting: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().optional(),
+        content: z.string().optional(),
+        company: z.string().optional(),
+        location: z.string().optional(),
+        industry: z.string().optional(),
+        url: z.string().optional(),
+        status: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return ctx.db.jobPosting.update({
+        where: { id, userId: ctx.session.user.id },
+        data,
+        include: { details: true },
+      });
+    }),
+  deleteJobPosting: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // First delete the related JobPostingDetails
+      await ctx.db.jobPostingDetails.deleteMany({
+        where: { jobPostingId: input.id },
+      });
+
+      // Then delete the JobPosting
+      return ctx.db.jobPosting.delete({
         where: { id: input.id, userId: ctx.session.user.id },
       });
     }),

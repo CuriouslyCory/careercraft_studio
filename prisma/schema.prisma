@@ -232,12 +232,24 @@ model JobPosting {
 }
 
 model JobPostingDetails {
-    id                  String   @id @default(cuid())
-    responsibilities    String[] // Array of responsibility strings
-    qualifications      String[] // Array of required qualification strings
-    bonusQualifications String[] // Array of bonus/optional qualification strings
-    createdAt           DateTime @default(now())
-    updatedAt           DateTime @updatedAt
+    id String @id @default(cuid())
+
+    // Structured requirements for compatibility analysis
+    technicalSkills        String[] // Technical skills, languages, frameworks, tools
+    softSkills             String[] // Communication, leadership, teamwork, etc.
+    educationRequirements  String[] // Education, certifications, degrees, field of study
+    experienceRequirements Json[] // Array of objects with years, description, category
+    industryKnowledge      String[] // Industry-specific knowledge and expertise
+
+    // Bonus/preferred structured requirements  
+    bonusTechnicalSkills        String[] // Preferred technical skills
+    bonusSoftSkills             String[] // Preferred soft skills
+    bonusEducationRequirements  String[] // Preferred education and certifications
+    bonusExperienceRequirements Json[] // Preferred experience requirements
+    bonusIndustryKnowledge      String[] // Preferred industry knowledge
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
     jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
     jobPostingId String     @unique
