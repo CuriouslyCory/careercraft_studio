@@ -128,8 +128,8 @@ function doWorkHistoryRecordsMatch(
   },
   newRecord: {
     company?: string;
-    startDate?: string | Date;
-    endDate?: string | Date;
+    startDate?: Date;
+    endDate?: Date;
   },
 ): boolean {
   // Company name must match (case insensitive)
@@ -142,10 +142,7 @@ function doWorkHistoryRecordsMatch(
 
   // Start dates must match (within the same month)
   const existingStart = existing.startDate;
-  const newStart =
-    typeof newRecord.startDate === "string"
-      ? new Date(newRecord.startDate)
-      : newRecord.startDate;
+  const newStart = newRecord.startDate;
 
   if (!newStart) return false;
 
@@ -159,11 +156,7 @@ function doWorkHistoryRecordsMatch(
 
   // End dates must match (within the same month, or both be null/undefined)
   const existingEnd = existing.endDate;
-  const newEnd = newRecord.endDate
-    ? typeof newRecord.endDate === "string"
-      ? new Date(newRecord.endDate)
-      : newRecord.endDate
-    : null;
+  const newEnd = newRecord.endDate ?? null;
 
   if (!existingEnd && !newEnd) {
     return true; // Both are current positions
@@ -203,7 +196,7 @@ export const documentRouter = createTRPCRouter({
         null,
         2,
       );
-      const schemaDescription = `\nReturn the data as JSON matching this schema exactly (do not add, remove, or rename fields):\n\n${resumeJsonSchema}\nIf a value is missing, use an empty string or omit the field (if optional). Do not use null. All arrays must be arrays, not objects. Do not add, remove, or rename any fields.\n`;
+      const schemaDescription = `\nReturn the data as JSON matching this schema exactly (do not add, remove, or rename fields):\n\n${resumeJsonSchema}\nIf a value is missing, use an empty string or omit the field (if optional). For date fields, either provide a valid ISO 8601 date string or omit the field entirely - never use null. All arrays must be arrays, not objects. Do not add, remove, or rename any fields.\n`;
       if (fileType === "application/pdf") {
         // Parse PDF using pdf2json
         content = await new Promise<string>((resolve, reject) => {
@@ -390,10 +383,7 @@ export const documentRouter = createTRPCRouter({
               data: {
                 jobTitle: exp.jobTitle ?? matchingRecord.jobTitle,
                 // Keep the original dates but allow updates if more specific
-                startDate:
-                  typeof exp.startDate === "string"
-                    ? new Date(exp.startDate)
-                    : matchingRecord.startDate,
+                startDate: exp.startDate ?? matchingRecord.startDate,
                 endDate: exp.endDate ?? matchingRecord.endDate,
               },
             });
@@ -419,10 +409,7 @@ export const documentRouter = createTRPCRouter({
               data: {
                 companyName: exp.company ?? "",
                 jobTitle: exp.jobTitle ?? "",
-                startDate:
-                  typeof exp.startDate === "string"
-                    ? new Date(exp.startDate)
-                    : (exp.startDate ?? new Date()),
+                startDate: exp.startDate ?? new Date(),
                 endDate: exp.endDate,
                 user: { connect: { id: userId } },
               },
