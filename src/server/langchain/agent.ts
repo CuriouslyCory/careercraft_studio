@@ -8,7 +8,13 @@ import {
 import { z } from "zod";
 import { env } from "~/env";
 import { type StructuredTool } from "@langchain/core/tools";
-import { createReactAgent } from "@langchain/langgraph/prebuilt"; // Corrected import path
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+
+// Helper schema for nullable dates that transforms null to undefined
+const nullableDateSchema = z
+  .union([z.string(), z.null()])
+  .transform((val) => val ?? undefined)
+  .optional();
 
 // Define individual schemas for each section
 export const SkillSchema = z
@@ -19,22 +25,18 @@ export const WorkExperienceSchema = z.object({
   jobTitle: z.string().optional().describe("The job title."),
   company: z.string().optional().describe("The company name."),
   location: z.string().optional().describe("The location of the job."),
-  startDate: z
-    .string()
-    .pipe(z.coerce.date())
-    .optional()
+  startDate: nullableDateSchema
+    .transform((val) => (val ? new Date(val) : undefined))
     .describe(
       "Employment start date. Format as ISO 8601 date string (e.g., '2020-01-01'). If no day is present use the first day of the month.",
     ),
-  endDate: z
-    .string()
-    .pipe(z.coerce.date())
-    .optional()
+  endDate: nullableDateSchema
+    .transform((val) => (val ? new Date(val) : undefined))
     .describe(
       [
         "Employment end date. Format as ISO 8601 date string (e.g., '2020-01-01').",
         "If no day is present use the last day of the month.",
-        "If the end date is 'current' or 'present', allow the endDate to be undefined.",
+        "If the end date is 'current' or 'present', omit this field or set to null.",
       ].join("\n"),
     ),
   achievements: z
@@ -72,12 +74,10 @@ export const EducationSchema = z.object({
     .optional()
     .describe("Degree or certification obtained."),
   description: z.string().describe("Additional details, e.g., field of study."),
-  dateCompleted: z
-    .string()
-    .pipe(z.coerce.date())
-    .optional()
+  dateCompleted: nullableDateSchema
+    .transform((val) => (val ? new Date(val) : undefined))
     .describe(
-      "The date the education was completed (if listed) as ISO 8601 string. If no date is listed allow the value to be undefined.",
+      "The date the education was completed (if listed) as ISO 8601 string. If no date is listed, omit this field or set to null.",
     ),
 });
 
@@ -126,7 +126,7 @@ export const KeyAchievementsArraySchema = z
   .array(z.string())
   .optional()
   .describe(
-    "Key achievements, awards, and accomplishments from the resume as bullet points or short descriptions.",
+    "Key achievements (projects, measured impacts, awards, etc). Does not include skills or work experience.",
   );
 
 // Now compose the main schema using the individual schemas

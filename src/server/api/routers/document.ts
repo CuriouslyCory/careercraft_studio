@@ -6,6 +6,7 @@ import { ResumeDataSchema } from "~/server/langchain/agent";
 import { createLLM } from "~/server/langchain/agent";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { EducationType } from "@prisma/client";
+import { HumanMessage } from "@langchain/core/messages";
 
 // Minimal types for pdf2json output
 interface PDFTextBlock {
@@ -40,6 +41,143 @@ function extractContent(llmResponse: unknown): string {
     return String((llmResponse as { content: unknown }).content);
   }
   return JSON.stringify(llmResponse);
+}
+
+// Helper function to merge work achievements using LLM
+async function mergeWorkAchievements(
+  existingAchievements: string[],
+  newAchievements: string[],
+): Promise<string[]> {
+  console.log(
+    `Merging achievements: Existing count=${existingAchievements.length}, New count=${newAchievements.length}`,
+  );
+
+  // Combine the lists and remove basic duplicates
+  const combinedAchievements = [
+    ...existingAchievements,
+    ...newAchievements,
+  ].filter((item, index, self) => self.indexOf(item) === index);
+
+  if (combinedAchievements.length === 0) {
+    return []; // Return empty array if no achievements
+  }
+
+  // Use LLM to merge similar achievements
+  try {
+    const mergeLLM = createLLM();
+
+    const prompt = `You are a text merging assistant. Your task is to review the following list of achievement statements and combine any redundant or very similar items into a single, concise statement. Ensure all unique achievements are retained and clearly stated. Return ONLY the merged list of achievement statements as a JSON array of strings.
+
+Statements to merge:
+${JSON.stringify(combinedAchievements)}
+
+Merged list:`;
+
+    const response = await mergeLLM.invoke([new HumanMessage(prompt)]);
+
+    let mergedContent = "";
+    if (response && typeof response.content === "string") {
+      mergedContent = response.content;
+    } else if (
+      response &&
+      typeof response.content === "object" &&
+      response.content !== null
+    ) {
+      mergedContent = JSON.stringify(response.content);
+    } else {
+      console.warn("Merge LLM returned empty or unexpected content.");
+      return combinedAchievements;
+    }
+
+    console.log("Raw merge LLM response:", mergedContent);
+
+    // Clean up the response by removing markdown code blocks if present
+    let cleanedContent = mergedContent.trim();
+    if (cleanedContent.startsWith("```json")) {
+      cleanedContent = cleanedContent.replace(/^```json\n?/, "");
+    }
+    if (cleanedContent.endsWith("```")) {
+      cleanedContent = cleanedContent.replace(/```$/, "");
+    }
+
+    // Attempt to parse the JSON output from the LLM
+    try {
+      const finalMergedAchievements = JSON.parse(cleanedContent) as string[];
+      console.log(
+        "Successfully parsed merged achievements:",
+        finalMergedAchievements,
+      );
+      return finalMergedAchievements;
+    } catch (parseError) {
+      console.error("Failed to parse LLM JSON output:", parseError);
+      console.log("Cleaned content that failed to parse:", cleanedContent);
+      return combinedAchievements;
+    }
+  } catch (llmError) {
+    console.error("Error during LLM achievement merging:", llmError);
+    return combinedAchievements;
+  }
+}
+
+// Helper function to check if two work history records match
+function doWorkHistoryRecordsMatch(
+  existing: {
+    companyName: string;
+    startDate: Date;
+    endDate: Date | null;
+  },
+  newRecord: {
+    company?: string;
+    startDate?: string | Date;
+    endDate?: string | Date;
+  },
+): boolean {
+  // Company name must match (case insensitive)
+  const existingCompany = existing.companyName.toLowerCase().trim();
+  const newCompany = (newRecord.company ?? "").toLowerCase().trim();
+
+  if (existingCompany !== newCompany) {
+    return false;
+  }
+
+  // Start dates must match (within the same month)
+  const existingStart = existing.startDate;
+  const newStart =
+    typeof newRecord.startDate === "string"
+      ? new Date(newRecord.startDate)
+      : newRecord.startDate;
+
+  if (!newStart) return false;
+
+  const existingStartMonth =
+    existingStart.getFullYear() * 12 + existingStart.getMonth();
+  const newStartMonth = newStart.getFullYear() * 12 + newStart.getMonth();
+
+  if (existingStartMonth !== newStartMonth) {
+    return false;
+  }
+
+  // End dates must match (within the same month, or both be null/undefined)
+  const existingEnd = existing.endDate;
+  const newEnd = newRecord.endDate
+    ? typeof newRecord.endDate === "string"
+      ? new Date(newRecord.endDate)
+      : newRecord.endDate
+    : null;
+
+  if (!existingEnd && !newEnd) {
+    return true; // Both are current positions
+  }
+
+  if (!existingEnd || !newEnd) {
+    return false; // One is current, other is not
+  }
+
+  const existingEndMonth =
+    existingEnd.getFullYear() * 12 + existingEnd.getMonth();
+  const newEndMonth = newEnd.getFullYear() * 12 + newEnd.getMonth();
+
+  return existingEndMonth === newEndMonth;
 }
 
 export const documentRouter = createTRPCRouter({
@@ -197,49 +335,137 @@ export const documentRouter = createTRPCRouter({
         const parsed = ResumeDataSchema.parse(JSON.parse(clean));
         const userId = ctx.session.user.id;
 
-        // WorkHistory, WorkAchievement, WorkSkill
+        // WorkHistory, WorkAchievement, WorkSkill with deduplication
         const workExperience = Array.isArray(parsed.work_experience)
           ? parsed.work_experience
           : [];
+
+        // First, get all existing work history for the user
+        const existingWorkHistory = await ctx.db.workHistory.findMany({
+          where: { userId },
+          include: {
+            achievements: true,
+            skills: true,
+          },
+        });
+
         for (const expRaw of workExperience) {
           // Safe due to schema enforcement
           const exp = expRaw;
-          const wh = await ctx.db.workHistory.create({
-            data: {
-              companyName: exp.company ?? "",
-              jobTitle: exp.jobTitle ?? "",
-              startDate:
-                typeof exp.startDate === "string"
-                  ? new Date(exp.startDate)
-                  : (exp.startDate ?? new Date()),
-              endDate: exp.endDate,
-              user: { connect: { id: userId } },
-            },
-          });
-          // Achievements
-          const responsibilities = Array.isArray(exp.achievements)
-            ? exp.achievements
-            : [];
-          for (const desc of responsibilities) {
-            if (typeof desc === "string") {
+
+          // Check if this work experience matches an existing record
+          const matchingRecord = existingWorkHistory.find((existing) =>
+            doWorkHistoryRecordsMatch(existing, exp),
+          );
+
+          let workHistoryId: string;
+
+          if (matchingRecord) {
+            // Update existing record - merge achievements and upsert skills
+            console.log(
+              `Found matching work history: ${matchingRecord.companyName} - ${matchingRecord.jobTitle}`,
+            );
+
+            // Get existing achievements as strings
+            const existingAchievements = matchingRecord.achievements.map(
+              (a) => a.description,
+            );
+
+            // Get new achievements
+            const newAchievements = Array.isArray(exp.achievements)
+              ? exp.achievements.filter(
+                  (a): a is string => typeof a === "string",
+                )
+              : [];
+
+            // Merge achievements using LLM
+            const mergedAchievements = await mergeWorkAchievements(
+              existingAchievements,
+              newAchievements,
+            );
+
+            // Update the work history record (in case job title or other details changed)
+            await ctx.db.workHistory.update({
+              where: { id: matchingRecord.id },
+              data: {
+                jobTitle: exp.jobTitle ?? matchingRecord.jobTitle,
+                // Keep the original dates but allow updates if more specific
+                startDate:
+                  typeof exp.startDate === "string"
+                    ? new Date(exp.startDate)
+                    : matchingRecord.startDate,
+                endDate: exp.endDate ?? matchingRecord.endDate,
+              },
+            });
+
+            // Delete existing achievements and replace with merged ones
+            await ctx.db.workAchievement.deleteMany({
+              where: { workHistoryId: matchingRecord.id },
+            });
+
+            for (const desc of mergedAchievements) {
               await ctx.db.workAchievement.create({
                 data: {
                   description: desc,
-                  workHistory: { connect: { id: wh.id } },
+                  workHistory: { connect: { id: matchingRecord.id } },
                 },
               });
             }
+
+            workHistoryId = matchingRecord.id;
+          } else {
+            // Create new work history record
+            const wh = await ctx.db.workHistory.create({
+              data: {
+                companyName: exp.company ?? "",
+                jobTitle: exp.jobTitle ?? "",
+                startDate:
+                  typeof exp.startDate === "string"
+                    ? new Date(exp.startDate)
+                    : (exp.startDate ?? new Date()),
+                endDate: exp.endDate,
+                user: { connect: { id: userId } },
+              },
+            });
+
+            // Add achievements for new record
+            const responsibilities = Array.isArray(exp.achievements)
+              ? exp.achievements
+              : [];
+            for (const desc of responsibilities) {
+              if (typeof desc === "string") {
+                await ctx.db.workAchievement.create({
+                  data: {
+                    description: desc,
+                    workHistory: { connect: { id: wh.id } },
+                  },
+                });
+              }
+            }
+
+            workHistoryId = wh.id;
           }
-          // Skills
+
+          // Upsert skills to avoid duplicates
           const skills = Array.isArray(exp.skills) ? exp.skills : [];
           for (const skill of skills) {
             if (typeof skill === "string") {
-              await ctx.db.workSkill.create({
-                data: {
+              // Check if skill already exists for this work history
+              const existingSkill = await ctx.db.workSkill.findFirst({
+                where: {
+                  workHistoryId,
                   name: skill,
-                  workHistory: { connect: { id: wh.id } },
                 },
               });
+
+              if (!existingSkill) {
+                await ctx.db.workSkill.create({
+                  data: {
+                    name: skill,
+                    workHistory: { connect: { id: workHistoryId } },
+                  },
+                });
+              }
             }
           }
         }

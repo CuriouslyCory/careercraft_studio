@@ -1,19 +1,22 @@
-import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { createAgent } from "./agent";
+import { type createAgent } from "./agent";
 import { env } from "~/env";
-import { DynamicStructuredTool } from "@langchain/core/tools";
 import {
   HumanMessage,
   AIMessage,
   SystemMessage,
   type BaseMessage,
-  AIMessageChunk,
-  ToolMessage,
 } from "@langchain/core/messages";
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
-import { db } from "~/server/db";
+import {
+  createUserProfileTool,
+  getDataManagerTools,
+  getResumeGeneratorTools,
+  getCoverLetterGeneratorTools,
+  getUserProfileTools,
+  getSupervisorTools,
+} from "./tools";
 
 // Define the state that is passed between nodes in the graph
 const AgentState = Annotation.Root({
@@ -57,329 +60,7 @@ const MEMBERS = [
   "user_profile",
 ] as const;
 
-// Tool to store user preferences
-const storeUserPreferenceTool = new DynamicStructuredTool({
-  name: "store_user_preference",
-  description:
-    "Stores a user preference such as grammar style, phrases, or resume style choices",
-  schema: z.object({
-    category: z.enum(["grammar", "phrases", "resume_style", "other"]),
-    preference: z.string().describe("The preference to store"),
-    details: z
-      .string()
-      .optional()
-      .describe("Additional details about the preference"),
-  }),
-  func: async ({ category, preference, details }) => {
-    console.log(`Storing user preference: ${category} - ${preference}`);
-    // TODO: Store in database (stub for now)
-    return `Successfully stored user preference for ${category}: ${preference}`;
-  },
-});
-
-// Tool to store work history
-const storeWorkHistoryTool = new DynamicStructuredTool({
-  name: "store_work_history",
-  description: "Stores information about a user's work history",
-  schema: z.object({
-    companyName: z.string(),
-    jobTitle: z.string(),
-    startDate: z.string().describe("Start date in YYYY-MM-DD format"),
-    endDate: z
-      .string()
-      .optional()
-      .describe(
-        "End date in YYYY-MM-DD format, or 'present' for current positions",
-      ),
-    achievements: z.array(z.string()).optional(),
-    skills: z.array(z.string()).optional(),
-  }),
-  func: async ({
-    companyName,
-    jobTitle,
-    startDate,
-    endDate,
-    achievements,
-    skills,
-  }) => {
-    console.log(`Storing work history: ${jobTitle} at ${companyName}`);
-    // TODO: Store in database (stub for now)
-    return `Successfully stored work history: ${jobTitle} at ${companyName}`;
-  },
-});
-
-// Tool to generate a resume
-const generateResumeTool = new DynamicStructuredTool({
-  name: "generate_resume",
-  description: "Generate a formatted resume based on the user's information",
-  schema: z.object({
-    format: z.enum(["PDF", "Word", "Text"]),
-    style: z.enum(["Modern", "Traditional", "Creative", "Minimal"]),
-    sections: z.array(z.string()).describe("Sections to include in the resume"),
-  }),
-  func: async ({ format, style, sections }) => {
-    console.log(`Generating resume in ${format} format with ${style} style`);
-    // TODO: Implement resume generation (stub for now)
-    return `Resume generation initiated in ${format} format with ${style} style. Sections: ${sections.join(", ")}`;
-  },
-});
-
-// Tool to generate a cover letter
-const generateCoverLetterTool = new DynamicStructuredTool({
-  name: "generate_cover_letter",
-  description:
-    "Generate a cover letter based on user information and job description",
-  schema: z.object({
-    jobTitle: z.string(),
-    company: z.string(),
-    style: z.enum(["Formal", "Conversational", "Enthusiastic", "Professional"]),
-    keyPoints: z.array(z.string()).optional(),
-  }),
-  func: async ({ jobTitle, company, style, keyPoints }) => {
-    console.log(
-      `Generating ${style} cover letter for ${jobTitle} at ${company}`,
-    );
-    // TODO: Implement cover letter generation (stub for now)
-    return `Cover letter generation initiated for ${jobTitle} at ${company} in ${style} style`;
-  },
-});
-
-// Helper to create a user-specific version of the getUserProfileTool
-function createUserProfileTool(userId: string): DynamicStructuredTool {
-  return new DynamicStructuredTool({
-    name: "get_user_profile",
-    description:
-      "Retrieve details from the user's stored profile including work history, education, skills, achievements, and preferences",
-    schema: z.object({
-      dataType: z.enum([
-        "work_history",
-        "education",
-        "skills",
-        "achievements",
-        "preferences",
-        "all",
-      ]),
-    }),
-    func: async ({ dataType }) => {
-      console.log(
-        `Retrieving user profile data: ${dataType} for user ID: ${userId}`,
-      );
-
-      try {
-        if (!userId) {
-          return "User ID is required but not provided. Please ensure you're logged in.";
-        }
-
-        // Format the data based on the requested data type
-        switch (dataType) {
-          case "work_history":
-            const workHistory = await db.workHistory.findMany({
-              where: { userId },
-              include: {
-                achievements: true,
-                skills: true,
-              },
-              orderBy: { startDate: "desc" },
-            });
-
-            if (workHistory.length === 0) {
-              return "No work history found for this user.";
-            }
-
-            return JSON.stringify(
-              workHistory.map((job) => ({
-                id: job.id,
-                companyName: job.companyName,
-                jobTitle: job.jobTitle,
-                startDate: job.startDate.toISOString().split("T")[0], // Format as YYYY-MM-DD
-                endDate: job.endDate
-                  ? job.endDate.toISOString().split("T")[0]
-                  : "Present",
-                achievements: job.achievements.map((a) => a.description),
-                skills: job.skills.map((s) => s.name),
-              })),
-            );
-
-          case "education":
-            const education = await db.education.findMany({
-              where: { userId },
-              orderBy: { dateCompleted: "desc" },
-            });
-
-            if (education.length === 0) {
-              return "No education history found for this user.";
-            }
-
-            return JSON.stringify(
-              education.map((edu) => ({
-                id: edu.id,
-                type: edu.type,
-                institutionName: edu.institutionName,
-                degreeOrCertName: edu.degreeOrCertName,
-                description: edu.description,
-                dateCompleted: edu.dateCompleted
-                  ? edu.dateCompleted.toISOString().split("T")[0]
-                  : null,
-              })),
-            );
-
-          case "skills":
-            // For skills, we need to get them from work history
-            const workHistoryForSkills = await db.workHistory.findMany({
-              where: { userId },
-              include: { skills: true },
-            });
-
-            if (workHistoryForSkills.length === 0) {
-              return "No skills found for this user.";
-            }
-
-            // Collect all unique skills
-            const skillSet = new Set<string>();
-            workHistoryForSkills.forEach((job) => {
-              job.skills.forEach((skill) => {
-                skillSet.add(skill.name);
-              });
-            });
-
-            return JSON.stringify(Array.from(skillSet));
-
-          case "achievements":
-            // Get both work achievements and key achievements
-            const workAchievements = await db.workHistory.findMany({
-              where: { userId },
-              include: { achievements: true },
-            });
-
-            const keyAchievements = await db.keyAchievement.findMany({
-              where: { userId },
-            });
-
-            if (workAchievements.length === 0 && keyAchievements.length === 0) {
-              return "No achievements found for this user.";
-            }
-
-            // Collect work achievements with job context
-            const formattedWorkAchievements = workAchievements.flatMap((job) =>
-              job.achievements.map((achievement) => ({
-                id: achievement.id,
-                description: achievement.description,
-                context: `${job.jobTitle} at ${job.companyName}`,
-              })),
-            );
-
-            // Collect key achievements
-            const formattedKeyAchievements = keyAchievements.map(
-              (achievement) => ({
-                id: achievement.id,
-                description: achievement.content,
-                context: "General achievement",
-              }),
-            );
-
-            return JSON.stringify([
-              ...formattedWorkAchievements,
-              ...formattedKeyAchievements,
-            ]);
-
-          case "preferences":
-            const userDetails = await db.userDetail.findMany({
-              where: { userId },
-            });
-
-            if (userDetails.length === 0) {
-              return "No user preferences or details found.";
-            }
-
-            return JSON.stringify(
-              userDetails.map((detail) => ({
-                id: detail.id,
-                category: detail.category,
-                content: detail.content,
-              })),
-            );
-
-          case "all":
-            // Fetch all data types and combine them
-            const allWorkHistory = await db.workHistory.findMany({
-              where: { userId },
-              include: {
-                achievements: true,
-                skills: true,
-              },
-              orderBy: { startDate: "desc" },
-            });
-
-            const allEducation = await db.education.findMany({
-              where: { userId },
-              orderBy: { dateCompleted: "desc" },
-            });
-
-            const allKeyAchievements = await db.keyAchievement.findMany({
-              where: { userId },
-            });
-
-            const allUserDetails = await db.userDetail.findMany({
-              where: { userId },
-            });
-
-            // Collect all skills for the complete profile
-            const allSkills = new Set<string>();
-            allWorkHistory.forEach((job) => {
-              job.skills.forEach((skill) => {
-                allSkills.add(skill.name);
-              });
-            });
-
-            // Format the complete profile
-            const completeProfile = {
-              workHistory: allWorkHistory.map((job) => ({
-                id: job.id,
-                companyName: job.companyName,
-                jobTitle: job.jobTitle,
-                startDate: job.startDate.toISOString().split("T")[0],
-                endDate: job.endDate
-                  ? job.endDate.toISOString().split("T")[0]
-                  : "Present",
-                achievements: job.achievements.map((a) => a.description),
-                skills: job.skills.map((s) => s.name),
-              })),
-              education: allEducation.map((edu) => ({
-                id: edu.id,
-                type: edu.type,
-                institutionName: edu.institutionName,
-                degreeOrCertName: edu.degreeOrCertName,
-                description: edu.description,
-                dateCompleted: edu.dateCompleted
-                  ? edu.dateCompleted.toISOString().split("T")[0]
-                  : null,
-              })),
-              skills: Array.from(allSkills),
-              keyAchievements: allKeyAchievements.map((achievement) => ({
-                id: achievement.id,
-                content: achievement.content,
-              })),
-              preferences: allUserDetails.map((detail) => ({
-                id: detail.id,
-                category: detail.category,
-                content: detail.content,
-              })),
-            };
-
-            return JSON.stringify(completeProfile);
-
-          default:
-            return `Invalid data type requested: ${dataType}. Available types are: work_history, education, skills, achievements, preferences, all`;
-        }
-      } catch (error) {
-        console.error("Error retrieving user profile data:", error);
-        return `Error retrieving user profile data: ${
-          error instanceof Error ? error.message : String(error)
-        }`;
-      }
-    },
-  });
-}
+// All tools have been moved to src/server/langchain/tools.ts for better organization
 
 // Initialize the model
 export function createLLM(temperature = 0.2) {
@@ -436,20 +117,7 @@ async function safeAgentInvoke(
   }
 }
 
-// Define the routing tool for the supervisor
-const supervisorRoutingTool = new DynamicStructuredTool({
-  name: "route_to_agent",
-  description: "Select the next agent to act or end the conversation.",
-  schema: z.object({
-    next: z.enum([END, ...MEMBERS]),
-  }),
-  func: async ({ next }) => {
-    // This tool's function isn't strictly called by LangGraph in this setup,
-    // as the supervisor's output is the tool call itself, which LangGraph uses for routing.
-    // However, having a func can be useful for direct invocation or testing.
-    return `Routing to: ${next}`;
-  },
-});
+// Routing tool has been moved to src/server/langchain/tools.ts
 
 // Create specialized agents as graph nodes
 async function supervisorNode(
@@ -483,7 +151,7 @@ async function supervisorNode(
     console.log("Created specialized LLM model for supervisor node");
 
     // Bind the routing tool
-    llm = model.bindTools([supervisorRoutingTool]);
+    llm = model.bindTools(getSupervisorTools());
     console.log("Successfully bound tools to LLM");
   } catch (initError) {
     console.error("Failed to initialize LLM with tools:", initError);
@@ -835,13 +503,7 @@ When using these tools, you only need to specify the required parameters - all a
     const model = new ChatGoogleGenerativeAI(dataManagerModelOptions);
 
     // Bind the data management tools
-    const toolBindings = [
-      storeUserPreferenceTool,
-      storeWorkHistoryTool,
-      createUserProfileTool(userId),
-    ];
-
-    const llm = model.bindTools(toolBindings);
+    const llm = model.bindTools(getDataManagerTools(userId));
     console.log("Successfully bound data management tools to LLM");
 
     // Only keep human and AI messages, filtering out any system messages
@@ -1103,9 +765,7 @@ When using these tools, you only need to specify the required parameters - all a
     const model = new ChatGoogleGenerativeAI(resumeGeneratorModelOptions);
 
     // Bind the resume generation tools
-    const toolBindings = [generateResumeTool, createUserProfileTool(userId)];
-
-    const llm = model.bindTools(toolBindings);
+    const llm = model.bindTools(getResumeGeneratorTools(userId));
     console.log("Successfully bound resume generation tools to LLM");
 
     // Only keep human and AI messages, filtering out any system messages
@@ -1227,12 +887,7 @@ When using these tools, you only need to specify the required parameters - all a
     const model = new ChatGoogleGenerativeAI(coverLetterModelOptions);
 
     // Bind the cover letter generation tools
-    const toolBindings = [
-      generateCoverLetterTool,
-      createUserProfileTool(userId),
-    ];
-
-    const llm = model.bindTools(toolBindings);
+    const llm = model.bindTools(getCoverLetterGeneratorTools(userId));
     console.log("Successfully bound cover letter generation tools to LLM");
 
     // Only keep human and AI messages, filtering out any system messages
@@ -1348,9 +1003,7 @@ You can retrieve different types of profile data using the get_user_profile tool
     const model = new ChatGoogleGenerativeAI(profileModelOptions);
 
     // Bind the profile retrieval tools with pre-filled userId
-    const toolBindings = [createUserProfileTool(userId)];
-
-    const llm = model.bindTools(toolBindings);
+    const llm = model.bindTools(getUserProfileTools(userId));
     console.log("Successfully bound profile retrieval tools to LLM");
 
     // Only keep human and AI messages, filtering out any system messages
