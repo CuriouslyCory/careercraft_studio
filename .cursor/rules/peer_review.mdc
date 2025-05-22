@@ -1,0 +1,80 @@
+---
+description: Rules for a good peer review
+globs: 
+alwaysApply: false
+---
+# Goals of a Good Code Peer Review
+
+A good code peer review aims to improve code quality, share knowledge, and ensure the codebase remains maintainable. For TypeScript specifically, here are the key categories to focus on:
+
+## 1. Type Safety and Correctness
+
+- Proper use of TypeScript's type system (interfaces, types, generics)
+- Avoiding `any` when more specific types can be used
+- Appropriate use of type assertions and type guards
+- Consistent use of nullable types with proper handling
+
+## 2. Code Readability and Maintainability
+
+- Clear, descriptive variable and function names
+- Appropriate comments for complex logic
+- Consistent formatting and adherence to style guides
+- Breaking down complex functions into smaller, focused ones
+- Reasonable file organization and module structure
+
+## 3. Performance Considerations
+
+- Efficient algorithms and data structures
+- Avoiding unnecessary re-renders in UI components
+- Proper memoization and caching strategies
+- Reasonable bundle size impact
+
+## 4. Error Handling
+
+- Comprehensive error handling strategies
+- Proper propagation of errors
+- Meaningful error messages
+- Recovery mechanisms where appropriate
+
+## 5. Testing Coverage
+
+- Focus on proper typesafe development
+- In the future we may add e2e testing with playwright or cypress
+
+## 6. Security Practices
+
+- Input validation and sanitization
+- Protection against common vulnerabilities (XSS, CSRF)
+- Secure handling of sensitive data
+- Proper authentication and authorization checks
+
+## 7. Functional Correctness
+
+- Meeting the requirements and acceptance criteria
+- Edge case handling
+- Backward compatibility considerations
+- Internationalization and accessibility concerns
+
+## 8. Code Reusability
+
+- DRY (Don't Repeat Yourself) principle application
+- Appropriate abstraction levels
+- Reuse of existing utilities and components
+- Potential for extracting reusable patterns
+
+## 9. Documentation
+
+- Clear function and interface documentation
+- JSDoc comments for public APIs
+- README updates when necessary
+- Usage examples for complex components or utilities
+
+## 10. TypeScript-Specific Best Practices
+
+- Appropriate strictness settings in tsconfig
+- Consistent use of readonly properties where applicable
+- Proper use of utility types (Partial, Pick, Omit, etc.)
+- Discriminated unions for complex state management
+- Avoiding excessive type complexity that reduces readability
+
+When making suggestions, focus on being constructive rather than critical, provide examples where possible, and explain the reasoning behind your recommendations.
