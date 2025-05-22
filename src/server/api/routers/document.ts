@@ -5,6 +5,7 @@ import { Buffer } from "buffer";
 import { ResumeDataSchema } from "~/server/langchain/agent";
 import { createLLM } from "~/server/langchain/agent";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { EducationType } from "@prisma/client";
 
 // Minimal types for pdf2json output
 interface PDFTextBlock {
@@ -294,4 +295,252 @@ export const documentRouter = createTRPCRouter({
     await ctx.db.document.deleteMany({ where: { userId } });
     return { success: true };
   }),
+  listDocuments: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.document.findMany({
+      where: { userId: ctx.session.user.id },
+      orderBy: { createdAt: "desc" },
+    });
+  }),
+  updateDocument: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().optional(),
+        content: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return ctx.db.document.update({
+        where: { id, userId: ctx.session.user.id },
+        data,
+      });
+    }),
+  deleteDocument: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.document.delete({
+        where: { id: input.id, userId: ctx.session.user.id },
+      });
+    }),
+  // WorkHistory CRUD
+  listWorkHistory: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.workHistory.findMany({
+      where: { userId: ctx.session.user.id },
+      include: { achievements: true, skills: true },
+      orderBy: { startDate: "desc" },
+    });
+  }),
+  createWorkHistory: protectedProcedure
+    .input(
+      z.object({
+        companyName: z.string(),
+        jobTitle: z.string(),
+        startDate: z.string(),
+        endDate: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.workHistory.create({
+        data: {
+          ...input,
+          startDate: new Date(input.startDate),
+          endDate: input.endDate ? new Date(input.endDate) : undefined,
+          user: { connect: { id: ctx.session.user.id } },
+        },
+      });
+    }),
+  updateWorkHistory: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        companyName: z.string().optional(),
+        jobTitle: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return ctx.db.workHistory.update({
+        where: { id, userId: ctx.session.user.id },
+        data: {
+          ...data,
+          ...(data.startDate ? { startDate: new Date(data.startDate) } : {}),
+          ...(data.endDate ? { endDate: new Date(data.endDate) } : {}),
+        },
+      });
+    }),
+  deleteWorkHistory: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.workHistory.delete({
+        where: { id: input.id, userId: ctx.session.user.id },
+      });
+    }),
+
+  // WorkAchievement CRUD (by WorkHistory)
+  listWorkAchievements: protectedProcedure
+    .input(z.object({ workHistoryId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.workAchievement.findMany({
+        where: { workHistoryId: input.workHistoryId },
+        orderBy: { createdAt: "asc" },
+      });
+    }),
+  createWorkAchievement: protectedProcedure
+    .input(
+      z.object({
+        workHistoryId: z.string(),
+        description: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.workAchievement.create({
+        data: input,
+      });
+    }),
+  updateWorkAchievement: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        description: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.workAchievement.update({
+        where: { id: input.id },
+        data: { description: input.description },
+      });
+    }),
+  deleteWorkAchievement: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.workAchievement.delete({
+        where: { id: input.id },
+      });
+    }),
+
+  // WorkSkill CRUD (by WorkHistory)
+  listWorkSkills: protectedProcedure
+    .input(z.object({ workHistoryId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.workSkill.findMany({
+        where: { workHistoryId: input.workHistoryId },
+        orderBy: { createdAt: "asc" },
+      });
+    }),
+  createWorkSkill: protectedProcedure
+    .input(
+      z.object({
+        workHistoryId: z.string(),
+        name: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.workSkill.create({
+        data: input,
+      });
+    }),
+  deleteWorkSkill: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.workSkill.delete({
+        where: { id: input.id },
+      });
+    }),
+
+  // KeyAchievement CRUD
+  listKeyAchievements: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.keyAchievement.findMany({
+      where: { userId: ctx.session.user.id },
+      orderBy: { createdAt: "desc" },
+    });
+  }),
+  createKeyAchievement: protectedProcedure
+    .input(z.object({ content: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.keyAchievement.create({
+        data: {
+          content: input.content,
+          user: { connect: { id: ctx.session.user.id } },
+        },
+      });
+    }),
+  updateKeyAchievement: protectedProcedure
+    .input(z.object({ id: z.string(), content: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.keyAchievement.update({
+        where: { id: input.id, userId: ctx.session.user.id },
+        data: { content: input.content },
+      });
+    }),
+  deleteKeyAchievement: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.keyAchievement.delete({
+        where: { id: input.id, userId: ctx.session.user.id },
+      });
+    }),
+
+  // Education CRUD
+  listEducation: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.education.findMany({
+      where: { userId: ctx.session.user.id },
+      orderBy: { dateCompleted: "desc" },
+    });
+  }),
+  createEducation: protectedProcedure
+    .input(
+      z.object({
+        type: z.nativeEnum(EducationType),
+        institutionName: z.string(),
+        degreeOrCertName: z.string().optional(),
+        description: z.string(),
+        dateCompleted: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.education.create({
+        data: {
+          ...input,
+          type: input.type as EducationType,
+          dateCompleted: input.dateCompleted
+            ? new Date(input.dateCompleted)
+            : undefined,
+          user: { connect: { id: ctx.session.user.id } },
+        },
+      });
+    }),
+  updateEducation: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        type: z.nativeEnum(EducationType).optional(),
+        institutionName: z.string().optional(),
+        degreeOrCertName: z.string().optional(),
+        description: z.string().optional(),
+        dateCompleted: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      return ctx.db.education.update({
+        where: { id, userId: ctx.session.user.id },
+        data: {
+          ...data,
+          ...(data.type ? { type: data.type as EducationType } : {}),
+          ...(data.dateCompleted
+            ? { dateCompleted: new Date(data.dateCompleted) }
+            : {}),
+        },
+      });
+    }),
+  deleteEducation: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.education.delete({
+        where: { id: input.id, userId: ctx.session.user.id },
+      });
+    }),
 });
