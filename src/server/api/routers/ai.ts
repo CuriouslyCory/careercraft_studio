@@ -11,6 +11,7 @@ import {
   createAgentTeam,
   convertToAgentStateInput,
   createLLM,
+  type AgentStateType,
 } from "~/server/langchain/agentTeam";
 import {
   type BaseMessage,
@@ -103,28 +104,29 @@ export const aiRouter = createTRPCRouter({
             emit.next("I'm thinking about how to respond to your question...");
 
             try {
-              // Create LLM directly instead of using agent team
-              console.log("Creating LLM for streaming response...");
-              const llm = createLLM(0.7);
-
-              // Prepare messages with proper formatting
-              const messagesToSend: BaseMessage[] = [
-                new SystemMessage(
-                  "You are Resume Master, an AI assistant that helps with resume writing, cover letters, and job applications. Be helpful, concise, and professional.",
-                ),
-              ];
-
-              // Add user and assistant messages with proper types
-              for (const msg of input.messages) {
-                if (msg.role === "user") {
-                  messagesToSend.push(new HumanMessage(msg.content));
-                } else if (msg.role === "assistant") {
-                  messagesToSend.push(new AIMessage(msg.content));
-                }
+              // Create the agent team
+              console.log("Creating agent team for streaming...");
+              const agentTeam = createAgentTeam();
+              if (!agentTeam) {
+                throw new Error("Failed to create AI agent team");
               }
 
-              // Use streaming directly with the LLM
-              const stream = await llm.stream(messagesToSend, {
+              // Convert messages to LangChain format for the agent team
+              const agentState = convertToAgentStateInput(
+                input.messages,
+                ctx.session.user.id,
+              );
+
+              console.log(
+                "Starting agent team stream with messages:",
+                agentState.messages.map(
+                  (m: BaseMessage) =>
+                    `${m._getType()}: ${typeof m.content === "string" ? m.content.substring(0, 50) + "..." : "[complex content]"}`,
+                ),
+              );
+
+              // Use streaming with the agent team
+              const stream = agentTeam.stream(agentState, {
                 signal: abortController.signal,
               });
 
@@ -132,13 +134,33 @@ export const aiRouter = createTRPCRouter({
               let hasEmittedContent = false;
 
               // Process the stream chunks
-              for await (const chunk of stream) {
-                if (chunk && typeof chunk.content === "string") {
-                  const content = chunk.content;
-                  if (content.trim()) {
-                    emit.next(content);
-                    finalResponse += content;
-                    hasEmittedContent = true;
+              for await (const chunk of await stream) {
+                // Skip end state
+                if ((chunk as StreamChunk)?.__end__) continue;
+
+                // Process each agent's output
+                for (const agentType of Object.keys(
+                  (chunk as StreamChunk) ?? {},
+                )) {
+                  const agentOutput = (chunk as StreamChunk)[
+                    agentType
+                  ] as AgentOutput;
+                  if (
+                    agentOutput?.messages &&
+                    agentOutput.messages.length > 0
+                  ) {
+                    const agentMessage = agentOutput.messages[0];
+
+                    if (
+                      agentMessage &&
+                      typeof agentMessage.content === "string"
+                    ) {
+                      const content = agentMessage.content;
+                      console.log(`${agentType} output:`, content);
+                      emit.next(content);
+                      finalResponse = content; // Keep track of final response
+                      hasEmittedContent = true;
+                    }
                   }
                 }
               }
@@ -383,47 +405,88 @@ export const aiRouter = createTRPCRouter({
           });
         }
 
-        // Create a simple LLM response
-        const llm = createLLM(0.7); // Higher temperature for more creative responses
+        // Create the agent team
+        console.log("Creating agent team for manual chat...");
+        const agentTeam = createAgentTeam();
+        if (!agentTeam) {
+          throw new Error("Failed to create AI agent team");
+        }
 
-        // Prepare the messages for the LLM with system message first
-        const messagesToSend: BaseMessage[] = [
-          new SystemMessage(
-            "You are Resume Master, an AI assistant that helps with resume writing, cover letters, and job applications. Be helpful, concise, and professional.",
+        // Convert messages to LangChain format for the agent team
+        const agentState = convertToAgentStateInput(
+          input.messages,
+          ctx.session.user.id,
+        );
+
+        console.log(
+          "Starting agent team with messages:",
+          agentState.messages.map(
+            (m: BaseMessage) =>
+              `${m._getType()}: ${typeof m.content === "string" ? m.content.substring(0, 50) + "..." : "[complex content]"}`,
           ),
-        ];
+        );
 
-        // Add user and assistant messages with proper types
-        for (const msg of input.messages) {
-          if (msg.role === "user") {
-            messagesToSend.push(new HumanMessage(msg.content));
-          } else if (msg.role === "assistant") {
-            messagesToSend.push(new AIMessage(msg.content));
+        // Use the agent team to generate a response
+        const result = await agentTeam.invoke(agentState);
+
+        // Process the result to extract the final response
+        let finalResponse = "I'm sorry, I wasn't able to generate a response.";
+
+        // Look for assistant messages in the result
+        if (
+          result.messages &&
+          Array.isArray(result.messages) &&
+          result.messages.length > 0
+        ) {
+          // Find the last AIMessage in the result
+          for (let i = result.messages.length - 1; i >= 0; i--) {
+            const message = result.messages[i];
+            if (
+              message &&
+              typeof message._getType === "function" &&
+              message._getType() === "ai"
+            ) {
+              finalResponse =
+                typeof message.content === "string"
+                  ? message.content
+                  : JSON.stringify(message.content);
+              break;
+            }
           }
         }
 
-        // Call the LLM
-        const response = await llm.invoke(messagesToSend);
-
-        // Extract the response text
-        const responseText =
-          typeof response.content === "string"
-            ? response.content
-            : JSON.stringify(response.content);
-
-        // Store the response in the database
+        // Store the final assistant response in the database
         await ctx.db.chatMessage.create({
           data: {
             role: MessageRole.ASSISTANT,
-            content: responseText,
+            content: finalResponse,
             conversationId: input.conversationId,
             userId: ctx.session.user.id,
           },
         });
 
-        return responseText;
+        return finalResponse;
       } catch (error) {
         console.error("Error in manual chat:", error);
+
+        // Create a fallback error response
+        const errorMessage =
+          "I'm sorry, I encountered an error while processing your request. Please try again.";
+
+        // Try to store the error response
+        try {
+          await ctx.db.chatMessage.create({
+            data: {
+              role: MessageRole.ASSISTANT,
+              content: errorMessage,
+              conversationId: input.conversationId ?? "error-session",
+              userId: ctx.session.user.id,
+            },
+          });
+        } catch (dbError) {
+          console.error("Failed to store error message:", dbError);
+        }
+
         throw new Error(
           `Chat processing failed: ${error instanceof Error ? error.message : String(error)}`,
         );
