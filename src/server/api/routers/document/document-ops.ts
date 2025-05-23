@@ -146,21 +146,6 @@ export const documentOpsRouter = createTRPCRouter({
       return doc;
     }),
 
-  truncateAllUserData: protectedProcedure.mutation(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
-    // Delete in order of dependencies
-    await ctx.db.userSkill.deleteMany({ where: { userId } });
-    await ctx.db.workAchievement.deleteMany({
-      where: { workHistory: { userId } },
-    });
-    await ctx.db.workHistory.deleteMany({ where: { userId } });
-    await ctx.db.education.deleteMany({ where: { userId } });
-    await ctx.db.keyAchievement.deleteMany({ where: { userId } });
-    await ctx.db.userLink.deleteMany({ where: { userId } });
-    await ctx.db.document.deleteMany({ where: { userId } });
-    return { success: true };
-  }),
-
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.document.findMany({
       where: { userId: ctx.session.user.id },

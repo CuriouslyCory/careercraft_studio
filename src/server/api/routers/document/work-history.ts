@@ -339,11 +339,6 @@ export async function processWorkExperience(
         },
       });
 
-      // Delete existing achievements and replace with merged ones
-      await ctx.db.workAchievement.deleteMany({
-        where: { workHistoryId: matchingRecord.id },
-      });
-
       for (const desc of mergedAchievements) {
         await ctx.db.workAchievement.create({
           data: {

@@ -60,3 +60,34 @@ The service can be used in multiple ways:
 - `parseResume()`: Full-featured parsing with document creation
 - `parseResumeFromText()`: Simplified parsing optimized for chat usage
 - Automatic integration with existing data processing functions for work history, education, achievements, and user links
+
+### Database Optimization
+
+The resume parsing service now includes optimized batch operations to significantly reduce database calls:
+
+**Batched Operations Include:**
+
+- **Key Achievements:** Uses `createMany()` to insert all achievements in a single operation
+- **Education:** Batch inserts education entries with duplicate handling
+- **User Links:** Efficient duplicate checking and batch creation of new links
+- **Work Experience:** Optimized processing that batches achievements and skills within each work history entry
+- **Skills:** Intelligent skill creation and user-skill mapping with minimal duplicate queries
+
+**Performance Benefits:**
+
+- Reduces database round trips from potentially hundreds to dozens for large resumes
+- Uses database transactions to ensure data consistency
+- Maintains backward compatibility with non-batched operations
+- Includes proper error handling and partial success support
+
+**Usage:**
+
+```typescript
+// Default behavior uses batched operations
+const result = await parseResume(resumeText, userId, db);
+
+// Opt out of batching if needed
+const result = await parseResume(resumeText, userId, db, {
+  useBatchedOperations: false,
+});
+```
