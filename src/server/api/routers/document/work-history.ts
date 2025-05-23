@@ -16,9 +16,9 @@ export function doWorkHistoryRecordsMatch(
     endDate?: Date;
   },
 ): boolean {
-  // Company name must match (case insensitive)
-  const existingCompany = existing.companyName.toLowerCase().trim();
-  const newCompany = (newRecord.company ?? "").toLowerCase().trim();
+  // Company name must match (case insensitive, ignoring all whitespace)
+  const existingCompany = existing.companyName.toLowerCase().replace(/\s/g, "");
+  const newCompany = (newRecord.company ?? "").toLowerCase().replace(/\s/g, "");
 
   if (existingCompany !== newCompany) {
     return false;

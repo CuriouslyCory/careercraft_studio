@@ -5,7 +5,7 @@ import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+
 import {
   Trash2,
   Edit2,
@@ -132,41 +132,32 @@ export function ConversationsPanel() {
 
   if (conversationsQuery.isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Conversations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-              <p>Loading conversations...</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex h-[200px] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-800" />
+      </div>
     );
   }
 
   const conversations = conversationsQuery.data ?? [];
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Conversations</CardTitle>
-          <Button
-            onClick={handleCreateNew}
-            size="sm"
-            className="flex items-center gap-2"
-            disabled={createConversationMutation.isPending}
-          >
-            <Plus className="h-4 w-4" />
-            New Chat
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="h-full space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Conversations</h2>
+        <Button
+          onClick={handleCreateNew}
+          size="sm"
+          className="flex items-center gap-2"
+          disabled={createConversationMutation.isPending}
+        >
+          <Plus className="h-4 w-4" />
+          New Chat
+        </Button>
+      </div>
+
+      {/* Content */}
+      <div className="space-y-4">
         {conversations.length === 0 ? (
           <div className="py-8 text-center text-gray-500">
             <MessageSquare className="mx-auto mb-4 h-12 w-12 opacity-50" />
@@ -285,7 +276,7 @@ export function ConversationsPanel() {
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

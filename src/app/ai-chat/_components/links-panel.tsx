@@ -5,7 +5,7 @@ import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+
 import {
   Select,
   SelectContent,
@@ -124,108 +124,96 @@ export function LinksPanel() {
 
   if (userLinksQuery.isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>User Links</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-              <p>Loading links...</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex h-[200px] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-800" />
+      </div>
     );
   }
 
   const userLinks = userLinksQuery.data ?? [];
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>User Links</CardTitle>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Link
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="h-full space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">User Links</h2>
+        <Button
+          onClick={() => setShowAddForm(true)}
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Add Link
+        </Button>
+      </div>
+
+      {/* Content */}
+      <div className="space-y-4">
         {/* Add Form */}
         {showAddForm && (
-          <Card className="border-dashed">
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="add-title">Title</Label>
-                  <Input
-                    id="add-title"
-                    value={addForm.title}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, title: e.target.value })
-                    }
-                    placeholder="e.g., LinkedIn Profile"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="add-url">URL</Label>
-                  <Input
-                    id="add-url"
-                    value={addForm.url}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, url: e.target.value })
-                    }
-                    placeholder="https://..."
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="add-type">Type</Label>
-                  <Select
-                    value={addForm.type}
-                    onValueChange={(value: string) =>
-                      setAddForm({ ...addForm, type: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LINKEDIN">LinkedIn</SelectItem>
-                      <SelectItem value="GITHUB">GitHub</SelectItem>
-                      <SelectItem value="PORTFOLIO">Portfolio</SelectItem>
-                      <SelectItem value="PERSONAL_WEBSITE">
-                        Personal Website
-                      </SelectItem>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleAdd}
-                    disabled={createUserLinkMutation.isPending}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAddForm(false)}
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Cancel
-                  </Button>
-                </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="mb-4 text-lg font-medium">Add New Link</h3>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="add-title">Title</Label>
+                <Input
+                  id="add-title"
+                  value={addForm.title}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, title: e.target.value })
+                  }
+                  placeholder="e.g., LinkedIn Profile"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <Label htmlFor="add-url">URL</Label>
+                <Input
+                  id="add-url"
+                  value={addForm.url}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, url: e.target.value })
+                  }
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <Label htmlFor="add-type">Type</Label>
+                <Select
+                  value={addForm.type}
+                  onValueChange={(value: string) =>
+                    setAddForm({ ...addForm, type: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LINKEDIN">LinkedIn</SelectItem>
+                    <SelectItem value="GITHUB">GitHub</SelectItem>
+                    <SelectItem value="PORTFOLIO">Portfolio</SelectItem>
+                    <SelectItem value="PERSONAL_WEBSITE">
+                      Personal Website
+                    </SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAdd}
+                  disabled={createUserLinkMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {createUserLinkMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddForm(false)}>
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Links List */}
@@ -293,6 +281,7 @@ export function LinksPanel() {
                         size="sm"
                         onClick={handleSaveEdit}
                         disabled={updateUserLinkMutation.isPending}
+                        className="bg-green-500 hover:bg-green-600"
                       >
                         <Save className="mr-2 h-4 w-4" />
                         Save
@@ -351,7 +340,7 @@ export function LinksPanel() {
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

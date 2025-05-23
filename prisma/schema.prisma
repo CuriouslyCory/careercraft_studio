@@ -395,6 +395,7 @@ model UserLink {
     user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
     userId String
 
+    @@unique([userId, url]) // Prevent duplicate URLs per user
     @@index([userId])
 }
 
