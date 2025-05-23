@@ -289,7 +289,6 @@ export async function processWorkExperience(
     where: { userId },
     include: {
       achievements: true,
-      skills: true,
     },
   });
 

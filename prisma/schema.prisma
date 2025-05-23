@@ -308,7 +308,6 @@ model WorkHistory {
     userId String
 
     achievements WorkAchievement[]
-    skills       WorkSkill[] // Legacy - consider deprecating in favor of UserSkill
     userSkills   UserSkill[]
 
     @@index([userId])
@@ -319,20 +318,6 @@ model WorkAchievement {
     description String
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
-
-    workHistory   WorkHistory @relation(fields: [workHistoryId], references: [id], onDelete: Cascade)
-    workHistoryId String
-
-    @@index([workHistoryId])
-}
-
-// DEPRECATED: Use UserSkill instead for new implementations
-// This model is kept for backward compatibility during migration
-model WorkSkill {
-    id        String   @id @default(cuid())
-    name      String // e.g., "React", "Project Management"
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
 
     workHistory   WorkHistory @relation(fields: [workHistoryId], references: [id], onDelete: Cascade)
     workHistoryId String

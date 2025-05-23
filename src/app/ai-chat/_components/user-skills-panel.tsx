@@ -12,23 +12,11 @@ export function UserSkillsPanel() {
   const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
   const [skillSearch, setSkillSearch] = useState("");
 
-  const queryClient = api.useUtils();
   const userSkillsQuery = api.userSkills.list.useQuery();
   const skillSearchQuery = api.userSkills.searchSkills.useQuery(
     { query: skillSearch },
     { enabled: skillSearch.length > 0 },
   );
-
-  const migrateLegacySkillsMutation =
-    api.userSkills.migrateLegacySkills.useMutation({
-      onSuccess: (result) => {
-        void userSkillsQuery.refetch();
-        toast.success(result.message);
-      },
-      onError: (error) => {
-        toast.error(`Migration failed: ${error.message}`);
-      },
-    });
 
   const addSkillMutation = api.userSkills.add.useMutation({
     onSuccess: () => {
@@ -116,18 +104,6 @@ export function UserSkillsPanel() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Your Skills</h2>
         <div className="flex gap-2">
-          {userSkills.length === 0 && (
-            <Button
-              onClick={() => migrateLegacySkillsMutation.mutate()}
-              disabled={migrateLegacySkillsMutation.isPending}
-              variant="outline"
-              className="text-green-600 hover:bg-green-50"
-            >
-              {migrateLegacySkillsMutation.isPending
-                ? "Migrating..."
-                : "Import from Work History"}
-            </Button>
-          )}
           <Button
             onClick={() => setIsAddingSkill(!isAddingSkill)}
             className="bg-blue-600 hover:bg-blue-700"
