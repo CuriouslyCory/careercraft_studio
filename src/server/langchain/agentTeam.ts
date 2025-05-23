@@ -18,6 +18,411 @@ import {
   getSupervisorTools,
   getJobPostingTools,
 } from "./tools";
+import { z } from "zod";
+
+// Configuration constants
+const AGENT_CONFIG = {
+  MODEL: "gemini-2.0-flash",
+  TEMPERATURE: {
+    SUPERVISOR: 0.0,
+    AGENTS: 0.2,
+  },
+  TIMEOUTS: {
+    LLM_INVOKE: 30000,
+    TOOL_EXECUTION: 15000,
+  },
+} as const;
+
+// TypeScript interfaces for tool arguments
+interface RouteToAgentArgs {
+  next: string;
+}
+
+interface StoreUserPreferenceArgs {
+  category: string;
+  preference: string;
+}
+
+interface StoreWorkHistoryArgs {
+  jobTitle: string;
+  companyName: string;
+  startDate?: string;
+  endDate?: string;
+  responsibilities?: string[];
+  achievements?: string[];
+}
+
+interface GetUserProfileArgs {
+  dataType:
+    | "work_history"
+    | "education"
+    | "skills"
+    | "achievements"
+    | "preferences"
+    | "all";
+}
+
+interface ParseJobPostingArgs {
+  content: string;
+}
+
+interface StoreJobPostingArgs {
+  parsedJobPosting: string;
+}
+
+interface FindJobPostingsArgs {
+  title?: string;
+  company?: string;
+  location?: string;
+  limit?: number;
+}
+
+interface CompareSkillsToJobArgs {
+  jobPostingId: string;
+}
+
+interface GenerateResumeArgs {
+  style?: string;
+  targetJobTitle?: string;
+  customizations?: Record<string, unknown>;
+}
+
+interface GenerateCoverLetterArgs {
+  jobPostingId?: string;
+  jobDescription?: string;
+  companyName?: string;
+  customizations?: Record<string, unknown>;
+}
+
+// Zod validation schemas
+const RouteToAgentSchema = z.object({
+  next: z.enum([
+    "data_manager",
+    "resume_generator",
+    "cover_letter_generator",
+    "user_profile",
+    "job_posting_manager",
+    "END",
+  ]),
+});
+
+const StoreUserPreferenceSchema = z.object({
+  category: z.string().min(1),
+  preference: z.string().min(1),
+});
+
+const StoreWorkHistorySchema = z.object({
+  jobTitle: z.string().min(1),
+  companyName: z.string().min(1),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  responsibilities: z.array(z.string()).optional(),
+  achievements: z.array(z.string()).optional(),
+});
+
+const GetUserProfileSchema = z.object({
+  dataType: z.enum([
+    "work_history",
+    "education",
+    "skills",
+    "achievements",
+    "preferences",
+    "all",
+  ]),
+});
+
+const ParseJobPostingSchema = z.object({
+  content: z.string().min(1),
+});
+
+const StoreJobPostingSchema = z.object({
+  parsedJobPosting: z.string().min(1),
+});
+
+// Custom error types for structured error handling
+class AgentError extends Error {
+  constructor(
+    message: string,
+    public readonly agentType: string,
+    public readonly originalError?: Error,
+    public readonly context?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "AgentError";
+  }
+}
+
+class ValidationError extends Error {
+  constructor(
+    message: string,
+    public readonly validationErrors: z.ZodError,
+    public readonly input?: unknown,
+  ) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+class LLMError extends Error {
+  constructor(
+    message: string,
+    public readonly modelConfig?: Record<string, unknown>,
+    public readonly originalError?: Error,
+  ) {
+    super(message);
+    this.name = "LLMError";
+  }
+}
+
+// Structured logging helper
+const logger = {
+  info: (message: string, context?: Record<string, unknown>) => {
+    console.log(`[INFO] ${message}`, context ? JSON.stringify(context) : "");
+  },
+  warn: (message: string, context?: Record<string, unknown>) => {
+    console.warn(`[WARN] ${message}`, context ? JSON.stringify(context) : "");
+  },
+  error: (message: string, context?: Record<string, unknown>) => {
+    console.error(`[ERROR] ${message}`, context ? JSON.stringify(context) : "");
+  },
+};
+
+// Type-safe tool call interface
+interface ValidatedToolCall {
+  name: string;
+  args: Record<string, unknown>;
+  id: string;
+  type: "tool_call";
+}
+
+// Utility function to validate user ID
+function validateUserId(userId?: string): string {
+  if (!userId || userId.trim() === "") {
+    throw new AgentError(
+      "User ID is required but not provided",
+      "validation",
+      undefined,
+      { userId },
+    );
+  }
+  return userId;
+}
+
+// Utility function to validate and parse tool arguments
+function validateToolArgs<T>(
+  args: unknown,
+  schema: z.ZodSchema<T>,
+  toolName: string,
+): T {
+  try {
+    let parsedArgs: unknown;
+
+    if (typeof args === "string") {
+      try {
+        parsedArgs = JSON.parse(args) as unknown;
+      } catch (parseError) {
+        throw new ValidationError(
+          `Failed to parse JSON arguments for tool ${toolName}`,
+          new z.ZodError([]),
+          args,
+        );
+      }
+    } else {
+      parsedArgs = args;
+    }
+
+    const result = schema.safeParse(parsedArgs);
+
+    if (!result.success) {
+      throw new ValidationError(
+        `Invalid arguments for tool ${toolName}`,
+        result.error,
+        args,
+      );
+    }
+
+    return result.data;
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw error;
+    }
+    throw new ValidationError(
+      `Failed to parse arguments for tool ${toolName}`,
+      new z.ZodError([]),
+      args,
+    );
+  }
+}
+
+// Utility function to create specialized LLM instances
+async function createSpecializedLLM(
+  agentType: "supervisor" | "agent",
+  modelOverride?: string,
+): Promise<ChatGoogleGenerativeAI> {
+  try {
+    const { GOOGLE_API_KEY } = env;
+
+    if (!GOOGLE_API_KEY) {
+      throw new LLMError(
+        "GOOGLE_API_KEY is not defined in environment variables",
+      );
+    }
+
+    // Validate Google API key format
+    if (!GOOGLE_API_KEY.startsWith("AI") || GOOGLE_API_KEY.length < 20) {
+      throw new LLMError(
+        'GOOGLE_API_KEY appears to be invalid. Google API keys typically start with "AI" and are longer than 20 characters',
+      );
+    }
+
+    const temperature =
+      agentType === "supervisor"
+        ? AGENT_CONFIG.TEMPERATURE.SUPERVISOR
+        : AGENT_CONFIG.TEMPERATURE.AGENTS;
+
+    const modelOptions = {
+      apiKey: GOOGLE_API_KEY,
+      model: modelOverride ?? AGENT_CONFIG.MODEL,
+      temperature,
+    };
+
+    logger.info(`Initializing ${agentType} LLM model`, {
+      model: modelOptions.model,
+      temperature: modelOptions.temperature,
+      apiKey: "[REDACTED]",
+    });
+
+    return new ChatGoogleGenerativeAI(modelOptions);
+  } catch (error) {
+    if (error instanceof LLMError) {
+      throw error;
+    }
+    throw new LLMError(
+      `Failed to initialize ${agentType} LLM`,
+      undefined,
+      error instanceof Error ? error : new Error(String(error)),
+    );
+  }
+}
+
+// Utility function to prepare messages for agents
+function prepareAgentMessages(
+  stateMessages: BaseMessage[],
+  systemMessage: string,
+): BaseMessage[] {
+  // Filter to keep only human and AI messages
+  const userMessages = stateMessages.filter(
+    (msg) => msg._getType() === "human" || msg._getType() === "ai",
+  );
+
+  // Create new messages array with system message first, then user messages
+  return [new SystemMessage(systemMessage), ...userMessages];
+}
+
+// Utility function to process validated tool calls
+function processToolCalls(
+  toolCalls: Array<{
+    name?: string;
+    args?: unknown;
+    id?: string;
+    type?: string;
+  }>,
+): ValidatedToolCall[] {
+  return toolCalls
+    .filter(Boolean)
+    .map((toolCall) => {
+      if (!toolCall?.name || !toolCall?.id || toolCall?.type !== "tool_call") {
+        logger.warn("Filtering out invalid tool call", { toolCall });
+        return null;
+      }
+
+      let parsedArgs: Record<string, unknown>;
+      try {
+        parsedArgs =
+          typeof toolCall.args === "string"
+            ? (JSON.parse(toolCall.args) as Record<string, unknown>)
+            : ((toolCall.args as Record<string, unknown>) ?? {});
+      } catch (parseError) {
+        logger.warn("Failed to parse tool call args, using empty object", {
+          toolCall: toolCall.name,
+          error: parseError,
+        });
+        parsedArgs = {};
+      }
+
+      return {
+        name: toolCall.name,
+        args: parsedArgs,
+        id: toolCall.id,
+        type: "tool_call" as const,
+      };
+    })
+    .filter((tc): tc is ValidatedToolCall => tc !== null);
+}
+
+// Utility function to safely convert message content to string
+function contentToString(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (content === null || content === undefined) {
+    return "";
+  }
+
+  // Handle array content (MessageContentComplex[])
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+      .join(" ");
+  }
+
+  // Handle object content
+  if (typeof content === "object") {
+    try {
+      return JSON.stringify(content);
+    } catch {
+      return "[Complex Content]";
+    }
+  }
+
+  // Only primitives should reach here (number, boolean, bigint, symbol)
+  if (
+    typeof content === "number" ||
+    typeof content === "boolean" ||
+    typeof content === "bigint" ||
+    typeof content === "symbol"
+  ) {
+    return String(content);
+  }
+
+  // Fallback for any unexpected types
+  return "[Unknown Type]";
+}
+
+// Utility function to handle agent errors consistently
+function handleAgentError(
+  error: unknown,
+  agentType: string,
+): { messages: BaseMessage[]; next: string } {
+  logger.error(`Error in ${agentType} agent`, {
+    error: error instanceof Error ? error.message : String(error),
+    agentType,
+    stack: error instanceof Error ? error.stack : undefined,
+  });
+
+  const errorMessage =
+    error instanceof AgentError ||
+    error instanceof ValidationError ||
+    error instanceof LLMError
+      ? `I encountered an error: ${error.message}`
+      : "I encountered an unexpected error while processing your request.";
+
+  return {
+    messages: [new AIMessage(`${errorMessage} Please try again.`)],
+    next: "supervisor",
+  };
+}
 
 // Define the state that is passed between nodes in the graph
 const AgentState = Annotation.Root({
@@ -65,43 +470,27 @@ const MEMBERS = [
 
 // All tools have been moved to src/server/langchain/tools.ts for better organization
 
-// Initialize the model
-export function createLLM(temperature = 0.2) {
+// Initialize the model (updated to use new utilities)
+export function createLLM(temperature = AGENT_CONFIG.TEMPERATURE.AGENTS) {
   try {
-    const { GOOGLE_API_KEY } = env;
-
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
-    }
-
-    // Validate Google API key format (simple check for expected pattern)
-    if (!GOOGLE_API_KEY.startsWith("AI") || GOOGLE_API_KEY.length < 20) {
-      throw new Error(
-        "GOOGLE_API_KEY appears to be invalid. Google API keys typically start with 'AI' and are longer than 20 characters",
-      );
-    }
-
-    // Use the most stable production model by default
-    const modelOptions = {
-      apiKey: GOOGLE_API_KEY,
-      model: "gemini-2.0-flash", // Most stable production model
-      temperature,
-    };
-
-    console.log("Initializing Google AI model with options:", {
-      ...modelOptions,
-      apiKey: "[REDACTED]", // Don't log the actual API key
+    return createSpecializedLLM("agent", undefined).then((model) => {
+      // Override temperature if specified
+      if (temperature !== AGENT_CONFIG.TEMPERATURE.AGENTS) {
+        const { GOOGLE_API_KEY } = env;
+        return new ChatGoogleGenerativeAI({
+          apiKey: GOOGLE_API_KEY,
+          model: AGENT_CONFIG.MODEL,
+          temperature,
+        });
+      }
+      return model;
     });
-
-    // Create the model with the provided options
-    const model = new ChatGoogleGenerativeAI(modelOptions);
-
-    return model;
   } catch (error) {
-    console.error("Error initializing language model:", error);
-    throw new Error(
-      "Failed to initialize language model: " +
-        (error instanceof Error ? error.message : String(error)),
+    logger.error("Error initializing language model", { error });
+    throw new LLMError(
+      "Failed to initialize language model",
+      undefined,
+      error instanceof Error ? error : new Error(String(error)),
     );
   }
 }
@@ -126,49 +515,13 @@ async function safeAgentInvoke(
 async function supervisorNode(
   state: typeof AgentState.State,
 ): Promise<Partial<typeof AgentState.State>> {
-  // Create the LLM with tools in a try/catch block
-  let llm;
   try {
-    // Create LLM with a lower temperature for more predictable, deterministic responses
-    // We're using a specialized function for the supervisor to use the most stable model
-    console.log("Creating specialized supervisor LLM model...");
+    // Create LLM with specialized configuration
+    const model = await createSpecializedLLM("supervisor");
+    const llm = model.bindTools(getSupervisorTools());
+    logger.info("Successfully initialized supervisor LLM with tools");
 
-    const { GOOGLE_API_KEY } = env;
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
-    }
-
-    // Use the most stable model version for the critical routing task
-    const supervisorModelOptions = {
-      apiKey: GOOGLE_API_KEY,
-      model: "gemini-2.0-flash", // Use stable model for routing decisions
-      temperature: 0.0, // Zero temperature for maximum determinism
-    };
-
-    console.log("Initializing supervisor model with options:", {
-      ...supervisorModelOptions,
-      apiKey: "[REDACTED]",
-    });
-
-    const model = new ChatGoogleGenerativeAI(supervisorModelOptions);
-    console.log("Created specialized LLM model for supervisor node");
-
-    // Bind the routing tool
-    llm = model.bindTools(getSupervisorTools());
-    console.log("Successfully bound tools to LLM");
-  } catch (initError) {
-    console.error("Failed to initialize LLM with tools:", initError);
-    return {
-      messages: [
-        new AIMessage(
-          "I'm having trouble initializing my AI capabilities. Please try again later.",
-        ),
-      ],
-      next: END,
-    };
-  }
-
-  const systemMessage = `You are the Supervisor Agent for Resume Master, an AI system that helps users create professional resumes and cover letters.
+    const systemMessage = `You are the Supervisor Agent for Resume Master, an AI system that helps users create professional resumes and cover letters.
 
 Your primary job is to analyze messages and route them to the correct specialized agent. Your routing decisions are critical to system functioning.
 
@@ -197,251 +550,116 @@ If you're unsure which specialized agent to route to, prefer 'data_manager' as i
 
 If you don't call 'route_to_agent', your response will be sent directly to the user, so only do this for simple informational responses.`;
 
-  // Only keep the human and AI messages
-  const userMessages = state.messages.filter(
-    (msg) => msg._getType() === "human" || msg._getType() === "ai",
-  );
+    // Prepare messages using the utility function
+    const messages = prepareAgentMessages(state.messages, systemMessage);
 
-  // Create new messages array with system message first, then user messages
-  const messages: BaseMessage[] = [
-    new SystemMessage(systemMessage),
-    ...userMessages,
-  ];
+    logger.info("Supervisor invoking LLM", {
+      messageCount: messages.length,
+      userId: state.userId,
+    });
 
+    // Invoke the LLM
+    const response = await llm.invoke(messages);
+
+    // Process tool calls if present
+    if (response?.tool_calls && response.tool_calls.length > 0) {
+      return await processSupervisorToolCalls(response.tool_calls, response);
+    }
+
+    // Handle direct response
+    return handleSupervisorDirectResponse(response);
+  } catch (error) {
+    return handleAgentError(error, "supervisor");
+  }
+}
+
+// Utility function to process supervisor tool calls with validation
+async function processSupervisorToolCalls(
+  toolCalls: Array<{
+    name?: string;
+    args?: unknown;
+    id?: string;
+    type?: string;
+  }>,
+  response: { content?: unknown },
+): Promise<{ messages: BaseMessage[]; next: string }> {
   try {
-    console.log(
-      "Supervisor invoking LLM with messages:",
-      messages.map(
-        (m) =>
-          `${m._getType()}: ${typeof m.content === "string" ? m.content.substring(0, 100) + "..." : "[complex content]"}`,
-      ),
-    );
+    const processedToolCalls = processToolCalls(toolCalls);
 
-    // Wrap the invoke call with additional try-catch for better error details
-    let response;
-    try {
-      response = await llm.invoke(messages);
-
-      // Defensive checks on response structure
-      if (!response) {
-        throw new Error("Received null or undefined response from LLM");
-      }
-
-      // Debug log the full response structure to see what's available
-      console.log(
-        "Raw LLM response structure:",
-        JSON.stringify(
-          response,
-          (key: string, value: unknown): unknown => {
-            if (key === "apiKey") return "[REDACTED]";
-            return value;
-          },
-          2,
-        ),
-      );
-
-      // Handle missing text or content - this is where the error might be happening
-      if (response.text === undefined && response.content === undefined) {
-        console.warn("Response is missing both text and content properties");
-        // Create a synthetic response with empty content to avoid errors
-        response.content = "I'm not sure how to respond to that.";
-      }
-
-      // Ensure content exists (might be null/undefined)
-      response.content ??= response.text ?? ""; // Try to use text if content is missing
-    } catch (invokeError) {
-      console.error("Error during LLM invoke:", invokeError);
-      throw new Error(
-        `LLM invoke failed: ${invokeError instanceof Error ? invokeError.message : String(invokeError)}`,
-      );
-    }
-
-    console.log(
-      "Supervisor LLM response:",
-      response.content,
-      response.tool_calls,
-    );
-
-    // If the supervisor decided to call a tool (i.e., route_to_agent)
-    if (response.tool_calls && response.tool_calls.length > 0) {
-      // response.tool_calls is an array of InvalidToolCall from AIMessage
-      // InvalidToolCall: { name?: string; args?: string; id?: string; type: "tool_call"; ... }
-      // We need to transform these to a stricter format if subsequent operations expect it.
-      // The target ToolCall type appears to require: { name: string; args: string; id: string; type: "tool_call" }
-      const processedToolCalls = response.tool_calls
-        .map((tc_raw) => {
-          // Skip processing if tc_raw is undefined or null
-          if (!tc_raw) {
-            console.warn(
-              "Supervisor: Encountered null/undefined tool call object",
-            );
-            return null;
-          }
-
-          const name = tc_raw.name;
-          const id = tc_raw.id;
-          // Ensure args is a string, defaulting to empty JSON object string if undefined/null
-          const args_string =
-            typeof tc_raw.args === "string"
-              ? tc_raw.args
-              : JSON.stringify(tc_raw.args ?? {});
-          let args_obj: Record<string, unknown>;
-          try {
-            args_obj = JSON.parse(args_string) as Record<string, unknown>;
-          } catch (e) {
-            console.warn(
-              "Supervisor: Failed to parse tool call args, defaulting to empty object:",
-              args_string,
-              e,
-            );
-            args_obj = {};
-          }
-
-          // Filter out tool calls that don't have a valid name or id
-          if (
-            name &&
-            name.length > 0 &&
-            id &&
-            id.length > 0 &&
-            tc_raw.type === "tool_call"
-          ) {
-            return {
-              name,
-              args: args_obj, // Use the parsed object here
-              id,
-              type: "tool_call" as const,
-            };
-          }
-          // Log problematic tool calls for debugging
-          console.warn(
-            "Supervisor: Filtering out tool call with missing/empty name or id, or incorrect type:",
-            tc_raw,
-          );
-          return null;
-        })
-        .filter(
-          (
-            tc,
-          ): tc is {
-            name: string;
-            args: Record<string, unknown>; // Updated type for args
-            id: string;
-            type: "tool_call";
-          } => tc !== null,
-        );
-
-      console.log("Supervisor processed tool calls:", processedToolCalls);
-
-      if (processedToolCalls.length === 0) {
-        console.warn(
-          "Supervisor: All tool_calls were filtered out (e.g., missing name or id). Responding directly.",
-        );
-        // Fallback to a direct response if no valid tool calls remain
-        return {
-          messages: [new AIMessage({ content: response.content ?? "" })],
-          next: END, // Explicitly set next to END if no valid tool calls
-        };
-      }
-
-      // Look for the route_to_agent tool call to set the next state
-      const routingCall = processedToolCalls.find(
-        (tc) => tc.name === "route_to_agent",
-      );
-
-      if (
-        routingCall?.args &&
-        typeof routingCall.args === "object" &&
-        "next" in routingCall.args
-      ) {
-        // Extract the destination from the tool call
-        const destination = routingCall.args.next as string;
-        console.log(`Supervisor routing to: ${destination}`);
-
-        // Return messages with the processed tool calls and set the next state
-        return {
-          messages: [
-            new AIMessage({
-              content: response.content ?? "", // Ensure content is a string
-              tool_calls: processedToolCalls,
-            }),
-          ],
-          next: destination, // Explicitly set the next state from the tool call
-        };
-      }
-
-      // If we got tool calls but no routing tool call, default to supervisor handling
-      console.warn(
-        "Supervisor: Found tool calls but no route_to_agent. Handling directly.",
-      );
-      return {
-        messages: [
-          new AIMessage({
-            content: response.content ?? "", // Ensure content is a string
-            tool_calls: processedToolCalls,
-          }),
-        ],
-        next: END, // Default to END if no routing destination specified
-      };
-    }
-
-    // If no tool calls, it's a direct response from the supervisor
-    const directResponseContent =
-      typeof response.content === "string"
-        ? response.content
-        : JSON.stringify(response.content);
-
-    // Provide a meaningful response for empty content
-    if (
-      (!directResponseContent || directResponseContent.trim() === "") &&
-      !(response.tool_calls && response.tool_calls.length > 0)
-    ) {
-      console.warn(
-        "Supervisor LLM response had no direct content and no tool calls. Providing default response.",
+    if (processedToolCalls.length === 0) {
+      logger.warn(
+        "All supervisor tool calls were filtered out, providing direct response",
       );
       return {
         messages: [
           new AIMessage(
-            "I apologize, but I don't have enough information to help with that specific request. Could you provide more details about what you're looking for?",
+            contentToString(response.content) || "I understand your request.",
           ),
         ],
         next: END,
       };
     }
 
-    console.log(
-      "Supervisor decision: Handling directly. Response:",
-      directResponseContent,
+    // Look for the route_to_agent tool call
+    const routingCall = processedToolCalls.find(
+      (tc) => tc.name === "route_to_agent",
     );
 
-    // Use default message if content is empty or only whitespace
-    const finalContent =
-      !directResponseContent || directResponseContent.trim() === ""
-        ? "I understand your request. Let me help you with that."
-        : directResponseContent;
+    if (routingCall) {
+      try {
+        // Validate the routing arguments
+        const validatedArgs = validateToolArgs(
+          routingCall.args,
+          RouteToAgentSchema,
+          "route_to_agent",
+        );
+        const destination = validatedArgs.next;
 
-    return {
-      messages: [new AIMessage(finalContent)],
-      next: END, // After direct handling, the supervisor's turn is over.
-    };
-  } catch (error) {
-    console.error("Error in supervisor agent:", error);
-    // Log more detailed diagnostics
-    if (error instanceof Error && error.stack) {
-      console.error("Error stack trace:", error.stack);
+        logger.info("Supervisor routing decision", { destination });
+
+        return {
+          messages: [
+            new AIMessage({
+              content: contentToString(response.content),
+              tool_calls: processedToolCalls,
+            }),
+          ],
+          next: destination,
+        };
+      } catch (validationError) {
+        logger.error("Invalid routing arguments", {
+          args: routingCall.args,
+          error: validationError,
+        });
+
+        return {
+          messages: [
+            new AIMessage(
+              "I encountered an error with my routing decision. Let me try to help you directly.",
+            ),
+          ],
+          next: END,
+        };
+      }
     }
 
-    // If we have a more specific error, provide better feedback
-    const errorMessage =
-      error instanceof Error
-        ? `Error: ${error.message}`
-        : "I encountered an error while trying to supervise the task.";
-
-    console.log("Returning error message to user:", errorMessage);
-
+    // If no routing tool call found, handle directly
+    logger.warn("No route_to_agent tool call found, handling directly");
+    return {
+      messages: [
+        new AIMessage({
+          content: contentToString(response.content),
+          tool_calls: processedToolCalls,
+        }),
+      ],
+      next: END,
+    };
+  } catch (error) {
+    logger.error("Error processing supervisor tool calls", { error });
     return {
       messages: [
         new AIMessage(
-          "I encountered an error while trying to supervise the task. Please try again.",
+          "I encountered an error while processing your request. Please try again.",
         ),
       ],
       next: END,
@@ -449,10 +667,107 @@ If you don't call 'route_to_agent', your response will be sent directly to the u
   }
 }
 
-async function dataManagerNode(
-  state: typeof AgentState.State,
-): Promise<Partial<typeof AgentState.State>> {
-  const systemMessage = `You are the Data Manager Agent for Resume Master.
+// Utility function to handle supervisor direct responses
+function handleSupervisorDirectResponse(response: { content?: unknown }): {
+  messages: BaseMessage[];
+  next: string;
+} {
+  const content = contentToString(response.content);
+
+  if (!content || content.trim() === "") {
+    logger.warn("Supervisor response had empty content");
+    return {
+      messages: [
+        new AIMessage(
+          "I apologize, but I don't have enough information to help with that specific request. Could you provide more details about what you're looking for?",
+        ),
+      ],
+      next: END,
+    };
+  }
+
+  logger.info("Supervisor providing direct response");
+  return {
+    messages: [new AIMessage(content)],
+    next: END,
+  };
+}
+
+// Create specialized data manager tool call processor
+async function processDataManagerToolCalls(
+  toolCalls: ValidatedToolCall[],
+  userId: string,
+  response: { content?: unknown },
+): Promise<string> {
+  let toolCallSummary = "I've processed your request:\n\n";
+
+  for (const toolCall of toolCalls) {
+    if (toolCall.name === "store_user_preference") {
+      try {
+        const args = validateToolArgs(
+          toolCall.args,
+          StoreUserPreferenceSchema,
+          "store_user_preference",
+        );
+        toolCallSummary += `• Stored preference for ${args.category}: ${args.preference}\n`;
+      } catch (error) {
+        toolCallSummary += `• Error storing preference: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
+    } else if (toolCall.name === "store_work_history") {
+      try {
+        const args = validateToolArgs(
+          toolCall.args,
+          StoreWorkHistorySchema,
+          "store_work_history",
+        );
+        toolCallSummary += `• Stored work history: ${args.jobTitle} at ${args.companyName}\n`;
+      } catch (error) {
+        toolCallSummary += `• Error storing work history: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
+    } else if (toolCall.name === "get_user_profile") {
+      try {
+        const args = validateToolArgs(
+          toolCall.args,
+          GetUserProfileSchema,
+          "get_user_profile",
+        );
+        const profileTool = createUserProfileTool(userId);
+        const result = (await profileTool.invoke(args)) as string;
+
+        let formattedResult: string;
+        try {
+          const parsedResult = JSON.parse(result) as unknown;
+          formattedResult = JSON.stringify(parsedResult, null, 2);
+        } catch {
+          formattedResult = result;
+        }
+
+        toolCallSummary += `• Retrieved ${args.dataType} data:\n\n\`\`\`json\n${formattedResult}\n\`\`\`\n\n`;
+      } catch (error) {
+        const dataType =
+          typeof toolCall.args?.dataType === "string"
+            ? toolCall.args.dataType
+            : "unknown";
+        toolCallSummary += `Error retrieving ${dataType} data: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
+    } else {
+      toolCallSummary += `• ${toolCall.name}: Processed successfully\n`;
+    }
+  }
+
+  // Add any content from the response
+  const responseContent = contentToString(response.content);
+  if (responseContent?.trim()) {
+    toolCallSummary += "\n" + responseContent;
+  }
+
+  return toolCallSummary;
+}
+
+// Create data manager node using the factory
+const dataManagerNode = createAgentNode({
+  agentType: "data_manager",
+  systemMessage: `You are the Data Manager Agent for Resume Master.
   
 Your job is to:
 1. Look up information relating to the user, including work history, skills, achievements, and preferences.
@@ -465,257 +780,15 @@ You have access to these tools:
 - store_work_history: For storing details about previous jobs, responsibilities, achievements
 - get_user_profile: For retrieving existing user data
 
-When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
+When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`,
+  getTools: getDataManagerTools,
+  processToolCalls: processDataManagerToolCalls,
+});
 
-  // Create LLM with appropriate tools
-  try {
-    console.log("Creating specialized LLM for data manager with tools...");
-
-    // Get userId directly from the agent state
-    const userId = state.userId || "";
-    if (!userId) {
-      console.warn("No user ID found in agent state for data manager");
-      return {
-        messages: [
-          new AIMessage(
-            "I'm unable to access your profile information. Please make sure you're logged in and try again.",
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
-
-    console.log(`Using user ID from agent state: ${userId}`);
-
-    // Use the same stable model as the supervisor
-    const { GOOGLE_API_KEY } = env;
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
-    }
-
-    // Use the stable model for tool-using agents
-    const dataManagerModelOptions = {
-      apiKey: GOOGLE_API_KEY,
-      model: "gemini-2.0-flash", // Use the same stable model as the supervisor
-      temperature: 0.2, // Slightly higher temperature for creativity in responses
-    };
-
-    console.log("Initializing data manager model with options:", {
-      ...dataManagerModelOptions,
-      apiKey: "[REDACTED]",
-    });
-
-    // Create a specialized model
-    const model = new ChatGoogleGenerativeAI(dataManagerModelOptions);
-
-    // Bind the data management tools
-    const llm = model.bindTools(getDataManagerTools(userId));
-    console.log("Successfully bound data management tools to LLM");
-
-    // Only keep human and AI messages, filtering out any system messages
-    const userMessages = state.messages.filter(
-      (msg) => msg._getType() === "human" || msg._getType() === "ai",
-    );
-
-    // Create new messages array with system message first, then user messages
-    const messages = [new SystemMessage(systemMessage), ...userMessages];
-
-    console.log(
-      "Data Manager message types:",
-      messages.map((m) => m._getType()),
-    );
-
-    console.log("Data Manager invoking LLM with tools...");
-
-    try {
-      const response = await llm.invoke(messages);
-      console.log(
-        "Data Manager received raw response:",
-        JSON.stringify(
-          response,
-          (key: string, value: unknown): unknown => {
-            if (key === "apiKey") return "[REDACTED]";
-            return value;
-          },
-          2,
-        ).substring(0, 500) + "...",
-      );
-
-      // Handle tool calls if present
-      if (response?.tool_calls && response.tool_calls.length > 0) {
-        console.log("Data Manager processing tool calls:", response.tool_calls);
-
-        // Create a combined response that includes tool call results
-        let toolCallSummary = "I've processed your request:\n\n";
-
-        for (const tool_call of response.tool_calls) {
-          if (tool_call.name) {
-            // Summarize the tool call
-            toolCallSummary += `• ${tool_call.name}: `;
-
-            if (tool_call.name === "store_user_preference" && tool_call.args) {
-              const args: Record<string, unknown> =
-                typeof tool_call.args === "string"
-                  ? (JSON.parse(tool_call.args) as Record<string, unknown>)
-                  : (tool_call.args as Record<string, unknown>);
-
-              const category =
-                typeof args.category === "string" ? args.category : "general";
-              const preference =
-                typeof args.preference === "string"
-                  ? args.preference
-                  : "unspecified";
-
-              toolCallSummary += `Stored preference for ${category}: ${preference}\n`;
-            } else if (
-              tool_call.name === "store_work_history" &&
-              tool_call.args
-            ) {
-              const args: Record<string, unknown> =
-                typeof tool_call.args === "string"
-                  ? (JSON.parse(tool_call.args) as Record<string, unknown>)
-                  : (tool_call.args as Record<string, unknown>);
-
-              const jobTitle =
-                typeof args.jobTitle === "string" ? args.jobTitle : "position";
-              const companyName =
-                typeof args.companyName === "string"
-                  ? args.companyName
-                  : "company";
-
-              toolCallSummary += `Stored work history: ${jobTitle} at ${companyName}\n`;
-            } else if (
-              tool_call.name === "get_user_profile" &&
-              tool_call.args
-            ) {
-              const args: Record<string, unknown> =
-                typeof tool_call.args === "string"
-                  ? (JSON.parse(tool_call.args) as Record<string, unknown>)
-                  : (tool_call.args as Record<string, unknown>);
-
-              const dataType =
-                typeof args.dataType === "string" ? args.dataType : "all";
-
-              // Execute the tool directly to get the result
-              const profileTool = createUserProfileTool(userId);
-              try {
-                const typedArgs = {
-                  dataType: dataType as
-                    | "work_history"
-                    | "education"
-                    | "skills"
-                    | "achievements"
-                    | "preferences"
-                    | "all",
-                };
-
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                const result: string = await profileTool.invoke(typedArgs);
-
-                // Format the result nicely
-                let formattedResult: string = result;
-                try {
-                  // Attempt to parse the JSON result for better display
-                  const parsedResult: unknown = JSON.parse(result);
-                  formattedResult = JSON.stringify(parsedResult, null, 2);
-                } catch (e) {
-                  // If it's not valid JSON, use the original result
-                  console.log("Result is not valid JSON, using as-is");
-                }
-
-                toolCallSummary += `Retrieved ${dataType} data:\n\n\`\`\`json\n${formattedResult}\n\`\`\`\n\n`;
-              } catch (toolError) {
-                toolCallSummary += `Attempted to retrieve ${dataType} data, but encountered an error: ${
-                  toolError instanceof Error
-                    ? toolError.message
-                    : String(toolError)
-                }\n`;
-              }
-            } else {
-              toolCallSummary += `Processed successfully\n`;
-            }
-          }
-        }
-
-        // Add any content from the response
-        if (
-          response.content &&
-          typeof response.content === "string" &&
-          response.content.trim()
-        ) {
-          toolCallSummary += "\n" + response.content;
-        }
-
-        console.log("Data Manager tool call summary:", toolCallSummary);
-
-        return {
-          messages: [new AIMessage(toolCallSummary)],
-          next: "supervisor",
-        };
-      }
-
-      // Check if the response has content
-      if (response?.content) {
-        const content =
-          typeof response.content === "string"
-            ? response.content
-            : JSON.stringify(response.content);
-
-        console.log(
-          "Data Manager generated response:",
-          content.substring(0, 150) + "...",
-        );
-
-        return {
-          messages: [new AIMessage(content)],
-          next: "supervisor",
-        };
-      } else {
-        console.warn("Data Manager received empty response");
-        return {
-          messages: [
-            new AIMessage(
-              "I processed your request but couldn't generate a proper response. Let me hand this back to the supervisor.",
-            ),
-          ],
-          next: "supervisor",
-        };
-      }
-    } catch (invokeError) {
-      console.error("Error during Data Manager LLM invoke:", invokeError);
-
-      // Create a more detailed error message
-      const errorDetails =
-        invokeError instanceof Error
-          ? invokeError.message
-          : String(invokeError);
-
-      return {
-        messages: [
-          new AIMessage(
-            `I encountered an error while trying to process your data: ${errorDetails}. Please try again with more specific information.`,
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
-  } catch (error) {
-    console.error("Error in data manager agent:", error);
-    return {
-      messages: [
-        new AIMessage(
-          "I encountered an error while trying to process your data. Please try again later.",
-        ),
-      ],
-      next: END,
-    };
-  }
-}
-
-async function resumeGeneratorNode(
-  state: typeof AgentState.State,
-): Promise<Partial<typeof AgentState.State>> {
-  const systemMessage = `You are the Resume Generator Agent for Resume Master.
+// Create resume generator node using the factory
+const resumeGeneratorNode = createAgentNode({
+  agentType: "resume_generator",
+  systemMessage: `You are the Resume Generator Agent for Resume Master.
   
 Your job is to:
 1. Create professional resumes based on user data
@@ -727,113 +800,14 @@ You have access to these tools:
 - generate_resume: For creating formatted resumes in different styles
 - get_user_profile: For retrieving user data needed for resume generation
 
-When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
+When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`,
+  getTools: getResumeGeneratorTools,
+});
 
-  // Create LLM with appropriate tools
-  try {
-    console.log("Creating specialized LLM for resume generator with tools...");
-
-    // Get userId directly from the agent state
-    const userId = state.userId || "";
-    if (!userId) {
-      console.warn("No user ID found in agent state for resume generator");
-      return {
-        messages: [
-          new AIMessage(
-            "I'm unable to access your profile information. Please make sure you're logged in and try again.",
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
-
-    console.log(`Using user ID from agent state: ${userId}`);
-
-    // Use the same stable model as the supervisor
-    const { GOOGLE_API_KEY } = env;
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
-    }
-
-    // Use the stable model for tool-using agents
-    const resumeGeneratorModelOptions = {
-      apiKey: GOOGLE_API_KEY,
-      model: "gemini-2.0-flash", // Use the same stable model as the supervisor
-      temperature: 0.2, // Slightly higher temperature for creativity in responses
-    };
-
-    console.log("Initializing resume generator model with options:", {
-      ...resumeGeneratorModelOptions,
-      apiKey: "[REDACTED]",
-    });
-
-    // Create a specialized model
-    const model = new ChatGoogleGenerativeAI(resumeGeneratorModelOptions);
-
-    // Bind the resume generation tools
-    const llm = model.bindTools(getResumeGeneratorTools(userId));
-    console.log("Successfully bound resume generation tools to LLM");
-
-    // Only keep human and AI messages, filtering out any system messages
-    const userMessages = state.messages.filter(
-      (msg) => msg._getType() === "human" || msg._getType() === "ai",
-    );
-
-    // Create new messages array with system message first, then user messages
-    const messages = [new SystemMessage(systemMessage), ...userMessages];
-
-    console.log(
-      "Resume Generator message types:",
-      messages.map((m) => m._getType()),
-    );
-
-    console.log("Resume Generator invoking LLM with tools...");
-    const response = await llm.invoke(messages);
-
-    // Check if the response has content
-    if (response?.content) {
-      const content =
-        typeof response.content === "string"
-          ? response.content
-          : JSON.stringify(response.content);
-
-      console.log(
-        "Resume Generator generated response:",
-        content.substring(0, 150) + "...",
-      );
-
-      return {
-        messages: [new AIMessage(content)],
-        next: "supervisor",
-      };
-    } else {
-      console.warn("Resume Generator received empty response");
-      return {
-        messages: [
-          new AIMessage(
-            "I processed your request but couldn't generate a proper response. Let me hand this back to the supervisor.",
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
-  } catch (error) {
-    console.error("Error in resume generator agent:", error);
-    return {
-      messages: [
-        new AIMessage(
-          "I encountered an error while trying to generate your resume. Please try again later.",
-        ),
-      ],
-      next: END,
-    };
-  }
-}
-
-async function coverLetterGeneratorNode(
-  state: typeof AgentState.State,
-): Promise<Partial<typeof AgentState.State>> {
-  const systemMessage = `You are the Cover Letter Generator Agent for Resume Master.
+// Create cover letter generator node using the factory
+const coverLetterGeneratorNode = createAgentNode({
+  agentType: "cover_letter_generator",
+  systemMessage: `You are the Cover Letter Generator Agent for Resume Master.
   
 Your job is to:
 1. Create tailored cover letters based on job descriptions and user data
@@ -845,117 +819,61 @@ You have access to these tools:
 - generate_cover_letter: For creating tailored cover letters for specific jobs
 - get_user_profile: For retrieving user data needed for cover letter generation
 
-When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
+When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`,
+  getTools: getCoverLetterGeneratorTools,
+});
 
-  // Create LLM with appropriate tools
-  try {
-    console.log(
-      "Creating specialized LLM for cover letter generator with tools...",
-    );
+// Create specialized user profile tool call processor
+async function processUserProfileToolCalls(
+  toolCalls: ValidatedToolCall[],
+  userId: string,
+  response: { content?: unknown },
+): Promise<string> {
+  let toolCallSummary = "Here's the information from your profile:\n\n";
 
-    // Get userId directly from the agent state
-    const userId = state.userId || "";
-    if (!userId) {
-      console.warn(
-        "No user ID found in agent state for cover letter generator",
-      );
-      return {
-        messages: [
-          new AIMessage(
-            "I'm unable to access your profile information. Please make sure you're logged in and try again.",
-          ),
-        ],
-        next: "supervisor",
-      };
+  for (const toolCall of toolCalls) {
+    if (toolCall.name === "get_user_profile") {
+      try {
+        const args = validateToolArgs(
+          toolCall.args,
+          GetUserProfileSchema,
+          "get_user_profile",
+        );
+        const profileTool = createUserProfileTool(userId);
+        const result = (await profileTool.invoke(args)) as string;
+
+        let formattedResult: string;
+        try {
+          const parsedResult = JSON.parse(result) as unknown;
+          formattedResult = JSON.stringify(parsedResult, null, 2);
+        } catch {
+          formattedResult = result;
+        }
+
+        toolCallSummary += `## ${args.dataType.replace("_", " ").toUpperCase()} ##\n\n\`\`\`json\n${formattedResult}\n\`\`\`\n\n`;
+      } catch (error) {
+        const dataType =
+          typeof toolCall.args?.dataType === "string"
+            ? toolCall.args.dataType
+            : "unknown";
+        toolCallSummary += `Error retrieving ${dataType} data: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
     }
-
-    console.log(`Using user ID from agent state: ${userId}`);
-
-    // Use the same stable model as the supervisor
-    const { GOOGLE_API_KEY } = env;
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
-    }
-
-    // Use the stable model for tool-using agents
-    const coverLetterModelOptions = {
-      apiKey: GOOGLE_API_KEY,
-      model: "gemini-2.0-flash", // Use the same stable model as the supervisor
-      temperature: 0.2, // Slightly higher temperature for creativity in responses
-    };
-
-    console.log("Initializing cover letter generator model with options:", {
-      ...coverLetterModelOptions,
-      apiKey: "[REDACTED]",
-    });
-
-    // Create a specialized model
-    const model = new ChatGoogleGenerativeAI(coverLetterModelOptions);
-
-    // Bind the cover letter generation tools
-    const llm = model.bindTools(getCoverLetterGeneratorTools(userId));
-    console.log("Successfully bound cover letter generation tools to LLM");
-
-    // Only keep human and AI messages, filtering out any system messages
-    const userMessages = state.messages.filter(
-      (msg) => msg._getType() === "human" || msg._getType() === "ai",
-    );
-
-    // Create new messages array with system message first, then user messages
-    const messages = [new SystemMessage(systemMessage), ...userMessages];
-
-    console.log(
-      "Cover Letter Generator message types:",
-      messages.map((m) => m._getType()),
-    );
-
-    console.log("Cover Letter Generator invoking LLM with tools...");
-    const response = await llm.invoke(messages);
-
-    // Check if the response has content
-    if (response?.content) {
-      const content =
-        typeof response.content === "string"
-          ? response.content
-          : JSON.stringify(response.content);
-
-      console.log(
-        "Cover Letter Generator generated response:",
-        content.substring(0, 150) + "...",
-      );
-
-      return {
-        messages: [new AIMessage(content)],
-        next: "supervisor",
-      };
-    } else {
-      console.warn("Cover Letter Generator received empty response");
-      return {
-        messages: [
-          new AIMessage(
-            "I processed your request but couldn't generate a proper response. Let me hand this back to the supervisor.",
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
-  } catch (error) {
-    console.error("Error in cover letter generator agent:", error);
-    return {
-      messages: [
-        new AIMessage(
-          "I encountered an error while trying to generate your cover letter. Please try again later.",
-        ),
-      ],
-      next: END,
-    };
   }
+
+  // Add any content from the response
+  const responseContent = contentToString(response.content);
+  if (responseContent?.trim()) {
+    toolCallSummary += "\n" + responseContent;
+  }
+
+  return toolCallSummary;
 }
 
-async function userProfileNode(
-  state: typeof AgentState.State,
-): Promise<Partial<typeof AgentState.State>> {
-  const systemMessage = `You are the User Profile Agent for Resume Master.
+// Create user profile node using the factory
+const userProfileNode = createAgentNode({
+  agentType: "user_profile",
+  systemMessage: `You are the User Profile Agent for Resume Master.
   
 Your job is to:
 1. Retrieve user profile information
@@ -965,189 +883,124 @@ Your job is to:
 You have access to these tools:
 - get_user_profile: For retrieving different types of user data (work history, education, skills, etc.)
 
-You can retrieve different types of profile data using the get_user_profile tool. Simply specify which data type you need: work_history, education, skills, achievements, preferences, or all.`;
+You can retrieve different types of profile data using the get_user_profile tool. Simply specify which data type you need: work_history, education, skills, achievements, preferences, or all.`,
+  getTools: getUserProfileTools,
+  processToolCalls: processUserProfileToolCalls,
+});
 
-  // Create LLM with appropriate tools
-  try {
-    console.log("Creating specialized LLM for user profile with tools...");
+// Create specialized job posting tool call processor
+async function processJobPostingToolCalls(
+  toolCalls: ValidatedToolCall[],
+  userId: string,
+  response: { content?: unknown },
+): Promise<string> {
+  let toolCallSummary = "I've processed your job posting request:\n\n";
+  let parsedJobPostingData: string | null = null;
 
-    // Get userId directly from the agent state
-    const userId = state.userId || "";
-    if (!userId) {
-      console.warn("No user ID found in agent state");
-      return {
-        messages: [
-          new AIMessage(
-            "I'm unable to access your profile information. Please make sure you're logged in and try again.",
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
+  for (const toolCall of toolCalls) {
+    if (toolCall.name === "parse_job_posting") {
+      try {
+        const args = validateToolArgs(
+          toolCall.args,
+          ParseJobPostingSchema,
+          "parse_job_posting",
+        );
+        const tools = getJobPostingTools(userId);
+        const parseJobPostingTool = tools.find(
+          (t) => t.name === "parse_job_posting",
+        );
 
-    console.log(`Using user ID from agent state: ${userId}`);
+        if (parseJobPostingTool) {
+          const result = (await parseJobPostingTool.invoke({
+            content: args.content,
+          })) as string;
+          parsedJobPostingData = result;
 
-    // Use the same stable model as the supervisor
-    const { GOOGLE_API_KEY } = env;
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
-    }
-
-    // Use the stable model for tool-using agents
-    const profileModelOptions = {
-      apiKey: GOOGLE_API_KEY,
-      model: "gemini-2.0-flash", // Use the same stable model as the supervisor
-      temperature: 0.2, // Slightly higher temperature for creativity in responses
-    };
-
-    console.log("Initializing user profile model with options:", {
-      ...profileModelOptions,
-      apiKey: "[REDACTED]",
-    });
-
-    // Create a specialized model
-    const model = new ChatGoogleGenerativeAI(profileModelOptions);
-
-    // Bind the profile retrieval tools with pre-filled userId
-    const llm = model.bindTools(getUserProfileTools(userId));
-    console.log("Successfully bound profile retrieval tools to LLM");
-
-    // Only keep human and AI messages, filtering out any system messages
-    const userMessages = state.messages.filter(
-      (msg) => msg._getType() === "human" || msg._getType() === "ai",
-    );
-
-    // Create new messages array with system messages first, then user messages
-    const messages = [new SystemMessage(systemMessage), ...userMessages];
-
-    console.log(
-      "User Profile Agent message types:",
-      messages.map((m) => m._getType()),
-    );
-
-    console.log("User Profile Agent invoking LLM with tools...");
-    const response = await llm.invoke(messages);
-
-    // Handle tool calls if present
-    if (response?.tool_calls && response.tool_calls.length > 0) {
-      console.log(
-        "User Profile Agent processing tool calls:",
-        response.tool_calls,
-      );
-
-      // Create a combined response that includes tool call results
-      let toolCallSummary = "Here's the information from your profile:\n\n";
-
-      for (const tool_call of response.tool_calls) {
-        if (tool_call.name === "get_user_profile" && tool_call.args) {
-          const args: Record<string, unknown> =
-            typeof tool_call.args === "string"
-              ? (JSON.parse(tool_call.args) as Record<string, unknown>)
-              : (tool_call.args as Record<string, unknown>);
-
-          const dataType =
-            typeof args.dataType === "string" ? args.dataType : "all";
-
-          // Execute the tool directly to get the result
-          const profileTool = createUserProfileTool(userId);
+          // Parse the result to show summary info
           try {
-            const typedArgs = {
-              dataType: dataType as
-                | "work_history"
-                | "education"
-                | "skills"
-                | "achievements"
-                | "preferences"
-                | "all",
+            const parsed = JSON.parse(result) as {
+              jobPosting?: {
+                title?: string;
+                company?: string;
+                location?: string;
+                industry?: string;
+              };
             };
-
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            const result: string = await profileTool.invoke(typedArgs);
-
-            // Format the result nicely
-            let formattedResult: string = result;
-            try {
-              // Attempt to parse the JSON result for better display
-              const parsedResult: unknown = JSON.parse(result);
-              formattedResult = JSON.stringify(parsedResult, null, 2);
-            } catch (e) {
-              // If it's not valid JSON, use the original result
-              console.log("Result is not valid JSON, using as-is");
+            if (parsed.jobPosting) {
+              toolCallSummary += `• Successfully parsed job posting:\n`;
+              toolCallSummary += `  - Title: ${parsed.jobPosting.title ?? "Unknown"}\n`;
+              toolCallSummary += `  - Company: ${parsed.jobPosting.company ?? "Unknown"}\n`;
+              toolCallSummary += `  - Location: ${parsed.jobPosting.location ?? "Unknown"}\n`;
+              toolCallSummary += `  - Industry: ${parsed.jobPosting.industry ?? "Not specified"}\n\n`;
             }
-
-            toolCallSummary += `## ${dataType.replace("_", " ").toUpperCase()} ##\n\n\`\`\`json\n${formattedResult}\n\`\`\`\n\n`;
-          } catch (toolError) {
-            toolCallSummary += `Attempted to retrieve ${dataType} data, but encountered an error: ${
-              toolError instanceof Error ? toolError.message : String(toolError)
-            }\n`;
+          } catch {
+            toolCallSummary += `• Parsed job posting (${args.content.length} characters)\n\n`;
           }
         }
+      } catch (error) {
+        toolCallSummary += `• Error parsing job posting: ${error instanceof Error ? error.message : String(error)}\n`;
       }
+    } else if (toolCall.name === "store_job_posting") {
+      try {
+        const args = validateToolArgs(
+          toolCall.args,
+          StoreJobPostingSchema,
+          "store_job_posting",
+        );
+        const tools = getJobPostingTools(userId);
+        const storeJobPostingTool = tools.find(
+          (t) => t.name === "store_job_posting",
+        );
 
-      // Add any content from the response
-      if (
-        response.content &&
-        typeof response.content === "string" &&
-        response.content.trim()
-      ) {
-        toolCallSummary += "\n" + response.content;
+        if (storeJobPostingTool) {
+          const result = (await storeJobPostingTool.invoke({
+            parsedJobPosting: args.parsedJobPosting,
+          })) as string;
+          toolCallSummary += `• ${result}\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error storing job posting: ${error instanceof Error ? error.message : String(error)}\n`;
       }
-
-      console.log(
-        "User Profile Agent tool call summary:",
-        toolCallSummary.substring(0, 150) + "...",
-      );
-
-      return {
-        messages: [new AIMessage(toolCallSummary)],
-        next: "supervisor",
-      };
-    }
-
-    // Check if the response has content
-    if (response?.content) {
-      const content =
-        typeof response.content === "string"
-          ? response.content
-          : JSON.stringify(response.content);
-
-      console.log(
-        "User Profile Agent generated response:",
-        content.substring(0, 150) + "...",
-      );
-
-      return {
-        messages: [new AIMessage(content)],
-        next: "supervisor",
-      };
     } else {
-      console.warn("User Profile Agent received empty response");
-      return {
-        messages: [
-          new AIMessage(
-            "I processed your request but couldn't generate a proper response. Let me hand this back to the supervisor.",
-          ),
-        ],
-        next: "supervisor",
-      };
+      toolCallSummary += `• ${toolCall.name}: Processed successfully\n`;
     }
-  } catch (error) {
-    console.error("Error in user profile agent:", error);
-    return {
-      messages: [
-        new AIMessage(
-          "I encountered an error while trying to retrieve your profile information. Please try again later.",
-        ),
-      ],
-      next: END,
-    };
   }
+
+  // If we parsed a job posting but didn't get a store_job_posting call, automatically store it
+  if (
+    parsedJobPostingData &&
+    !toolCalls.some((tc) => tc.name === "store_job_posting")
+  ) {
+    try {
+      const tools = getJobPostingTools(userId);
+      const storeJobPostingTool = tools.find(
+        (t) => t.name === "store_job_posting",
+      );
+
+      if (storeJobPostingTool) {
+        const result = (await storeJobPostingTool.invoke({
+          parsedJobPosting: parsedJobPostingData,
+        })) as string;
+        toolCallSummary += `• Auto-stored: ${result}\n`;
+      }
+    } catch (autoStoreError) {
+      toolCallSummary += `• Error auto-storing job posting: ${autoStoreError instanceof Error ? autoStoreError.message : String(autoStoreError)}\n`;
+    }
+  }
+
+  // Add any content from the response
+  const responseContent = contentToString(response.content);
+  if (responseContent?.trim()) {
+    toolCallSummary += "\n" + responseContent;
+  }
+
+  return toolCallSummary;
 }
 
-async function jobPostingManagerNode(
-  state: typeof AgentState.State,
-): Promise<Partial<typeof AgentState.State>> {
-  const systemMessage = `You are the Job Posting Manager Agent for Resume Master.
+// Create job posting manager node using the factory
+const jobPostingManagerNode = createAgentNode({
+  agentType: "job_posting_manager",
+  systemMessage: `You are the Job Posting Manager Agent for Resume Master.
   
 Your job is to:
 1. Parse and analyze job posting content to extract structured information
@@ -1169,309 +1022,10 @@ IMPORTANT:
 - If you need to find a specific job posting, use find_job_postings with relevant criteria
 - The tools automatically handle user authentication and identification
 
-When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
-
-  // Create LLM with appropriate tools
-  try {
-    console.log(
-      "Creating specialized LLM for job posting manager with tools...",
-    );
-
-    // Get userId directly from the agent state
-    const userId = state.userId || "";
-    if (!userId) {
-      console.warn("No user ID found in agent state for job posting manager");
-      return {
-        messages: [
-          new AIMessage(
-            "I'm unable to access your profile information. Please make sure you're logged in and try again.",
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
-
-    console.log(`Using user ID from agent state: ${userId}`);
-
-    // Use the same stable model as the supervisor
-    const { GOOGLE_API_KEY } = env;
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not defined in environment variables");
-    }
-
-    // Use the stable model for tool-using agents
-    const jobPostingModelOptions = {
-      apiKey: GOOGLE_API_KEY,
-      model: "gemini-2.0-flash", // Use the same stable model as the supervisor
-      temperature: 0.2, // Slightly higher temperature for creativity in responses
-    };
-
-    console.log("Initializing job posting manager model with options:", {
-      ...jobPostingModelOptions,
-      apiKey: "[REDACTED]",
-    });
-
-    // Create a specialized model
-    const model = new ChatGoogleGenerativeAI(jobPostingModelOptions);
-
-    // Bind the job posting tools
-    const llm = model.bindTools(getJobPostingTools(userId));
-    console.log("Successfully bound job posting tools to LLM");
-
-    // Only keep human and AI messages, filtering out any system messages
-    const userMessages = state.messages.filter(
-      (msg) => msg._getType() === "human" || msg._getType() === "ai",
-    );
-
-    // Create new messages array with system message first, then user messages
-    const messages = [new SystemMessage(systemMessage), ...userMessages];
-
-    console.log(
-      "Job Posting Manager message types:",
-      messages.map((m) => m._getType()),
-    );
-
-    console.log("Job Posting Manager invoking LLM with tools...");
-    const response = await llm.invoke(messages);
-
-    // Handle tool calls if present
-    if (response?.tool_calls && response.tool_calls.length > 0) {
-      console.log(
-        "Job Posting Manager processing tool calls:",
-        response.tool_calls,
-      );
-
-      // Create a combined response that includes tool call results
-      let toolCallSummary = "I've processed your job posting request:\n\n";
-      let parsedJobPostingData: string | null = null;
-
-      for (const tool_call of response.tool_calls) {
-        if (tool_call.name === "parse_job_posting" && tool_call.args) {
-          const args: Record<string, unknown> =
-            typeof tool_call.args === "string"
-              ? (JSON.parse(tool_call.args) as Record<string, unknown>)
-              : (tool_call.args as Record<string, unknown>);
-
-          const content = typeof args.content === "string" ? args.content : "";
-
-          // Execute the parse_job_posting tool directly
-          try {
-            // Get the actual tools
-            const tools = getJobPostingTools(userId);
-            const parseJobPostingTool = tools.find(
-              (t) => t.name === "parse_job_posting",
-            );
-
-            if (parseJobPostingTool) {
-              const result: string = (await parseJobPostingTool.invoke({
-                content,
-              })) as string;
-              parsedJobPostingData = result;
-
-              // Parse the result to show summary info
-              try {
-                const parsed: unknown = JSON.parse(result);
-                if (
-                  parsed &&
-                  typeof parsed === "object" &&
-                  "jobPosting" in parsed &&
-                  parsed.jobPosting &&
-                  typeof parsed.jobPosting === "object"
-                ) {
-                  const jobPosting = parsed.jobPosting as {
-                    title?: string;
-                    company?: string;
-                    location?: string;
-                    industry?: string;
-                    details?: {
-                      requirements?: {
-                        technicalSkills?: string[];
-                        softSkills?: string[];
-                        educationRequirements?: string[];
-                        experienceRequirements?: unknown[];
-                        industryKnowledge?: string[];
-                      };
-                      bonusRequirements?: {
-                        technicalSkills?: string[];
-                        softSkills?: string[];
-                        educationRequirements?: string[];
-                        experienceRequirements?: unknown[];
-                        industryKnowledge?: string[];
-                      };
-                    };
-                  };
-
-                  toolCallSummary += `• Successfully parsed job posting:\n`;
-                  toolCallSummary += `  - Title: ${jobPosting.title ?? "Unknown"}\n`;
-                  toolCallSummary += `  - Company: ${jobPosting.company ?? "Unknown"}\n`;
-                  toolCallSummary += `  - Location: ${jobPosting.location ?? "Unknown"}\n`;
-                  toolCallSummary += `  - Industry: ${jobPosting.industry ?? "Not specified"}\n`;
-
-                  // Show required requirements statistics
-                  const reqs = jobPosting.details?.requirements;
-                  const totalRequiredSkills =
-                    (reqs?.technicalSkills?.length ?? 0) +
-                    (reqs?.softSkills?.length ?? 0);
-                  const totalRequiredEducation =
-                    reqs?.educationRequirements?.length ?? 0;
-                  const totalRequiredExperience =
-                    reqs?.experienceRequirements?.length ?? 0;
-                  const totalRequiredIndustry =
-                    reqs?.industryKnowledge?.length ?? 0;
-
-                  toolCallSummary += `  - Required Skills: ${totalRequiredSkills} (${reqs?.technicalSkills?.length ?? 0} technical, ${reqs?.softSkills?.length ?? 0} soft)\n`;
-                  toolCallSummary += `  - Required Education: ${totalRequiredEducation} items\n`;
-                  toolCallSummary += `  - Required Experience: ${totalRequiredExperience} items\n`;
-                  toolCallSummary += `  - Required Industry Knowledge: ${totalRequiredIndustry} items\n`;
-
-                  // Show bonus requirements statistics
-                  const bonusReqs = jobPosting.details?.bonusRequirements;
-                  const totalBonusSkills =
-                    (bonusReqs?.technicalSkills?.length ?? 0) +
-                    (bonusReqs?.softSkills?.length ?? 0);
-                  const totalBonusEducation =
-                    bonusReqs?.educationRequirements?.length ?? 0;
-                  const totalBonusExperience =
-                    bonusReqs?.experienceRequirements?.length ?? 0;
-                  const totalBonusIndustry =
-                    bonusReqs?.industryKnowledge?.length ?? 0;
-
-                  toolCallSummary += `  - Bonus Skills: ${totalBonusSkills} (${bonusReqs?.technicalSkills?.length ?? 0} technical, ${bonusReqs?.softSkills?.length ?? 0} soft)\n`;
-                  toolCallSummary += `  - Bonus Education: ${totalBonusEducation} items\n`;
-                  toolCallSummary += `  - Bonus Experience: ${totalBonusExperience} items\n`;
-                  toolCallSummary += `  - Bonus Industry Knowledge: ${totalBonusIndustry} items\n\n`;
-                } else {
-                  toolCallSummary += `• Parsed job posting (${content.length} characters)\n\n`;
-                }
-              } catch (parseError) {
-                toolCallSummary += `• Parsed job posting (${content.length} characters)\n\n`;
-              }
-            } else {
-              toolCallSummary += `• Error: Could not find parse_job_posting tool\n`;
-            }
-          } catch (toolError) {
-            toolCallSummary += `• Error parsing job posting: ${
-              toolError instanceof Error ? toolError.message : String(toolError)
-            }\n`;
-          }
-        } else if (tool_call.name === "store_job_posting" && tool_call.args) {
-          const args: Record<string, unknown> =
-            typeof tool_call.args === "string"
-              ? (JSON.parse(tool_call.args) as Record<string, unknown>)
-              : (tool_call.args as Record<string, unknown>);
-
-          const parsedJobPosting =
-            typeof args.parsedJobPosting === "string"
-              ? args.parsedJobPosting
-              : "";
-
-          // Execute the store_job_posting tool directly
-          try {
-            const tools = getJobPostingTools(userId);
-            const storeJobPostingTool = tools.find(
-              (t) => t.name === "store_job_posting",
-            );
-
-            if (storeJobPostingTool) {
-              const result: string = (await storeJobPostingTool.invoke({
-                parsedJobPosting,
-              })) as string;
-              toolCallSummary += `• ${result}\n`;
-            } else {
-              toolCallSummary += `• Error: Could not find store_job_posting tool\n`;
-            }
-          } catch (toolError) {
-            toolCallSummary += `• Error storing job posting: ${
-              toolError instanceof Error ? toolError.message : String(toolError)
-            }\n`;
-          }
-        } else {
-          toolCallSummary += `• ${tool_call.name}: Processed successfully\n`;
-        }
-      }
-
-      // If we parsed a job posting but didn't get a store_job_posting call, automatically store it
-      if (
-        parsedJobPostingData &&
-        !response.tool_calls.some((tc) => tc.name === "store_job_posting")
-      ) {
-        try {
-          const tools = getJobPostingTools(userId);
-          const storeJobPostingTool = tools.find(
-            (t) => t.name === "store_job_posting",
-          );
-
-          if (storeJobPostingTool) {
-            const result: string = (await storeJobPostingTool.invoke({
-              parsedJobPosting: parsedJobPostingData,
-            })) as string;
-            toolCallSummary += `• Auto-stored: ${result}\n`;
-          }
-        } catch (autoStoreError) {
-          toolCallSummary += `• Error auto-storing job posting: ${
-            autoStoreError instanceof Error
-              ? autoStoreError.message
-              : String(autoStoreError)
-          }\n`;
-        }
-      }
-
-      // Add any content from the response
-      if (
-        response.content &&
-        typeof response.content === "string" &&
-        response.content.trim()
-      ) {
-        toolCallSummary += "\n" + response.content;
-      }
-
-      console.log("Job Posting Manager tool call summary:", toolCallSummary);
-
-      return {
-        messages: [new AIMessage(toolCallSummary)],
-        next: "supervisor",
-      };
-    }
-
-    // Check if the response has content
-    if (response?.content) {
-      const content =
-        typeof response.content === "string"
-          ? response.content
-          : JSON.stringify(response.content);
-
-      console.log(
-        "Job Posting Manager generated response:",
-        content.substring(0, 150) + "...",
-      );
-
-      return {
-        messages: [new AIMessage(content)],
-        next: "supervisor",
-      };
-    } else {
-      console.warn("Job Posting Manager received empty response");
-      return {
-        messages: [
-          new AIMessage(
-            "I processed your request but couldn't generate a proper response. Let me hand this back to the supervisor.",
-          ),
-        ],
-        next: "supervisor",
-      };
-    }
-  } catch (error) {
-    console.error("Error in job posting manager agent:", error);
-    return {
-      messages: [
-        new AIMessage(
-          "I encountered an error while trying to process the job posting. Please try again later.",
-        ),
-      ],
-      next: END,
-    };
-  }
-}
+When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`,
+  getTools: getJobPostingTools,
+  processToolCalls: processJobPostingToolCalls,
+});
 
 // Create the agent team using StateGraph
 export function createAgentTeam() {
@@ -1577,5 +1131,180 @@ export function convertToAgentStateInput(
     messages: formattedMessages,
     next: "supervisor", // Always start with the supervisor
     userId, // Set userId directly in the state object
+  };
+}
+
+// Agent configuration interface for the factory
+interface AgentConfig {
+  agentType: string;
+  systemMessage: string;
+  getTools: (
+    userId: string,
+  ) => Array<{ name: string; invoke: (args: unknown) => Promise<string> }>;
+  processToolCalls?: (
+    toolCalls: ValidatedToolCall[],
+    userId: string,
+    response: { content?: unknown },
+  ) => Promise<string>;
+  requiresUserId?: boolean;
+}
+
+// Base agent factory to eliminate code duplication
+function createAgentNode(config: AgentConfig) {
+  return async (
+    state: typeof AgentState.State,
+  ): Promise<Partial<typeof AgentState.State>> => {
+    try {
+      // Create LLM with specialized configuration
+      const model = await createSpecializedLLM("agent");
+
+      // Validate user ID if required (default: true)
+      const requiresUserId = config.requiresUserId ?? true;
+      if (requiresUserId) {
+        validateUserId(state.userId);
+      }
+
+      const userId = state.userId || "";
+
+      // Get tools and bind to LLM
+      const tools = config.getTools(userId);
+      const llm = model.bindTools(tools);
+
+      logger.info(
+        `Successfully initialized ${config.agentType} LLM with tools`,
+        {
+          agentType: config.agentType,
+          toolCount: tools.length,
+          userId: userId ? "[PRESENT]" : "[MISSING]",
+        },
+      );
+
+      // Prepare messages using the utility function
+      const messages = prepareAgentMessages(
+        state.messages,
+        config.systemMessage,
+      );
+
+      logger.info(`${config.agentType} invoking LLM`, {
+        messageCount: messages.length,
+        userId: userId ? "[PRESENT]" : "[MISSING]",
+      });
+
+      // Invoke the LLM
+      const response = await llm.invoke(messages);
+
+      // Process tool calls if present and custom processor is provided
+      if (
+        response?.tool_calls &&
+        response.tool_calls.length > 0 &&
+        config.processToolCalls
+      ) {
+        const processedToolCalls = processToolCalls(response.tool_calls);
+        if (processedToolCalls.length > 0) {
+          const result = await config.processToolCalls(
+            processedToolCalls,
+            userId,
+            response,
+          );
+          return {
+            messages: [new AIMessage(result)],
+            next: "supervisor",
+          };
+        }
+      }
+
+      // Handle tool calls with default processing (if no custom processor)
+      if (response?.tool_calls && response.tool_calls.length > 0) {
+        return handleDefaultToolCalls(
+          response.tool_calls,
+          response,
+          config.agentType,
+        );
+      }
+
+      // Handle direct response
+      return handleDirectAgentResponse(response, config.agentType);
+    } catch (error) {
+      return handleAgentError(error, config.agentType);
+    }
+  };
+}
+
+// Default tool call handler for agents
+function handleDefaultToolCalls(
+  toolCalls: Array<{
+    name?: string;
+    args?: unknown;
+    id?: string;
+    type?: string;
+  }>,
+  response: { content?: unknown },
+  agentType: string,
+): { messages: BaseMessage[]; next: string } {
+  const processedToolCalls = processToolCalls(toolCalls);
+
+  if (processedToolCalls.length === 0) {
+    logger.warn(`All ${agentType} tool calls were filtered out`, { agentType });
+    return {
+      messages: [
+        new AIMessage(
+          contentToString(response.content) || "I processed your request.",
+        ),
+      ],
+      next: "supervisor",
+    };
+  }
+
+  // Create a summary of tool calls executed
+  let toolCallSummary = "I've processed your request:\n\n";
+
+  for (const toolCall of processedToolCalls) {
+    toolCallSummary += `• ${toolCall.name}: Executed successfully\n`;
+  }
+
+  // Add any content from the response
+  const responseContent = contentToString(response.content);
+  if (responseContent?.trim()) {
+    toolCallSummary += "\n" + responseContent;
+  }
+
+  logger.info(`${agentType} tool calls processed`, {
+    agentType,
+    toolCallCount: processedToolCalls.length,
+  });
+
+  return {
+    messages: [new AIMessage(toolCallSummary)],
+    next: "supervisor",
+  };
+}
+
+// Handle direct responses from agents using the factory
+function handleDirectAgentResponse(
+  response: { content?: unknown },
+  agentType: string,
+): { messages: BaseMessage[]; next: string } {
+  const content = contentToString(response.content);
+
+  if (!content || content.trim() === "") {
+    logger.warn(`${agentType} response had empty content`, { agentType });
+    return {
+      messages: [
+        new AIMessage(
+          "I processed your request but couldn't generate a proper response. Let me hand this back to the supervisor.",
+        ),
+      ],
+      next: "supervisor",
+    };
+  }
+
+  logger.info(`${agentType} generated response`, {
+    agentType,
+    responseLength: content.length,
+  });
+
+  return {
+    messages: [new AIMessage(content)],
+    next: "supervisor",
   };
 }
