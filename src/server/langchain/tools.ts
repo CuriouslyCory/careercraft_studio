@@ -1142,7 +1142,7 @@ export const supervisorRoutingTool = new DynamicStructuredTool({
   name: "route_to_agent",
   description: "Select the next agent to act or end the conversation.",
   schema: z.object({
-    next: z.enum([END, ...MEMBERS]),
+    next: z.enum(["__end__", ...MEMBERS]),
   }),
   func: async ({ next }) => {
     // This tool's function isn't strictly called by LangGraph in this setup,

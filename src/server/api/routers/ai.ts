@@ -134,7 +134,7 @@ export const aiRouter = createTRPCRouter({
             }
 
             // Send an initial message to the client
-            emit.next("Thinking...");
+            // emit.next("Thinking..."); // Remove this - client handles it now
 
             try {
               // Create the agent team
@@ -197,15 +197,81 @@ export const aiRouter = createTRPCRouter({
                   ) {
                     const agentMessage = agentOutput.messages[0];
 
+                    console.log(`Processing ${agentType} message:`, {
+                      hasContent: !!agentMessage?.content,
+                      contentType: typeof agentMessage?.content,
+                      contentPreview:
+                        typeof agentMessage?.content === "string"
+                          ? agentMessage.content.substring(0, 100) + "..."
+                          : JSON.stringify(agentMessage?.content).substring(
+                              0,
+                              100,
+                            ) + "...",
+                    });
+
                     if (
                       agentMessage &&
-                      typeof agentMessage.content === "string"
+                      typeof agentMessage.content === "string" &&
+                      agentMessage.content.trim() !== ""
                     ) {
                       const content = agentMessage.content;
+
+                      // Filter out tool call data and function call information
+                      if (
+                        content.includes('{"functionCall":') ||
+                        content.includes('"route_to_agent"') ||
+                        content.includes('{"type":"text","text":""}') ||
+                        content.startsWith('{"type":"') ||
+                        content === "I understand your request."
+                      ) {
+                        console.log(
+                          `Filtering out tool call content from ${agentType}:`,
+                          content,
+                        );
+                        continue; // Skip this content
+                      }
+
                       console.log(`${agentType} output:`, content);
                       emit.next(content);
                       finalResponse = content; // Keep track of final response
                       hasEmittedContent = true;
+                    } else if (agentMessage?.content) {
+                      // Handle non-string content (arrays, objects, etc.)
+                      let content = "";
+
+                      if (Array.isArray(agentMessage.content)) {
+                        content = agentMessage.content
+                          .map((item) =>
+                            typeof item === "string"
+                              ? item
+                              : JSON.stringify(item),
+                          )
+                          .join(" ");
+                      } else if (typeof agentMessage.content === "object") {
+                        try {
+                          content = JSON.stringify(agentMessage.content);
+                        } catch {
+                          content = "[Complex Content]";
+                        }
+                      } else {
+                        content = String(agentMessage.content);
+                      }
+
+                      if (content.trim()) {
+                        console.log(`${agentType} output:`, content);
+                        emit.next(content);
+                        finalResponse = content;
+                        hasEmittedContent = true;
+                      } else {
+                        console.warn(
+                          `${agentType} produced empty content after processing`,
+                        );
+                      }
+                    } else {
+                      console.warn(
+                        `${agentType} message has no valid content:`,
+                        agentMessage,
+                      );
                     }
                   }
                 }
@@ -268,17 +334,56 @@ export const aiRouter = createTRPCRouter({
               console.log("Stream completed successfully.");
               emit.complete();
             } catch (error) {
-              // Handle errors from the stream
+              // Handle specific LangChain Google GenAI errors
               console.error("Error from LLM stream:", error);
+
+              // Check for the specific Google GenAI LangChain bug
               const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              const errorStack = error instanceof Error ? error.stack : "";
+
+              let userFriendlyMessage =
                 "I'm sorry, I encountered an error while processing your request. Could you try again?";
-              emit.next(errorMessage);
+
+              // Detect the specific LangChain Google GenAI bug
+              if (
+                errorMessage.includes(
+                  "Cannot read properties of undefined (reading 'length')",
+                ) &&
+                errorStack?.includes("mapGenerateContentResultToChatResult")
+              ) {
+                console.error(
+                  "Detected LangChain Google GenAI bug - malformed API response",
+                );
+                userFriendlyMessage =
+                  "I'm experiencing a temporary issue with the AI service. Please try rephrasing your question or try again in a moment.";
+              } else if (
+                errorMessage.includes("MALFORMED_FUNCTION_CALL") ||
+                errorMessage.includes("Unknown field for Schema") ||
+                errorMessage.includes("must be specified")
+              ) {
+                console.error(
+                  "Detected Google GenAI schema/function call error",
+                );
+                userFriendlyMessage =
+                  "I'm having trouble understanding your request. Could you try asking in a different way?";
+              } else if (
+                errorMessage.includes(
+                  "Branch condition returned unknown or null destination",
+                )
+              ) {
+                console.error("Agent routing error detected");
+                userFriendlyMessage =
+                  "I'm having trouble deciding how to help you. Could you be more specific about what you'd like me to do?";
+              }
+
+              emit.next(userFriendlyMessage);
 
               // Store the error response
               await saveChatMessage(
                 ctx.db,
                 MessageRole.ASSISTANT,
-                errorMessage,
+                userFriendlyMessage,
                 input.conversationId,
                 ctx.session.user.id,
               );

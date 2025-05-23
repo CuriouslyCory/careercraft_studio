@@ -59,11 +59,24 @@ export function useTrpcChat() {
         // Handle text content
         if (assistantMessageIdRef.current) {
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageIdRef.current
-                ? { ...msg, content: msg.content + chunk }
-                : msg,
-            ),
+            prev.map((msg) => {
+              if (msg.id === assistantMessageIdRef.current) {
+                // If the current content is empty or just "Thinking...", replace it entirely
+                // Otherwise, append to existing content
+                const currentContent = msg.content;
+                if (currentContent === "" || currentContent === "Thinking...") {
+                  return { ...msg, content: chunk };
+                } else {
+                  // Only append if the chunk contains meaningful new content
+                  // and isn't a duplicate of what we already have
+                  if (chunk.trim() && !currentContent.includes(chunk.trim())) {
+                    return { ...msg, content: currentContent + chunk };
+                  }
+                  return msg;
+                }
+              }
+              return msg;
+            }),
           );
         }
       } else if (chunk.type === "metadata") {
@@ -208,7 +221,7 @@ export function useTrpcChat() {
           {
             id: assistantMessageId,
             role: "assistant",
-            content: "",
+            content: "Thinking...",
           },
         ]);
 

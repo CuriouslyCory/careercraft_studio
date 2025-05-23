@@ -1,10 +1,10 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { type createAgent } from "./agent";
 import { env } from "~/env";
 import {
   HumanMessage,
   AIMessage,
   SystemMessage,
+  ToolMessage,
   type BaseMessage,
 } from "@langchain/core/messages";
 import { END, START, StateGraph } from "@langchain/langgraph";
@@ -33,67 +33,6 @@ const AGENT_CONFIG = {
   },
 } as const;
 
-// TypeScript interfaces for tool arguments
-interface RouteToAgentArgs {
-  next: string;
-}
-
-interface StoreUserPreferenceArgs {
-  category: string;
-  preference: string;
-}
-
-interface StoreWorkHistoryArgs {
-  jobTitle: string;
-  companyName: string;
-  startDate?: string;
-  endDate?: string;
-  responsibilities?: string[];
-  achievements?: string[];
-}
-
-interface GetUserProfileArgs {
-  dataType:
-    | "work_history"
-    | "education"
-    | "skills"
-    | "achievements"
-    | "preferences"
-    | "all";
-}
-
-interface ParseJobPostingArgs {
-  content: string;
-}
-
-interface StoreJobPostingArgs {
-  parsedJobPosting: string;
-}
-
-interface FindJobPostingsArgs {
-  title?: string;
-  company?: string;
-  location?: string;
-  limit?: number;
-}
-
-interface CompareSkillsToJobArgs {
-  jobPostingId: string;
-}
-
-interface GenerateResumeArgs {
-  style?: string;
-  targetJobTitle?: string;
-  customizations?: Record<string, unknown>;
-}
-
-interface GenerateCoverLetterArgs {
-  jobPostingId?: string;
-  jobDescription?: string;
-  companyName?: string;
-  customizations?: Record<string, unknown>;
-}
-
 // Zod validation schemas
 const RouteToAgentSchema = z.object({
   next: z.enum([
@@ -102,7 +41,7 @@ const RouteToAgentSchema = z.object({
     "cover_letter_generator",
     "user_profile",
     "job_posting_manager",
-    "END",
+    "__end__",
   ]),
 });
 
@@ -284,11 +223,14 @@ async function createSpecializedLLM(
       apiKey: GOOGLE_API_KEY,
       model: modelOverride ?? AGENT_CONFIG.MODEL,
       temperature,
+      // Add basic retry configuration
+      maxRetries: 2,
     };
 
     logger.info(`Initializing ${agentType} LLM model`, {
       model: modelOptions.model,
       temperature: modelOptions.temperature,
+      maxRetries: modelOptions.maxRetries,
       apiKey: "[REDACTED]",
     });
 
@@ -310,9 +252,12 @@ function prepareAgentMessages(
   stateMessages: BaseMessage[],
   systemMessage: string,
 ): BaseMessage[] {
-  // Filter to keep only human and AI messages
+  // Filter to keep human, AI, and tool messages (tool messages contain tool call results)
   const userMessages = stateMessages.filter(
-    (msg) => msg._getType() === "human" || msg._getType() === "ai",
+    (msg) =>
+      msg._getType() === "human" ||
+      msg._getType() === "ai" ||
+      msg._getType() === "tool",
   );
 
   // Create new messages array with system message first, then user messages
@@ -377,10 +322,39 @@ function contentToString(content: unknown): string {
       .join(" ");
   }
 
-  // Handle object content
+  // Handle object content - try to extract meaningful text
   if (typeof content === "object") {
     try {
-      return JSON.stringify(content);
+      // Check if it's a structured response with a text field
+      const obj = content as Record<string, unknown>;
+      if (obj.text && typeof obj.text === "string") {
+        return obj.text;
+      }
+      if (obj.content && typeof obj.content === "string") {
+        return obj.content;
+      }
+      if (obj.message && typeof obj.message === "string") {
+        return obj.message;
+      }
+
+      // If no meaningful text field found, stringify the whole object
+      const jsonString = JSON.stringify(content);
+
+      // Try to parse it as a structured response and extract text
+      try {
+        const parsed = JSON.parse(jsonString) as Record<string, unknown>;
+        if (
+          parsed.type === "text" &&
+          parsed.text &&
+          typeof parsed.text === "string"
+        ) {
+          return parsed.text;
+        }
+      } catch {
+        // Ignore parse errors and continue
+      }
+
+      return jsonString;
     } catch {
       return "[Complex Content]";
     }
@@ -405,21 +379,49 @@ function handleAgentError(
   error: unknown,
   agentType: string,
 ): { messages: BaseMessage[]; next: string } {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? error.stack : undefined;
+
   logger.error(`Error in ${agentType} agent`, {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     agentType,
-    stack: error instanceof Error ? error.stack : undefined,
+    stack: errorStack,
   });
 
-  const errorMessage =
-    error instanceof AgentError ||
-    error instanceof ValidationError ||
-    error instanceof LLMError
-      ? `I encountered an error: ${error.message}`
-      : "I encountered an unexpected error while processing your request.";
+  let userFriendlyMessage =
+    "I encountered an unexpected error while processing your request.";
+
+  // Handle specific known errors with better messages
+  if (
+    errorMessage.includes(
+      "Cannot read properties of undefined (reading 'length')",
+    ) &&
+    errorStack?.includes("mapGenerateContentResultToChatResult")
+  ) {
+    logger.error("Detected LangChain Google GenAI bug in agent", { agentType });
+    userFriendlyMessage =
+      "I'm experiencing a temporary issue with the AI service. Let me try a different approach.";
+  } else if (
+    errorMessage.includes("MALFORMED_FUNCTION_CALL") ||
+    errorMessage.includes("Unknown field for Schema") ||
+    errorMessage.includes("must be specified")
+  ) {
+    logger.error("Detected Google GenAI schema/function call error in agent", {
+      agentType,
+    });
+    userFriendlyMessage =
+      "I'm having trouble with my tools. Let me try to help you another way.";
+  } else if (error instanceof AgentError) {
+    userFriendlyMessage = `I encountered an error: ${error.message}`;
+  } else if (error instanceof ValidationError) {
+    userFriendlyMessage = `I encountered a validation error: ${error.message}`;
+  } else if (error instanceof LLMError) {
+    userFriendlyMessage =
+      "I'm having trouble connecting to the AI service. Please try again.";
+  }
 
   return {
-    messages: [new AIMessage(`${errorMessage} Please try again.`)],
+    messages: [new AIMessage(`${userFriendlyMessage} Please try again.`)],
     next: "supervisor",
   };
 }
@@ -449,25 +451,6 @@ export type AgentStateType = {
   userId?: string;
 };
 
-// Define the available agent types
-const AGENT_TYPES = [
-  "supervisor",
-  "data_manager",
-  "resume_generator",
-  "cover_letter_generator",
-  "user_profile",
-  "job_posting_manager",
-] as const;
-type AgentType = (typeof AGENT_TYPES)[number];
-
-const MEMBERS = [
-  "data_manager",
-  "resume_generator",
-  "cover_letter_generator",
-  "user_profile",
-  "job_posting_manager",
-] as const;
-
 // All tools have been moved to src/server/langchain/tools.ts for better organization
 
 // Initialize the model (updated to use new utilities)
@@ -492,20 +475,6 @@ export function createLLM(temperature = AGENT_CONFIG.TEMPERATURE.AGENTS) {
       undefined,
       error instanceof Error ? error : new Error(String(error)),
     );
-  }
-}
-
-// Shared wrapper for agent invocations with better error handling
-async function safeAgentInvoke(
-  agent: ReturnType<typeof createAgent>,
-  messages: BaseMessage[],
-) {
-  try {
-    return await agent.invoke({ messages });
-  } catch (error) {
-    console.error("Agent invocation error:", error);
-    // Return a formatted error message that won't break the stream
-    return `I encountered an error processing your request: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -544,6 +513,12 @@ IMPORTANT ROUTING RULES:
 6. For general questions or completed tasks: Call 'route_to_agent' with '${END}'
    Example: "Thank you", "That's all for now"
 
+ROUTING RESPONSE FORMAT:
+When you route to another agent, provide a brief acknowledgment in your response content, such as:
+- "I'll look up your skills data for you." (when routing to data_manager)
+- "Let me help you with your resume." (when routing to resume_generator)
+- "I'll analyze that job posting for you." (when routing to job_posting_manager)
+
 ALWAYS call the 'route_to_agent' tool with one of these exact destination values: 'data_manager', 'resume_generator', 'cover_letter_generator', 'job_posting_manager', 'user_profile', or '${END}'.
 
 If you're unsure which specialized agent to route to, prefer 'data_manager' as it can help collect needed information.
@@ -561,7 +536,36 @@ If you don't call 'route_to_agent', your response will be sent directly to the u
     // Invoke the LLM
     const response = await llm.invoke(messages);
 
-    // Process tool calls if present
+    // Debug logging to understand the response structure
+    logger.info("Supervisor LLM response debug", {
+      hasToolCalls: !!(response?.tool_calls && response.tool_calls.length > 0),
+      toolCallsLength: response?.tool_calls?.length ?? 0,
+      contentType: typeof response?.content,
+      contentPreview:
+        typeof response?.content === "string"
+          ? response.content.substring(0, 200)
+          : JSON.stringify(response?.content).substring(0, 200),
+      rawResponse: JSON.stringify(response).substring(0, 500),
+    });
+
+    // Check if tool calls are embedded in content (workaround for Google GenAI bug)
+    if (
+      (!response?.tool_calls || response.tool_calls.length === 0) &&
+      response?.content
+    ) {
+      const extractedToolCalls = extractToolCallsFromContent(response.content);
+
+      if (extractedToolCalls && extractedToolCalls.length > 0) {
+        logger.info("Successfully extracted tool calls from content", {
+          extractedCount: extractedToolCalls.length,
+          toolNames: extractedToolCalls.map((tc) => tc.name),
+        });
+
+        return await processSupervisorToolCalls(extractedToolCalls, response);
+      }
+    }
+
+    // Process tool calls if present (normal path)
     if (response?.tool_calls && response.tool_calls.length > 0) {
       return await processSupervisorToolCalls(response.tool_calls, response);
     }
@@ -613,16 +617,20 @@ async function processSupervisorToolCalls(
           RouteToAgentSchema,
           "route_to_agent",
         );
-        const destination = validatedArgs.next;
+        let destination = validatedArgs.next;
+
+        // Convert "__end__" string to END symbol for LangGraph routing
+        if (destination === "__end__") {
+          destination = END;
+        }
 
         logger.info("Supervisor routing decision", { destination });
 
         return {
           messages: [
-            new AIMessage({
-              content: contentToString(response.content),
-              tool_calls: processedToolCalls,
-            }),
+            new AIMessage(
+              contentToString(response.content) || "I understand your request.",
+            ),
           ],
           next: destination,
         };
@@ -647,10 +655,9 @@ async function processSupervisorToolCalls(
     logger.warn("No route_to_agent tool call found, handling directly");
     return {
       messages: [
-        new AIMessage({
-          content: contentToString(response.content),
-          tool_calls: processedToolCalls,
-        }),
+        new AIMessage(
+          contentToString(response.content) || "I understand your request.",
+        ),
       ],
       next: END,
     };
@@ -734,15 +741,102 @@ async function processDataManagerToolCalls(
         const profileTool = createUserProfileTool(userId);
         const result = (await profileTool.invoke(args)) as string;
 
-        let formattedResult: string;
-        try {
-          const parsedResult = JSON.parse(result) as unknown;
-          formattedResult = JSON.stringify(parsedResult, null, 2);
-        } catch {
-          formattedResult = result;
-        }
+        // Format the data based on the type requested
+        if (args.dataType === "skills") {
+          try {
+            const skillsData = JSON.parse(result) as Array<{
+              name: string;
+              category: string;
+              proficiency: string;
+              workContext?: string;
+              yearsExperience?: number | null;
+            }>;
 
-        toolCallSummary += `• Retrieved ${args.dataType} data:\n\n\`\`\`json\n${formattedResult}\n\`\`\`\n\n`;
+            if (skillsData.length === 0) {
+              toolCallSummary += `No skills found in your profile yet. You can add skills by describing your work experience or uploading a resume.`;
+            } else {
+              toolCallSummary += `## Your Skills\n\n`;
+
+              // Group skills by proficiency level
+              const expertSkills = skillsData.filter(
+                (s) => s.proficiency === "EXPERT",
+              );
+              const advancedSkills = skillsData.filter(
+                (s) => s.proficiency === "ADVANCED",
+              );
+              const intermediateSkills = skillsData.filter(
+                (s) => s.proficiency === "INTERMEDIATE",
+              );
+              const beginnerSkills = skillsData.filter(
+                (s) => s.proficiency === "BEGINNER",
+              );
+
+              if (expertSkills.length > 0) {
+                toolCallSummary += `### Expert Level\n`;
+                expertSkills.forEach((skill) => {
+                  toolCallSummary += `- **${skill.name}**`;
+                  if (skill.workContext) {
+                    toolCallSummary += ` _(${skill.workContext})_`;
+                  }
+                  toolCallSummary += `\n`;
+                });
+                toolCallSummary += `\n`;
+              }
+
+              if (advancedSkills.length > 0) {
+                toolCallSummary += `### Advanced Level\n`;
+                advancedSkills.forEach((skill) => {
+                  toolCallSummary += `- **${skill.name}**`;
+                  if (skill.workContext) {
+                    toolCallSummary += ` _(${skill.workContext})_`;
+                  }
+                  toolCallSummary += `\n`;
+                });
+                toolCallSummary += `\n`;
+              }
+
+              if (intermediateSkills.length > 0) {
+                toolCallSummary += `### Intermediate Level\n`;
+                intermediateSkills.forEach((skill) => {
+                  toolCallSummary += `- **${skill.name}**`;
+                  if (skill.workContext) {
+                    toolCallSummary += ` _(${skill.workContext})_`;
+                  }
+                  toolCallSummary += `\n`;
+                });
+                toolCallSummary += `\n`;
+              }
+
+              if (beginnerSkills.length > 0) {
+                toolCallSummary += `### Beginner Level\n`;
+                beginnerSkills.forEach((skill) => {
+                  toolCallSummary += `- **${skill.name}**`;
+                  if (skill.workContext) {
+                    toolCallSummary += ` _(${skill.workContext})_`;
+                  }
+                  toolCallSummary += `\n`;
+                });
+                toolCallSummary += `\n`;
+              }
+
+              toolCallSummary += `\n_Total: ${skillsData.length} skills in your profile_\n\n`;
+            }
+          } catch (parseError) {
+            // Fallback to raw JSON if parsing fails
+            toolCallSummary += `• Retrieved ${args.dataType} data:\n\n\`\`\`json\n${result}\n\`\`\`\n\n`;
+          }
+        } else {
+          // For other data types, format as JSON
+          let formattedResult: string;
+          try {
+            const parsedResult = JSON.parse(result) as unknown;
+            formattedResult = JSON.stringify(parsedResult, null, 2);
+          } catch {
+            formattedResult = result;
+          }
+
+          toolCallSummary += `• Retrieved ${args.dataType} data:\n\n\`\`\`json\n${formattedResult}\n\`\`\`\n\n`;
+        }
       } catch (error) {
         const dataType =
           typeof toolCall.args?.dataType === "string"
@@ -774,13 +868,17 @@ Your job is to:
 2. Identify information in messages that should be stored
 3. Store work history, skills, achievements, and user preferences
 4. Organize and maintain the user's data
+5. Format retrieved data in user-friendly formats (especially markdown when requested)
 
 You have access to these tools:
 - store_user_preference: For storing user preferences about grammar, phrases, resume style, etc.
 - store_work_history: For storing details about previous jobs, responsibilities, achievements
 - get_user_profile: For retrieving existing user data
 
-When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`,
+When retrieving skills data, present it in a well-organized markdown format grouped by proficiency level.
+When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.
+
+Always aim to provide helpful, formatted responses that directly address what the user is asking for.`,
   getTools: getDataManagerTools,
   processToolCalls: processDataManagerToolCalls,
 });
@@ -1051,7 +1149,8 @@ export function createAgentTeam() {
     // Create a debug wrapper for the routing function
     const debugRouting = (state: typeof AgentState.State) => {
       console.log(`Routing decision based on state.next: "${state.next}"`);
-      return state.next;
+      // Convert "__end__" string to END symbol if needed
+      return state.next === "__end__" ? END : state.next;
     };
 
     // From supervisor, route to the appropriate agent based on the 'next' state
@@ -1064,7 +1163,7 @@ export function createAgentTeam() {
         cover_letter_generator: "cover_letter_generator",
         user_profile: "user_profile",
         job_posting_manager: "job_posting_manager",
-        [END]: END, // Handle END special case
+        [END]: END, // Handle END symbol for internal routing
       },
     );
     console.log("Added conditional edges from supervisor");
@@ -1185,6 +1284,10 @@ function createAgentNode(config: AgentConfig) {
         config.systemMessage,
       );
 
+      logger.info(`Agent ${config.agentType} messages`, {
+        messages,
+      });
+
       logger.info(`${config.agentType} invoking LLM`, {
         messageCount: messages.length,
         userId: userId ? "[PRESENT]" : "[MISSING]",
@@ -1193,33 +1296,9 @@ function createAgentNode(config: AgentConfig) {
       // Invoke the LLM
       const response = await llm.invoke(messages);
 
-      // Process tool calls if present and custom processor is provided
-      if (
-        response?.tool_calls &&
-        response.tool_calls.length > 0 &&
-        config.processToolCalls
-      ) {
-        const processedToolCalls = processToolCalls(response.tool_calls);
-        if (processedToolCalls.length > 0) {
-          const result = await config.processToolCalls(
-            processedToolCalls,
-            userId,
-            response,
-          );
-          return {
-            messages: [new AIMessage(result)],
-            next: "supervisor",
-          };
-        }
-      }
-
-      // Handle tool calls with default processing (if no custom processor)
+      // Handle tool calls properly using LangChain format
       if (response?.tool_calls && response.tool_calls.length > 0) {
-        return handleDefaultToolCalls(
-          response.tool_calls,
-          response,
-          config.agentType,
-        );
+        return await handleAgentToolCalls(response, config, userId);
       }
 
       // Handle direct response
@@ -1230,53 +1309,191 @@ function createAgentNode(config: AgentConfig) {
   };
 }
 
-// Default tool call handler for agents
-function handleDefaultToolCalls(
-  toolCalls: Array<{
-    name?: string;
-    args?: unknown;
-    id?: string;
-    type?: string;
-  }>,
-  response: { content?: unknown },
-  agentType: string,
-): { messages: BaseMessage[]; next: string } {
-  const processedToolCalls = processToolCalls(toolCalls);
+// Handle agent tool calls using proper LangChain format
+async function handleAgentToolCalls(
+  response: {
+    content?: unknown;
+    tool_calls?: Array<{
+      name?: string;
+      args?: unknown;
+      id?: string;
+      type?: string;
+    }>;
+  },
+  config: AgentConfig,
+  userId: string,
+): Promise<{ messages: BaseMessage[]; next: string }> {
+  try {
+    // Check for tool calls in the normal location first
+    let toolCallsToProcess = response.tool_calls;
 
-  if (processedToolCalls.length === 0) {
-    logger.warn(`All ${agentType} tool calls were filtered out`, { agentType });
+    // If no tool calls in the expected location, try to extract from content
+    if (
+      (!toolCallsToProcess || toolCallsToProcess.length === 0) &&
+      response?.content
+    ) {
+      const extractedToolCalls = extractToolCallsFromContent(response.content);
+
+      if (extractedToolCalls && extractedToolCalls.length > 0) {
+        logger.info(
+          `Successfully extracted tool calls from content for ${config.agentType}`,
+          {
+            extractedCount: extractedToolCalls.length,
+            toolNames: extractedToolCalls.map((tc) => tc.name),
+          },
+        );
+
+        toolCallsToProcess = extractedToolCalls;
+      }
+    }
+
+    if (!toolCallsToProcess || toolCallsToProcess.length === 0) {
+      return handleDirectAgentResponse(response, config.agentType);
+    }
+
+    const processedToolCalls = processToolCalls(toolCallsToProcess);
+
+    if (processedToolCalls.length === 0) {
+      logger.warn(`All ${config.agentType} tool calls were filtered out`, {
+        agentType: config.agentType,
+      });
+      return handleDirectAgentResponse(response, config.agentType);
+    }
+
+    // Create the AI message with tool_calls (this preserves the tool call structure)
+    const aiMessageWithToolCalls = new AIMessage({
+      content: contentToString(response.content) || "",
+      tool_calls: (toolCallsToProcess ?? []).map((tc) => ({
+        name: tc.name ?? "",
+        args: tc.args ?? {},
+        id: tc.id ?? "",
+        type: "tool_call" as const,
+      })),
+    });
+
+    // If there's a custom tool call processor, use it to generate a summary
+    // but still maintain the proper LangChain structure
+    if (config.processToolCalls) {
+      try {
+        const customResult = await config.processToolCalls(
+          processedToolCalls,
+          userId,
+          response,
+        );
+
+        // Create a ToolMessage for the custom processing result
+        // We'll use a generic tool_call_id since the custom processor handles multiple tools
+        const customResultMessage = new ToolMessage({
+          content: customResult,
+          tool_call_id: processedToolCalls[0]?.id ?? "custom_processing",
+        });
+
+        return {
+          messages: [aiMessageWithToolCalls, customResultMessage],
+          next: "supervisor",
+        };
+      } catch (customError) {
+        logger.error(`Error in custom tool processor for ${config.agentType}`, {
+          error:
+            customError instanceof Error
+              ? customError.message
+              : String(customError),
+          agentType: config.agentType,
+        });
+
+        // Fall back to default processing if custom processor fails
+      }
+    }
+
+    // Default processing: Execute tool calls and create ToolMessage instances
+    const toolMessages: ToolMessage[] = [];
+    const tools = config.getTools(userId);
+
+    for (const toolCall of processedToolCalls) {
+      try {
+        // Find the matching tool
+        const tool = tools.find((t) => t.name === toolCall.name);
+
+        if (!tool) {
+          logger.warn(`Tool ${toolCall.name} not found in available tools`, {
+            agentType: config.agentType,
+            availableTools: tools.map((t) => t.name),
+          });
+
+          toolMessages.push(
+            new ToolMessage({
+              content: `Error: Tool ${toolCall.name} not found`,
+              tool_call_id: toolCall.id,
+            }),
+          );
+          continue;
+        }
+
+        // Execute the tool
+        logger.info(`Executing tool ${toolCall.name}`, {
+          agentType: config.agentType,
+          toolArgs: toolCall.args,
+        });
+
+        const toolResult = await tool.invoke(toolCall.args);
+
+        toolMessages.push(
+          new ToolMessage({
+            content:
+              typeof toolResult === "string"
+                ? toolResult
+                : JSON.stringify(toolResult),
+            tool_call_id: toolCall.id,
+          }),
+        );
+
+        logger.info(`Tool ${toolCall.name} executed successfully`, {
+          agentType: config.agentType,
+          resultLength:
+            typeof toolResult === "string"
+              ? toolResult.length
+              : JSON.stringify(toolResult).length,
+        });
+      } catch (toolError) {
+        const errorMessage =
+          toolError instanceof Error ? toolError.message : String(toolError);
+
+        logger.error(`Error executing tool ${toolCall.name}`, {
+          agentType: config.agentType,
+          error: errorMessage,
+          toolArgs: toolCall.args,
+        });
+
+        toolMessages.push(
+          new ToolMessage({
+            content: `Error executing ${toolCall.name}: ${errorMessage}`,
+            tool_call_id: toolCall.id,
+          }),
+        );
+      }
+    }
+
+    // Return both the AI message with tool_calls and the tool result messages
+    // This maintains the proper LangChain conversation structure
+    return {
+      messages: [aiMessageWithToolCalls, ...toolMessages],
+      next: "supervisor",
+    };
+  } catch (error) {
+    logger.error(`Error in handleAgentToolCalls for ${config.agentType}`, {
+      error: error instanceof Error ? error.message : String(error),
+      agentType: config.agentType,
+    });
+
     return {
       messages: [
         new AIMessage(
-          contentToString(response.content) || "I processed your request.",
+          "I encountered an error while processing the tool calls. Please try again.",
         ),
       ],
       next: "supervisor",
     };
   }
-
-  // Create a summary of tool calls executed
-  let toolCallSummary = "I've processed your request:\n\n";
-
-  for (const toolCall of processedToolCalls) {
-    toolCallSummary += `• ${toolCall.name}: Executed successfully\n`;
-  }
-
-  // Add any content from the response
-  const responseContent = contentToString(response.content);
-  if (responseContent?.trim()) {
-    toolCallSummary += "\n" + responseContent;
-  }
-
-  logger.info(`${agentType} tool calls processed`, {
-    agentType,
-    toolCallCount: processedToolCalls.length,
-  });
-
-  return {
-    messages: [new AIMessage(toolCallSummary)],
-    next: "supervisor",
-  };
 }
 
 // Handle direct responses from agents using the factory
@@ -1307,4 +1524,93 @@ function handleDirectAgentResponse(
     messages: [new AIMessage(content)],
     next: "supervisor",
   };
+}
+
+// Utility function to extract tool calls from content when they're embedded as text
+function extractToolCallsFromContent(content: unknown): Array<{
+  name: string;
+  args: Record<string, unknown>;
+  id: string;
+  type: "tool_call";
+}> | null {
+  const contentStr = contentToString(content);
+
+  if (
+    !contentStr.includes("functionCall") &&
+    !contentStr.includes("tool_call")
+  ) {
+    return null;
+  }
+
+  try {
+    // Handle different possible formats
+    const patterns = [
+      // Format: {"functionCall":{"name":"tool_name","args":{...}}}
+      /\{"functionCall":\{"name":"([^"]+)","args":\{([^}]*)\}\}\}/g,
+      // Format: {"name":"tool_name","args":{...},"type":"tool_call"}
+      /\{"name":"([^"]+)","args":\{([^}]*)\},"type":"tool_call"\}/g,
+      // Format: "tool_call":{"name":"tool_name","args":{...}}
+      /"tool_call":\{"name":"([^"]+)","args":\{([^}]*)\}\}/g,
+    ];
+
+    const extractedCalls: Array<{
+      name: string;
+      args: Record<string, unknown>;
+      id: string;
+      type: "tool_call";
+    }> = [];
+
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(contentStr)) !== null) {
+        if (match[1] && match[2] !== undefined) {
+          const toolName = match[1];
+          const argsString = match[2];
+
+          // Parse the arguments
+          let args: Record<string, unknown> = {};
+          try {
+            // Handle simple key-value pairs
+            const argPairs = argsString.split(",");
+            for (const pair of argPairs) {
+              const colonIndex = pair.indexOf(":");
+              if (colonIndex > 0) {
+                const key = pair
+                  .substring(0, colonIndex)
+                  .trim()
+                  .replace(/"/g, "");
+                const value = pair
+                  .substring(colonIndex + 1)
+                  .trim()
+                  .replace(/"/g, "");
+                args[key] = value;
+              }
+            }
+          } catch (parseError) {
+            logger.warn("Failed to parse tool call arguments", {
+              toolName,
+              argsString,
+              error: parseError,
+            });
+            args = {};
+          }
+
+          extractedCalls.push({
+            name: toolName,
+            args,
+            id: `extracted_${toolName}_${Date.now()}`,
+            type: "tool_call",
+          });
+        }
+      }
+    }
+
+    return extractedCalls.length > 0 ? extractedCalls : null;
+  } catch (error) {
+    logger.error("Error extracting tool calls from content", {
+      error,
+      contentPreview: contentStr.substring(0, 200),
+    });
+    return null;
+  }
 }
