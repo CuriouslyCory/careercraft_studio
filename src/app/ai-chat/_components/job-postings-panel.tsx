@@ -83,6 +83,12 @@ export function JobPostingsPanel() {
     jobPostingId: string;
     jobTitle: string;
   } | null>(null);
+  const [generatedResume, setGeneratedResume] = useState<{
+    jobPostingId: string;
+    jobTitle: string;
+    resumeData: string;
+    format: "structured" | "markdown";
+  } | null>(null);
 
   const queryClient = api.useUtils();
   const jobPostingsQuery = api.document.listJobPostings.useQuery();
@@ -96,6 +102,27 @@ export function JobPostingsPanel() {
       toast.error(`Migration failed: ${error.message}`);
     },
   });
+
+  const generateResumeMutation =
+    api.document.generateTailoredResume.useMutation({
+      onSuccess: (result, variables) => {
+        const jobPosting = jobPostingsQuery.data?.find(
+          (job) => job.id === variables.jobPostingId,
+        );
+        if (jobPosting && typeof result.data === "string") {
+          setGeneratedResume({
+            jobPostingId: variables.jobPostingId,
+            jobTitle: jobPosting.title,
+            resumeData: result.data,
+            format: result.format,
+          });
+          toast.success("Resume generated successfully!");
+        }
+      },
+      onError: (error) => {
+        toast.error(`Failed to generate resume: ${error.message}`);
+      },
+    });
 
   // Add new job posting form
   const addJobForm = useForm({
@@ -265,6 +292,34 @@ export function JobPostingsPanel() {
     setCompatibilityReport(null);
   };
 
+  const handleGenerateResume = (jobPostingId: string) => {
+    generateResumeMutation.mutate({
+      jobPostingId,
+      format: "markdown", // Default to markdown format for better readability
+    });
+  };
+
+  const handleCloseResume = () => {
+    setGeneratedResume(null);
+  };
+
+  const handleDownloadResume = () => {
+    if (!generatedResume) return;
+
+    const blob = new Blob([generatedResume.resumeData], {
+      type: "text/markdown",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `resume-${generatedResume.jobTitle.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Resume downloaded!");
+  };
+
   if (jobPostingsQuery.isLoading) {
     return <div className="p-4 text-center">Loading your job postings...</div>;
   }
@@ -287,6 +342,37 @@ export function JobPostingsPanel() {
         jobTitle={compatibilityReport.jobTitle}
         onBack={handleCloseCompatibility}
       />
+    );
+  }
+
+  // Show generated resume if one is available
+  if (generatedResume) {
+    return (
+      <div className="h-full space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold">
+            Generated Resume for {generatedResume.jobTitle}
+          </h2>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleDownloadResume}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Download Resume
+            </Button>
+            <Button variant="outline" onClick={handleCloseResume}>
+              Back to Job Postings
+            </Button>
+          </div>
+        </div>
+        <div className="h-full overflow-y-auto rounded-lg border bg-white p-6">
+          <div className="prose prose-sm max-w-none">
+            <ReactMarkdown components={markdownComponents}>
+              {generatedResume.resumeData}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -746,6 +832,19 @@ export function JobPostingsPanel() {
                           className="text-blue-600 hover:bg-blue-50"
                         >
                           Compatibility
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleGenerateResume(job.id)}
+                          disabled={generateResumeMutation.isPending}
+                          className="text-green-600 hover:bg-green-50"
+                        >
+                          {generateResumeMutation.isPending &&
+                          generateResumeMutation.variables?.jobPostingId ===
+                            job.id
+                            ? "Generating..."
+                            : "Generate Resume"}
                         </Button>
                         <Button
                           size="sm"

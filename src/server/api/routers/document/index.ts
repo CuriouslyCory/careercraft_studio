@@ -15,6 +15,7 @@ export const documentRouter = createTRPCRouter({
   updateDocument: documentOpsRouter.update,
   deleteDocument: documentOpsRouter.delete,
   generateResumeData: documentOpsRouter.generateResumeData,
+  generateTailoredResume: documentOpsRouter.generateTailoredResume,
 
   // Work History operations
   listWorkHistory: workHistoryRouter.list,

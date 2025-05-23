@@ -318,4 +318,69 @@ export const documentOpsRouter = createTRPCRouter({
         );
       }
     }),
+
+  generateTailoredResume: protectedProcedure
+    .input(
+      z.object({
+        jobPostingId: z.string().min(1, "Job posting ID is required"),
+        format: z
+          .enum(["structured", "markdown"])
+          .default("structured")
+          .describe(
+            "Output format: 'structured' returns JSON sections, 'markdown' returns complete formatted resume",
+          ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { jobPostingId, format } = input;
+      const userId = ctx.session.user.id;
+
+      try {
+        const { generateTailoredResume, formatTailoredResumeAsMarkdown } =
+          await import("~/server/services/tailored-resume-generator");
+
+        // Generate the tailored resume
+        const tailoredResume = await generateTailoredResume(
+          ctx.db,
+          userId,
+          jobPostingId,
+        );
+
+        if (format === "markdown") {
+          // Return as complete markdown document
+          const markdownResume = formatTailoredResumeAsMarkdown(tailoredResume);
+          return {
+            success: true,
+            format: "markdown" as const,
+            data: markdownResume,
+            sections: Object.keys(tailoredResume).filter(
+              (key) =>
+                tailoredResume[key as keyof typeof tailoredResume] &&
+                String(
+                  tailoredResume[key as keyof typeof tailoredResume],
+                ).trim() !== "",
+            ),
+          };
+        } else {
+          // Return as structured sections
+          return {
+            success: true,
+            format: "structured" as const,
+            data: tailoredResume,
+            sections: Object.keys(tailoredResume).filter(
+              (key) =>
+                tailoredResume[key as keyof typeof tailoredResume] &&
+                String(
+                  tailoredResume[key as keyof typeof tailoredResume],
+                ).trim() !== "",
+            ),
+          };
+        }
+      } catch (error) {
+        console.error("Error generating tailored resume:", error);
+        throw new Error(
+          `Failed to generate tailored resume: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }),
 });
