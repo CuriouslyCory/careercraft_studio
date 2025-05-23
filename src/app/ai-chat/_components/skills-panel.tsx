@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * @deprecated This component is deprecated. Use UserSkillsPanel instead.
+ * This panel manages legacy WorkSkill records which are being phased out
+ * in favor of the new normalized UserSkill system.
+ *
+ * Migration path:
+ * 1. Use UserSkillsPanel from ./user-skills-panel.tsx
+ * 2. Migrate existing WorkSkill data using userSkills.migrateLegacySkills API
+ * 3. Use the new compatibility analysis features
+ */
+
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";

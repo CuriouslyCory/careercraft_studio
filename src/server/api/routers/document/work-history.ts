@@ -162,10 +162,14 @@ export const workHistoryRouter = createTRPCRouter({
       });
     }),
 
-  // WorkSkill CRUD (by WorkHistory)
+  // Legacy WorkSkill CRUD (DEPRECATED - use UserSkill instead)
+  // These are kept for backward compatibility but should not be used for new code
   listSkills: protectedProcedure
     .input(z.object({ workHistoryId: z.string() }))
     .query(async ({ ctx, input }) => {
+      console.warn(
+        "DEPRECATED: Using legacy WorkSkill - switch to UserSkill API",
+      );
       return ctx.db.workSkill.findMany({
         where: { workHistoryId: input.workHistoryId },
         orderBy: { createdAt: "asc" },
@@ -180,6 +184,9 @@ export const workHistoryRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      console.warn(
+        "DEPRECATED: Creating legacy WorkSkill - switch to UserSkill API",
+      );
       return ctx.db.workSkill.create({
         data: input,
       });
@@ -188,8 +195,107 @@ export const workHistoryRouter = createTRPCRouter({
   deleteSkill: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      console.warn(
+        "DEPRECATED: Deleting legacy WorkSkill - switch to UserSkill API",
+      );
       return ctx.db.workSkill.delete({
         where: { id: input.id },
+      });
+    }),
+
+  // Modern UserSkill functions for work history context
+  listUserSkillsForWork: protectedProcedure
+    .input(z.object({ workHistoryId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.userSkill.findMany({
+        where: {
+          userId: ctx.session.user.id,
+          workHistoryId: input.workHistoryId,
+        },
+        include: {
+          skill: true,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+    }),
+
+  addUserSkillToWork: protectedProcedure
+    .input(
+      z.object({
+        workHistoryId: z.string(),
+        skillName: z.string(),
+        proficiency: z
+          .enum(["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"])
+          .optional(),
+        yearsExperience: z.number().min(0).max(50).optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Find or create the skill
+      let skill = await ctx.db.skill.findFirst({
+        where: {
+          OR: [
+            { name: { equals: input.skillName, mode: "insensitive" } },
+            {
+              aliases: {
+                some: {
+                  alias: { equals: input.skillName, mode: "insensitive" },
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      skill ??= await ctx.db.skill.create({
+        data: {
+          name: input.skillName,
+          category: "OTHER", // Default category, can be updated later
+        },
+      });
+
+      // Check if user already has this skill
+      const existingUserSkill = await ctx.db.userSkill.findFirst({
+        where: {
+          userId: ctx.session.user.id,
+          skillId: skill.id,
+        },
+      });
+
+      if (existingUserSkill) {
+        // Update existing skill to reference this work history if not already linked
+        if (!existingUserSkill.workHistoryId) {
+          return await ctx.db.userSkill.update({
+            where: { id: existingUserSkill.id },
+            data: {
+              workHistoryId: input.workHistoryId,
+              notes: input.notes ?? existingUserSkill.notes,
+            },
+            include: {
+              skill: true,
+              workHistory: true,
+            },
+          });
+        }
+        throw new Error("You already have this skill linked to your profile");
+      }
+
+      // Create new UserSkill linked to this work history
+      return await ctx.db.userSkill.create({
+        data: {
+          userId: ctx.session.user.id,
+          skillId: skill.id,
+          proficiency: input.proficiency ?? "INTERMEDIATE",
+          yearsExperience: input.yearsExperience,
+          source: "WORK_EXPERIENCE",
+          notes: input.notes,
+          workHistoryId: input.workHistoryId,
+        },
+        include: {
+          skill: true,
+          workHistory: true,
+        },
       });
     }),
 });
@@ -305,22 +411,80 @@ export async function processWorkExperience(
       workHistoryId = wh.id;
     }
 
-    // Upsert skills to avoid duplicates
+    // Process skills for this work history using modern UserSkill approach
     const skills = Array.isArray(exp.skills) ? exp.skills : [];
-    for (const skill of skills) {
-      if (typeof skill === "string") {
-        // Check if skill already exists for this work history
-        const existingSkill = await ctx.db.workSkill.findFirst({
+    for (const skillName of skills) {
+      if (typeof skillName === "string" && skillName.trim()) {
+        // Find or create the skill in the normalized table
+        let skill = await ctx.db.skill.findFirst({
           where: {
-            workHistoryId,
-            name: skill,
+            OR: [
+              { name: { equals: skillName, mode: "insensitive" } },
+              {
+                aliases: {
+                  some: {
+                    alias: { equals: skillName, mode: "insensitive" },
+                  },
+                },
+              },
+            ],
           },
         });
 
-        if (!existingSkill) {
+        skill ??= await ctx.db.skill.create({
+          data: {
+            name: skillName,
+            category: "OTHER", // Default category, can be categorized later
+          },
+        });
+
+        // Check if user already has this skill
+        const existingUserSkill = await ctx.db.userSkill.findFirst({
+          where: {
+            userId,
+            skillId: skill.id,
+          },
+        });
+
+        if (existingUserSkill) {
+          // If skill exists but not linked to any work history, link it to this one
+          if (!existingUserSkill.workHistoryId) {
+            await ctx.db.userSkill.update({
+              where: { id: existingUserSkill.id },
+              data: {
+                workHistoryId,
+                notes: `Used at ${exp.company} - ${exp.jobTitle}`,
+              },
+            });
+          }
+          // If already linked to a different work history, we could create skill aliases or leave as-is
+          // For now, we'll skip to avoid duplicates
+        } else {
+          // Create new UserSkill linked to this work history
+          await ctx.db.userSkill.create({
+            data: {
+              userId,
+              skillId: skill.id,
+              proficiency: "INTERMEDIATE", // Default proficiency, can be updated later
+              source: "WORK_EXPERIENCE",
+              notes: `Used at ${exp.company} - ${exp.jobTitle}`,
+              workHistoryId,
+            },
+          });
+        }
+
+        // Also create legacy WorkSkill for backward compatibility (will be deprecated)
+        const existingLegacySkill = await ctx.db.workSkill.findFirst({
+          where: {
+            workHistoryId,
+            name: skillName,
+          },
+        });
+
+        if (!existingLegacySkill) {
           await ctx.db.workSkill.create({
             data: {
-              name: skill,
+              name: skillName,
               workHistory: { connect: { id: workHistoryId } },
             },
           });

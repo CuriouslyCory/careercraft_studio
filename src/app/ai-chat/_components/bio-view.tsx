@@ -3,7 +3,7 @@
 import { DocumentsPanel } from "./documents-panel";
 import { WorkHistoryPanel } from "./work-history-panel";
 import { KeyAchievementsPanel } from "./key-achievements-panel";
-import { SkillsPanel } from "./skills-panel";
+import { UserSkillsPanel } from "./user-skills-panel";
 import { EducationPanel } from "./education-panel";
 import { JobPostingsPanel } from "./job-postings-panel";
 
@@ -20,7 +20,7 @@ export function BioView({ view }: BioViewProps) {
     case "keyAchievements":
       return <KeyAchievementsPanel />;
     case "skills":
-      return <SkillsPanel />;
+      return <UserSkillsPanel />;
     case "education":
       return <EducationPanel />;
     case "jobPostings":

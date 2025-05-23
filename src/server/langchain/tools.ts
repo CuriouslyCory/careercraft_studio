@@ -201,9 +201,8 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
               });
             });
 
-            // Format the complete profile
-            const completeProfile = {
-              workHistory: allWorkHistory.map((job) => ({
+            return JSON.stringify({
+              work_history: allWorkHistory.map((job) => ({
                 id: job.id,
                 companyName: job.companyName,
                 jobTitle: job.jobTitle,
@@ -225,27 +224,23 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
                   : null,
               })),
               skills: Array.from(allSkills),
-              keyAchievements: allKeyAchievements.map((achievement) => ({
+              key_achievements: allKeyAchievements.map((achievement) => ({
                 id: achievement.id,
-                content: achievement.content,
+                description: achievement.content,
               })),
-              preferences: allUserDetails.map((detail) => ({
+              user_details: allUserDetails.map((detail) => ({
                 id: detail.id,
                 category: detail.category,
                 content: detail.content,
               })),
-            };
-
-            return JSON.stringify(completeProfile);
+            });
 
           default:
-            return `Invalid data type requested: ${dataType}. Available types are: work_history, education, skills, achievements, preferences, all`;
+            return "Invalid data type requested. Use 'work_history', 'education', 'skills', 'achievements', 'preferences', or 'all'.";
         }
       } catch (error) {
         console.error("Error retrieving user profile data:", error);
-        return `Error retrieving user profile data: ${
-          error instanceof Error ? error.message : String(error)
-        }`;
+        return `Error retrieving profile data: ${error instanceof Error ? error.message : String(error)}`;
       }
     },
   });
@@ -564,6 +559,123 @@ export function createStoreJobPostingTool(
           },
         });
 
+        // Create normalized skill requirements for compatibility analysis
+        const allRequiredSkills = [
+          ...jobPosting.details.requirements.technicalSkills,
+          ...jobPosting.details.requirements.softSkills,
+        ];
+
+        const allBonusSkills = [
+          ...jobPosting.details.bonusRequirements.technicalSkills,
+          ...jobPosting.details.bonusRequirements.softSkills,
+        ];
+
+        // Create JobSkillRequirement records for required skills
+        for (const skillName of allRequiredSkills) {
+          if (skillName.trim()) {
+            // Find or create the skill
+            let skill = await db.skill.findFirst({
+              where: {
+                OR: [
+                  { name: { equals: skillName, mode: "insensitive" } },
+                  {
+                    aliases: {
+                      some: {
+                        alias: { equals: skillName, mode: "insensitive" },
+                      },
+                    },
+                  },
+                ],
+              },
+            });
+
+            if (!skill) {
+              // Create new skill with appropriate category
+              const category =
+                jobPosting.details.requirements.technicalSkills.includes(
+                  skillName,
+                )
+                  ? "PROGRAMMING_LANGUAGE" // Default for technical skills
+                  : "SOFT_SKILLS"; // Default for soft skills
+
+              skill = await db.skill.create({
+                data: {
+                  name: skillName,
+                  category,
+                },
+              });
+            }
+
+            // Create the skill requirement
+            try {
+              await db.jobSkillRequirement.create({
+                data: {
+                  skillId: skill.id,
+                  jobPostingId: createdJobPosting.id,
+                  isRequired: true,
+                  priority: 1, // High priority for required skills
+                },
+              });
+            } catch (error) {
+              // Skip if already exists (duplicate)
+              console.log(`Skill requirement already exists for ${skillName}`);
+            }
+          }
+        }
+
+        // Create JobSkillRequirement records for bonus skills
+        for (const skillName of allBonusSkills) {
+          if (skillName.trim()) {
+            // Find or create the skill
+            let skill = await db.skill.findFirst({
+              where: {
+                OR: [
+                  { name: { equals: skillName, mode: "insensitive" } },
+                  {
+                    aliases: {
+                      some: {
+                        alias: { equals: skillName, mode: "insensitive" },
+                      },
+                    },
+                  },
+                ],
+              },
+            });
+
+            if (!skill) {
+              // Create new skill with appropriate category
+              const category =
+                jobPosting.details.bonusRequirements.technicalSkills.includes(
+                  skillName,
+                )
+                  ? "PROGRAMMING_LANGUAGE" // Default for technical skills
+                  : "SOFT_SKILLS"; // Default for soft skills
+
+              skill = await db.skill.create({
+                data: {
+                  name: skillName,
+                  category,
+                },
+              });
+            }
+
+            // Create the skill requirement
+            try {
+              await db.jobSkillRequirement.create({
+                data: {
+                  skillId: skill.id,
+                  jobPostingId: createdJobPosting.id,
+                  isRequired: false,
+                  priority: 2, // Medium priority for bonus skills
+                },
+              });
+            } catch (error) {
+              // Skip if already exists (duplicate)
+              console.log(`Skill requirement already exists for ${skillName}`);
+            }
+          }
+        }
+
         console.log("Successfully stored job posting and details");
         return `Successfully stored job posting: "${jobPosting.title}" at ${jobPosting.company}`;
       } catch (error) {
@@ -571,6 +683,303 @@ export function createStoreJobPostingTool(
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         return `Error processing job posting: ${errorMessage}`;
+      }
+    },
+  });
+}
+
+// =============================================================================
+// JOB POSTING RETRIEVAL TOOLS
+// =============================================================================
+
+/**
+ * Tool to find job postings by various criteria
+ */
+export function createFindJobPostingsTool(
+  userId: string,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
+    name: "find_job_postings",
+    description:
+      "Find stored job postings by title, company, location, or other criteria",
+    schema: z.object({
+      title: z
+        .string()
+        .optional()
+        .describe("Job title to search for (partial match)"),
+      company: z
+        .string()
+        .optional()
+        .describe("Company name to search for (partial match)"),
+      location: z
+        .string()
+        .optional()
+        .describe("Location to search for (partial match)"),
+      industry: z
+        .string()
+        .optional()
+        .describe("Industry to search for (partial match)"),
+      limit: z
+        .number()
+        .default(10)
+        .describe("Maximum number of results to return"),
+    }),
+    func: async ({
+      title,
+      company,
+      location,
+      industry,
+      limit = 10,
+    }: {
+      title?: string;
+      company?: string;
+      location?: string;
+      industry?: string;
+      limit?: number;
+    }) => {
+      console.log(
+        `Finding job postings for user ID: ${userId} with criteria:`,
+        {
+          title,
+          company,
+          location,
+          industry,
+          limit,
+        },
+      );
+
+      try {
+        if (!userId) {
+          return "User ID is required but not provided. Please ensure you're logged in.";
+        }
+
+        // Build where clause based on provided criteria
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const whereClause: Record<string, unknown> = { userId };
+
+        if (title) {
+          whereClause.title = { contains: title, mode: "insensitive" } as const;
+        }
+        if (company) {
+          whereClause.company = {
+            contains: company,
+            mode: "insensitive",
+          } as const;
+        }
+        if (location) {
+          whereClause.location = {
+            contains: location,
+            mode: "insensitive",
+          } as const;
+        }
+        if (industry) {
+          whereClause.industry = {
+            contains: industry,
+            mode: "insensitive",
+          } as const;
+        }
+
+        const jobPostings = await db.jobPosting.findMany({
+          where: whereClause,
+          include: {
+            details: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+        });
+
+        if (jobPostings.length === 0) {
+          return "No job postings found matching the specified criteria.";
+        }
+
+        return JSON.stringify(
+          jobPostings.map((job) => ({
+            id: job.id,
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            industry: job.industry,
+            createdAt: job.createdAt.toISOString(),
+            details: job.details
+              ? {
+                  requiredTechnicalSkills: job.details.technicalSkills,
+                  requiredSoftSkills: job.details.softSkills,
+                  requiredEducation: job.details.educationRequirements,
+                  requiredExperience: job.details.experienceRequirements,
+                  requiredIndustryKnowledge: job.details.industryKnowledge,
+                  bonusTechnicalSkills: job.details.bonusTechnicalSkills,
+                  bonusSoftSkills: job.details.bonusSoftSkills,
+                  bonusEducation: job.details.bonusEducationRequirements,
+                  bonusExperience: job.details.bonusExperienceRequirements,
+                  bonusIndustryKnowledge: job.details.bonusIndustryKnowledge,
+                }
+              : null,
+          })),
+        );
+      } catch (error) {
+        console.error("Error finding job postings:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return `Error finding job postings: ${errorMessage}`;
+      }
+    },
+  });
+}
+
+/**
+ * Tool to compare user skills against job posting requirements
+ */
+export function createSkillComparisonTool(
+  userId: string,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
+    name: "compare_skills_to_job",
+    description:
+      "Compare user's skills against a specific job posting's requirements and provide detailed analysis",
+    schema: z.object({
+      jobPostingId: z
+        .string()
+        .optional()
+        .describe("ID of the job posting to compare against"),
+      jobTitle: z
+        .string()
+        .optional()
+        .describe("Title of the job posting to find and compare against"),
+      company: z
+        .string()
+        .optional()
+        .describe("Company name to help identify the job posting"),
+    }),
+    func: async ({
+      jobPostingId,
+      jobTitle,
+      company,
+    }: {
+      jobPostingId?: string;
+      jobTitle?: string;
+      company?: string;
+    }) => {
+      console.log(`Comparing skills for user ID: ${userId} against job:`, {
+        jobPostingId,
+        jobTitle,
+        company,
+      });
+
+      try {
+        if (!userId) {
+          return "User ID is required but not provided. Please ensure you're logged in.";
+        }
+
+        // Find the job posting
+        let jobPosting;
+        if (jobPostingId) {
+          jobPosting = await db.jobPosting.findFirst({
+            where: { id: jobPostingId, userId },
+          });
+        } else if (jobTitle || company) {
+          const whereClause: Record<string, unknown> = { userId };
+          if (jobTitle) {
+            whereClause.title = {
+              contains: jobTitle,
+              mode: "insensitive",
+            } as const;
+          }
+          if (company) {
+            whereClause.company = {
+              contains: company,
+              mode: "insensitive",
+            } as const;
+          }
+
+          jobPosting = await db.jobPosting.findFirst({
+            where: whereClause,
+            orderBy: { createdAt: "desc" },
+          });
+        } else {
+          return "Please provide either a job posting ID, job title, or company name to identify the job posting.";
+        }
+
+        if (!jobPosting) {
+          return "No job posting found matching the specified criteria.";
+        }
+
+        // Use the CompatibilityAnalyzer for detailed analysis
+        const { CompatibilityAnalyzer } = await import(
+          "~/server/services/compatibility-analyzer"
+        );
+        const analyzer = new CompatibilityAnalyzer(db);
+
+        const compatibilityReport = await analyzer.analyzeCompatibility(
+          userId,
+          jobPosting.id,
+        );
+
+        // Format the report for the AI agent
+        const formattedReport = {
+          jobPosting: {
+            title: compatibilityReport.jobPosting.title,
+            company: compatibilityReport.jobPosting.company,
+          },
+          overallScore: compatibilityReport.overallScore,
+          summary: compatibilityReport.summary,
+          skillsAnalysis: {
+            totalSkillRequirements: compatibilityReport.skillMatches.length,
+            perfectMatches: compatibilityReport.skillMatches.filter(
+              (m) => m.compatibility === "perfect",
+            ).length,
+            partialMatches: compatibilityReport.skillMatches.filter(
+              (m) => m.compatibility === "partial",
+            ).length,
+            missingSkills: compatibilityReport.skillMatches.filter(
+              (m) => m.compatibility === "missing",
+            ).length,
+            topMissingSkills: compatibilityReport.skillMatches
+              .filter(
+                (m) =>
+                  m.compatibility === "missing" && m.requirement.isRequired,
+              )
+              .slice(0, 5)
+              .map((m) => m.skill.name),
+            strongSkills: compatibilityReport.skillMatches
+              .filter((m) => m.compatibility === "perfect" && m.score >= 90)
+              .map((m) => m.skill.name),
+          },
+          experienceAnalysis: {
+            totalExperienceRequirements:
+              compatibilityReport.experienceMatches.length,
+            averageScore: Math.round(
+              compatibilityReport.experienceMatches.reduce(
+                (sum, m) => sum + m.score,
+                0,
+              ) / Math.max(compatibilityReport.experienceMatches.length, 1),
+            ),
+          },
+          recommendations: {
+            overallFit:
+              compatibilityReport.overallScore >= 80
+                ? "Excellent match - Strong candidate"
+                : compatibilityReport.overallScore >= 60
+                  ? "Good match - Suitable candidate"
+                  : compatibilityReport.overallScore >= 40
+                    ? "Moderate fit - Some skill development needed"
+                    : "Lower compatibility - Consider improving key skills",
+            actionItems: [
+              ...compatibilityReport.summary.improvementAreas,
+              ...(compatibilityReport.summary.strongPoints.length > 0
+                ? [
+                    `Emphasize your strengths: ${compatibilityReport.summary.strongPoints.slice(0, 2).join(", ")}`,
+                  ]
+                : []),
+            ],
+          },
+        };
+
+        return JSON.stringify(formattedReport, null, 2);
+      } catch (error) {
+        console.error("Error comparing skills to job:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return `Error comparing skills to job: ${errorMessage}`;
       }
     },
   });
@@ -586,6 +995,7 @@ const MEMBERS = [
   "resume_generator",
   "cover_letter_generator",
   "user_profile",
+  "job_posting_manager",
 ] as const;
 
 /**
@@ -649,7 +1059,13 @@ export function getUserProfileTools(userId: string): DynamicStructuredTool[] {
  * Get job posting tools for the job posting manager agent
  */
 export function getJobPostingTools(userId: string): DynamicStructuredTool[] {
-  return [parseJobPostingTool, createStoreJobPostingTool(userId)];
+  return [
+    parseJobPostingTool,
+    createStoreJobPostingTool(userId),
+    createFindJobPostingsTool(userId),
+    createSkillComparisonTool(userId),
+    createUserProfileTool(userId),
+  ];
 }
 
 /**

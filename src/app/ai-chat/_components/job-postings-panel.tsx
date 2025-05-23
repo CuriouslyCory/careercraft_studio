@@ -5,6 +5,7 @@ import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { markdownComponents } from "./markdown-components";
+import { CompatibilityReportModal } from "./compatibility-report";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
@@ -78,9 +79,23 @@ export function JobPostingsPanel() {
     content: string;
     title: string;
   } | null>(null);
+  const [compatibilityReport, setCompatibilityReport] = useState<{
+    jobPostingId: string;
+    jobTitle: string;
+  } | null>(null);
 
   const queryClient = api.useUtils();
   const jobPostingsQuery = api.document.listJobPostings.useQuery();
+
+  const migrateMutation = api.compatibility.migrateJobPostings.useMutation({
+    onSuccess: (result) => {
+      void jobPostingsQuery.refetch();
+      toast.success(result.message);
+    },
+    onError: (error) => {
+      toast.error(`Migration failed: ${error.message}`);
+    },
+  });
 
   // Add new job posting form
   const addJobForm = useForm({
@@ -242,6 +257,14 @@ export function JobPostingsPanel() {
     setViewContent(null);
   };
 
+  const handleViewCompatibility = (jobPostingId: string, jobTitle: string) => {
+    setCompatibilityReport({ jobPostingId, jobTitle });
+  };
+
+  const handleCloseCompatibility = () => {
+    setCompatibilityReport(null);
+  };
+
   if (jobPostingsQuery.isLoading) {
     return <div className="p-4 text-center">Loading your job postings...</div>;
   }
@@ -279,15 +302,36 @@ export function JobPostingsPanel() {
         </div>
       )}
 
+      {/* Compatibility Report Modal */}
+      {compatibilityReport && (
+        <CompatibilityReportModal
+          jobPostingId={compatibilityReport.jobPostingId}
+          jobTitle={compatibilityReport.jobTitle}
+          onClose={handleCloseCompatibility}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Job Postings</h2>
-        <Button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {showAddForm ? "Cancel" : "Add Job Posting"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => migrateMutation.mutate()}
+            disabled={migrateMutation.isPending}
+            variant="outline"
+            className="text-blue-600 hover:bg-blue-50"
+          >
+            {migrateMutation.isPending
+              ? "Migrating..."
+              : "Fix Compatibility Analysis"}
+          </Button>
+          <Button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {showAddForm ? "Cancel" : "Add Job Posting"}
+          </Button>
+        </div>
       </div>
 
       {/* Add New Job Posting Form */}
@@ -690,6 +734,16 @@ export function JobPostingsPanel() {
                           }
                         >
                           View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleViewCompatibility(job.id, job.title)
+                          }
+                          className="text-blue-600 hover:bg-blue-50"
+                        >
+                          Compatibility
                         </Button>
                         <Button
                           size="sm"

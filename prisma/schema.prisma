@@ -43,6 +43,56 @@ enum MessageRole {
     TOOL
 }
 
+enum SkillCategory {
+    PROGRAMMING_LANGUAGE
+    FRAMEWORK_LIBRARY
+    DATABASE
+    CLOUD_PLATFORM
+    DEVOPS_TOOLS
+    DESIGN_TOOLS
+    PROJECT_MANAGEMENT
+    SOFT_SKILLS
+    INDUSTRY_KNOWLEDGE
+    CERTIFICATION
+    METHODOLOGY
+    OTHER
+}
+
+enum ProficiencyLevel {
+    BEGINNER
+    INTERMEDIATE
+    ADVANCED
+    EXPERT
+}
+
+enum SkillSource {
+    WORK_EXPERIENCE
+    EDUCATION
+    CERTIFICATION
+    PERSONAL_PROJECT
+    TRAINING
+    OTHER
+}
+
+enum ExperienceCategory {
+    TECHNICAL
+    MANAGEMENT
+    LEADERSHIP
+    INDUSTRY
+    GENERAL
+}
+
+enum EducationLevel {
+    HIGH_SCHOOL
+    ASSOCIATES
+    BACHELORS
+    MASTERS
+    DOCTORATE
+    CERTIFICATION
+    BOOTCAMP
+    COURSE
+}
+
 // Necessary for Next auth
 model Account {
     id                       String  @id @default(cuid())
@@ -87,6 +137,7 @@ model User {
     userDetails     UserDetail[]
     jobPostings     JobPosting[]
     chatMessages    ChatMessage[]
+    userSkills      UserSkill[]
 }
 
 model VerificationToken {
@@ -95,6 +146,122 @@ model VerificationToken {
     expires    DateTime
 
     @@unique([identifier, token])
+}
+
+// Skill taxonomy and normalization models
+model Skill {
+    id          String        @id @default(cuid())
+    name        String        @unique // Canonical name (e.g., "React")
+    category    SkillCategory
+    description String?
+    createdAt   DateTime      @default(now())
+    updatedAt   DateTime      @updatedAt
+
+    aliases         SkillAlias[]
+    similarSkills   SkillSimilarity[]     @relation("SkillSimilarities")
+    relatedToSkills SkillSimilarity[]     @relation("RelatedSkillSimilarities")
+    userSkills      UserSkill[]
+    jobRequirements JobSkillRequirement[]
+
+    @@index([category])
+}
+
+model SkillAlias {
+    id      String @id @default(cuid())
+    alias   String @unique // Alternative names (e.g., "ReactJS", "React.js")
+    skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+    skillId String
+
+    @@index([skillId])
+}
+
+model SkillSimilarity {
+    id              String @id @default(cuid())
+    similarityScore Float  @default(0.8) // 0.0 to 1.0, how similar the skills are
+
+    skill          Skill  @relation("SkillSimilarities", fields: [skillId], references: [id], onDelete: Cascade)
+    skillId        String
+    relatedSkill   Skill  @relation("RelatedSkillSimilarities", fields: [relatedSkillId], references: [id], onDelete: Cascade)
+    relatedSkillId String
+
+    @@unique([skillId, relatedSkillId])
+}
+
+// User skill tracking
+model UserSkill {
+    id              String           @id @default(cuid())
+    proficiency     ProficiencyLevel
+    yearsExperience Float? // Can be fractional (e.g., 1.5 years)
+    source          SkillSource
+    notes           String? // Where/how they learned it
+    isVerified      Boolean          @default(false) // Could be verified through assessments
+    createdAt       DateTime         @default(now())
+    updatedAt       DateTime         @updatedAt
+
+    user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId  String
+    skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+    skillId String
+
+    // Optional linkage to work history if skill was gained from work
+    workHistory   WorkHistory? @relation(fields: [workHistoryId], references: [id], onDelete: SetNull)
+    workHistoryId String?
+
+    @@unique([userId, skillId])
+    @@index([userId])
+    @@index([skillId])
+}
+
+// Normalized experience requirements
+model ExperienceRequirement {
+    id          String             @id @default(cuid())
+    years       Float? // Number of years required
+    description String // Text description of the requirement
+    category    ExperienceCategory
+    isRequired  Boolean            @default(true) // true for required, false for bonus
+    createdAt   DateTime           @default(now())
+    updatedAt   DateTime           @updatedAt
+
+    jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+    jobPostingId String
+
+    @@index([jobPostingId])
+}
+
+// Normalized job skill requirements
+model JobSkillRequirement {
+    id            String            @id @default(cuid())
+    isRequired    Boolean           @default(true) // true for required, false for bonus
+    minimumLevel  ProficiencyLevel? // Minimum proficiency required
+    yearsRequired Float? // Years of experience required
+    priority      Int               @default(1) // 1 = high, 2 = medium, 3 = low
+    createdAt     DateTime          @default(now())
+    updatedAt     DateTime          @updatedAt
+
+    skill        Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+    skillId      String
+    jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+    jobPostingId String
+
+    @@unique([skillId, jobPostingId])
+    @@index([jobPostingId])
+    @@index([skillId])
+}
+
+// Normalized education requirements
+model EducationRequirement {
+    id          String         @id @default(cuid())
+    level       EducationLevel
+    field       String? // Field of study (e.g., "Computer Science")
+    description String? // Additional details
+    isRequired  Boolean        @default(true) // true for required, false for bonus
+    createdAt   DateTime       @default(now())
+    updatedAt   DateTime       @updatedAt
+
+    jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+    jobPostingId String
+
+    @@index([jobPostingId])
 }
 
 model ChatMessage {
@@ -141,7 +308,8 @@ model WorkHistory {
     userId String
 
     achievements WorkAchievement[]
-    skills       WorkSkill[]
+    skills       WorkSkill[] // Legacy - consider deprecating in favor of UserSkill
+    userSkills   UserSkill[]
 
     @@index([userId])
 }
@@ -158,6 +326,8 @@ model WorkAchievement {
     @@index([workHistoryId])
 }
 
+// DEPRECATED: Use UserSkill instead for new implementations
+// This model is kept for backward compatibility during migration
 model WorkSkill {
     id        String   @id @default(cuid())
     name      String // e.g., "React", "Project Management"
@@ -224,9 +394,12 @@ model JobPosting {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-    userId  String
-    details JobPostingDetails?
+    user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId                 String
+    details                JobPostingDetails?
+    experienceRequirements ExperienceRequirement[]
+    skillRequirements      JobSkillRequirement[]
+    educationRequirements  EducationRequirement[]
 
     @@index([userId])
 }
