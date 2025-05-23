@@ -5,7 +5,7 @@ import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { markdownComponents } from "./markdown-components";
-import { CompatibilityReportModal } from "./compatibility-report";
+import { CompatibilityReportContent } from "./compatibility-report";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
@@ -279,6 +279,17 @@ export function JobPostingsPanel() {
 
   const jobPostings = jobPostingsQuery.data ?? [];
 
+  // Show compatibility report if one is selected
+  if (compatibilityReport) {
+    return (
+      <CompatibilityReportContent
+        jobPostingId={compatibilityReport.jobPostingId}
+        jobTitle={compatibilityReport.jobTitle}
+        onBack={handleCloseCompatibility}
+      />
+    );
+  }
+
   return (
     <div className="h-full space-y-4">
       {/* Content View Modal */}
@@ -300,15 +311,6 @@ export function JobPostingsPanel() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Compatibility Report Modal */}
-      {compatibilityReport && (
-        <CompatibilityReportModal
-          jobPostingId={compatibilityReport.jobPostingId}
-          jobTitle={compatibilityReport.jobTitle}
-          onClose={handleCloseCompatibility}
-        />
       )}
 
       {/* Header */}
