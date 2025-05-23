@@ -11,7 +11,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
-import type { JsonValue } from "@prisma/client/runtime/library";
+import type { Prisma } from "@prisma/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,46 +38,13 @@ interface JobPostingFormData {
   notes: string;
 }
 
-type JobPosting = {
-  id: string;
-  title: string;
-  content: string;
-  company: string;
-  location: string;
-  industry: string | null;
-  url: string | null;
-  status: string | null;
-  notes: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  userId: string;
-  details: {
-    id: string;
-    technicalSkills: string[];
-    softSkills: string[];
-    educationRequirements: string[];
-    experienceRequirements: JsonValue[];
-    industryKnowledge: string[];
-    bonusTechnicalSkills: string[];
-    bonusSoftSkills: string[];
-    bonusEducationRequirements: string[];
-    bonusExperienceRequirements: JsonValue[];
-    bonusIndustryKnowledge: string[];
-    createdAt: Date;
-    updatedAt: Date;
-    jobPostingId: string;
-  } | null;
-  document: {
-    id: string;
-    resumeContent: string | null;
-    coverLetterContent: string | null;
-    resumeGeneratedAt: Date | null;
-    coverLetterGeneratedAt: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
-    jobPostingId: string;
-  } | null;
-};
+// Use Prisma generated type with includes
+type JobPosting = Prisma.JobPostingGetPayload<{
+  include: {
+    details: true;
+    document: true;
+  };
+}>;
 
 // Field info component for displaying validation errors
 function FieldInfo({ field }: { field: AnyFieldApi }) {
