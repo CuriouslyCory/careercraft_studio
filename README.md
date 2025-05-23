@@ -1,29 +1,35 @@
-# Create T3 App
+# Resume Master
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+Resume Master is a tool that helps you create resumes and cover letters tailored to your job applications.
 
-## What's next? How do I make an app with this?
+## Features
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- AI chat with your resume and cover letter
+- Resume and cover letter generation
+- Job posting analysis
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## AI Chat Features
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+This application includes a comprehensive AI chat feature powered by a LangChain agent team orchestrated via a tRPC router.
 
-## Learn More
+### Architecture
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+The AI chat functionality follows a clear separation of concerns:
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+- **Frontend (`src/app/ai-chat/page.tsx`):** Provides the user interface for interacting with the AI. It dynamically renders chat and bio/document views and handles basic UI state.
+- **Backend Router (`src/server/api/routers/ai.ts`):** Acts as the API layer using tRPC. It receives user messages, interacts with the LangChain agent team, and streams responses back to the frontend. It also handles persistence of chat messages.
+- **LangChain Agent Team (`src/server/langchain/agentTeam.ts`):** Contains the core AI logic. It's structured as a `StateGraph` with a supervisor agent routing tasks to specialized agents.
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+### LangChain Agent Team
 
-## How do I deploy this?
+The `agentTeam.ts` file defines the AI's workflow using LangChain's StateGraph. A central **Supervisor Agent** directs incoming user requests to the most appropriate specialized agent.
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+Key specialized agents include:
+
+- **Data Manager:** Handles storing, retrieving, and managing user profile data (work history, skills, etc.).
+- **Resume Generator:** Creates and helps refine resumes based on user data.
+- **Cover Letter Generator:** Generates and tailors cover letters for specific job applications.
+- **User Profile:** Provides information to the user about their stored data.
+- **Job Posting Manager:** Parses, stores, and analyzes job postings, including comparing job requirements to user skills.
+
+Each specialized agent has access to specific tools enabling it to perform its function, interacting with the application's database and other backend services. The supervisor ensures smooth transitions between agents based on the conversation flow.
