@@ -233,4 +233,79 @@ export const documentOpsRouter = createTRPCRouter({
         where: { id: input.id, userId: ctx.session.user.id },
       });
     }),
+
+  generateResumeData: protectedProcedure
+    .input(
+      z.object({
+        sections: z
+          .array(
+            z.enum([
+              "work_history",
+              "education",
+              "skills",
+              "achievements",
+              "details",
+              "all",
+            ]),
+          )
+          .default(["all"])
+          .describe(
+            "Specific sections to include. Use 'all' for complete user data, or specify individual sections like 'work_history', 'education', 'skills', 'achievements', 'details'",
+          ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { sections } = input;
+      const userId = ctx.session.user.id;
+
+      try {
+        const { generateUserResumeData, generateUserResumeDataSections } =
+          await import("~/server/services/resume-data-generator");
+
+        // If "all" is requested or sections array includes "all", generate complete data
+        if (sections.includes("all")) {
+          const resumeData = await generateUserResumeData(ctx.db, userId);
+          return {
+            success: true,
+            data: resumeData,
+            sectionsGenerated: ["all"],
+          };
+        } else {
+          // Generate only specific sections
+          const filteredSections = sections.filter(
+            (
+              section,
+            ): section is
+              | "work_history"
+              | "education"
+              | "skills"
+              | "achievements"
+              | "details" => section !== "all",
+          );
+
+          if (filteredSections.length === 0) {
+            throw new Error(
+              "No valid sections specified. Please choose from: work_history, education, skills, achievements, details, or all.",
+            );
+          }
+
+          const resumeData = await generateUserResumeDataSections(
+            ctx.db,
+            userId,
+            filteredSections,
+          );
+
+          return {
+            success: true,
+            data: resumeData,
+            sectionsGenerated: filteredSections,
+          };
+        }
+      } catch (error) {
+        console.error("Error generating resume data:", error);
+        throw new Error(
+          `Failed to generate resume data: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }),
 });

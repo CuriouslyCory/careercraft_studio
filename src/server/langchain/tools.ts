@@ -1030,6 +1030,99 @@ export function createSkillComparisonTool(
 }
 
 // =============================================================================
+// RESUME DATA GENERATION TOOLS
+// =============================================================================
+
+/**
+ * Tool to generate comprehensive resume data in markdown format for LLM consumption
+ */
+export function createGenerateResumeDataTool(
+  userId: string,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
+    name: "generate_resume_data",
+    description:
+      "Generate a comprehensive markdown-formatted document containing all user information (work history, education, skills, achievements) optimized for resume building LLM consumption",
+    schema: z.object({
+      sections: z
+        .array(
+          z.enum([
+            "work_history",
+            "education",
+            "skills",
+            "achievements",
+            "details",
+            "all",
+          ]),
+        )
+        .default(["all"])
+        .describe(
+          "Specific sections to include. Use 'all' for complete user data, or specify individual sections like 'work_history', 'education', 'skills', 'achievements', 'details'",
+        ),
+    }),
+    func: async ({
+      sections,
+    }: {
+      sections: Array<
+        | "work_history"
+        | "education"
+        | "skills"
+        | "achievements"
+        | "details"
+        | "all"
+      >;
+    }) => {
+      console.log(
+        `Generating resume data for user ID: ${userId}, sections: ${sections.join(", ")}`,
+      );
+
+      try {
+        if (!userId) {
+          return "User ID is required but not provided. Please ensure you're logged in.";
+        }
+
+        const { generateUserResumeData, generateUserResumeDataSections } =
+          await import("~/server/services/resume-data-generator");
+
+        // If "all" is requested or sections array includes "all", generate complete data
+        if (sections.includes("all")) {
+          const resumeData = await generateUserResumeData(db, userId);
+          return resumeData;
+        } else {
+          // Generate only specific sections
+          const filteredSections = sections.filter(
+            (
+              section,
+            ): section is
+              | "work_history"
+              | "education"
+              | "skills"
+              | "achievements"
+              | "details" => section !== "all",
+          );
+
+          if (filteredSections.length === 0) {
+            return "No valid sections specified. Please choose from: work_history, education, skills, achievements, details, or all.";
+          }
+
+          const resumeData = await generateUserResumeDataSections(
+            db,
+            userId,
+            filteredSections,
+          );
+          return resumeData;
+        }
+      } catch (error) {
+        console.error("Error generating resume data:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return `Error generating resume data: ${errorMessage}`;
+      }
+    },
+  });
+}
+
+// =============================================================================
 // ROUTING TOOLS
 // =============================================================================
 
@@ -1080,7 +1173,11 @@ export function getDataManagerTools(userId: string): DynamicStructuredTool[] {
 export function getResumeGeneratorTools(
   userId: string,
 ): DynamicStructuredTool[] {
-  return [generateResumeTool, createUserProfileTool(userId)];
+  return [
+    generateResumeTool,
+    createUserProfileTool(userId),
+    createGenerateResumeDataTool(userId),
+  ];
 }
 
 /**
@@ -1096,7 +1193,7 @@ export function getCoverLetterGeneratorTools(
  * Get all user profile tools for the user profile agent
  */
 export function getUserProfileTools(userId: string): DynamicStructuredTool[] {
-  return [createUserProfileTool(userId)];
+  return [createUserProfileTool(userId), createGenerateResumeDataTool(userId)];
 }
 
 /**
@@ -1134,6 +1231,7 @@ export function getAllTools(userId?: string): DynamicStructuredTool[] {
 
   if (userId) {
     tools.push(createUserProfileTool(userId));
+    tools.push(createGenerateResumeDataTool(userId));
   }
 
   return tools;

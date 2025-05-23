@@ -13,6 +13,7 @@ export const documentRouter = createTRPCRouter({
   listDocuments: documentOpsRouter.list,
   updateDocument: documentOpsRouter.update,
   deleteDocument: documentOpsRouter.delete,
+  generateResumeData: documentOpsRouter.generateResumeData,
 
   // Work History operations
   listWorkHistory: workHistoryRouter.list,
