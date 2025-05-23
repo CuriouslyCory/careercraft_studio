@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { BioView } from "./_components/bio-view";
 import { ChatInterface } from "./_components/chat-interface";
@@ -8,7 +8,17 @@ import { ChatInterface } from "./_components/chat-interface";
 export default function AIChatPage() {
   const searchParams = useSearchParams();
   const activeView = searchParams.get("bio") ?? "documents";
-  const [mobileTab, setMobileTab] = useState<"chat" | "bio">("bio");
+  const conversationParam = searchParams.get("conversation");
+  const [mobileTab, setMobileTab] = useState<"chat" | "bio">(
+    conversationParam ? "chat" : "bio",
+  );
+
+  // Switch to chat tab on mobile when a conversation is loaded
+  useEffect(() => {
+    if (conversationParam) {
+      setMobileTab("chat");
+    }
+  }, [conversationParam]);
 
   // Responsive layout: desktop = side-by-side, mobile = tabs
   return (

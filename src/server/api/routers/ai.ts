@@ -86,6 +86,19 @@ async function saveChatMessage(
         userId,
       },
     });
+
+    // Update the ChatDetails updatedAt timestamp if conversationId exists
+    if (conversationId) {
+      await db.chatDetails.updateMany({
+        where: {
+          conversationId,
+          userId,
+        },
+        data: {
+          updatedAt: new Date(),
+        },
+      });
+    }
   } catch (error) {
     console.error("Failed to save chat message to database:", error);
   }
@@ -218,7 +231,6 @@ export const aiRouter = createTRPCRouter({
 
                       // Filter out tool call data and function call information
                       if (
-                        content.includes('{"functionCall":') ||
                         content.includes('"route_to_agent"') ||
                         content.includes('{"type":"text","text":""}') ||
                         content.startsWith('{"type":"') ||
@@ -436,6 +448,16 @@ export const aiRouter = createTRPCRouter({
    */
   createConversation: protectedProcedure.mutation(async ({ ctx }) => {
     const conversationId = crypto.randomUUID();
+
+    // Create the ChatDetails record
+    await ctx.db.chatDetails.create({
+      data: {
+        conversationId,
+        name: "New Conversation",
+        userId: ctx.session.user.id,
+      },
+    });
+
     await saveChatMessage(
       ctx.db,
       MessageRole.ASSISTANT,
@@ -445,6 +467,71 @@ export const aiRouter = createTRPCRouter({
     );
     return { conversationId };
   }),
+
+  /**
+   * List all conversations for the current user.
+   * @returns An array of conversation details.
+   */
+  listConversations: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db.chatDetails.findMany({
+      where: { userId: ctx.session.user.id },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        _count: {
+          select: { messages: true },
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            content: true,
+            createdAt: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }),
+
+  /**
+   * Rename a conversation.
+   * @param input - Object containing the conversationId and new name.
+   * @returns The updated conversation details.
+   */
+  renameConversation: protectedProcedure
+    .input(
+      z.object({
+        conversationId: z.string(),
+        name: z.string().min(1, "Conversation name cannot be empty"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.chatDetails.update({
+        where: {
+          conversationId: input.conversationId,
+          userId: ctx.session.user.id,
+        },
+        data: { name: input.name },
+      });
+    }),
+
+  /**
+   * Delete a conversation and all its messages.
+   * @param input - Object containing the conversationId.
+   * @returns Success status.
+   */
+  deleteConversation: protectedProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Delete the ChatDetails record (messages will be cascade deleted)
+      await ctx.db.chatDetails.delete({
+        where: {
+          conversationId: input.conversationId,
+          userId: ctx.session.user.id,
+        },
+      });
+      return { success: true };
+    }),
 
   /**
    * Get conversation messages.

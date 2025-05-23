@@ -426,6 +426,67 @@ function handleAgentError(
   };
 }
 
+// Informal type for parts that can appear in LLM content arrays
+type LLMPart =
+  | { type: "text"; text: string }
+  | { type: "functionCall"; functionCall: unknown } // functionCall structure not strictly needed here
+  | Record<string, unknown>; // Allow other unknown part types, changed from {[key: string]: unknown}
+
+function getCleanContentForAiMessage(
+  rawLLMContent: unknown,
+): string | Array<{ type: "text"; text: string }> {
+  if (typeof rawLLMContent === "string") {
+    // If the string itself is a JSON representation of Parts (due to earlier stringification)
+    // This was observed in logs: contentPreview showing a string that is actually a JSON array.
+    if (
+      rawLLMContent.startsWith("[") &&
+      rawLLMContent.endsWith("]") &&
+      (rawLLMContent.includes('"type":"text"') ||
+        rawLLMContent.includes('"functionCall"'))
+    ) {
+      try {
+        const parsedParts = JSON.parse(rawLLMContent) as Array<LLMPart>; // Use LLMPart
+        const textParts = parsedParts
+          .filter(
+            (
+              part,
+            ): part is { type: "text"; text: string } => // Type guard
+              part.type === "text" && typeof part.text === "string",
+          )
+          .map((part) => ({ type: "text" as const, text: part.text }));
+        if (textParts.length === 1 && textParts[0]) return textParts[0].text;
+        return textParts.length > 0 ? textParts : "";
+      } catch (e) {
+        if (rawLLMContent.includes('"functionCall"')) return "";
+        return rawLLMContent;
+      }
+    }
+    return rawLLMContent;
+  }
+
+  if (Array.isArray(rawLLMContent)) {
+    const partsArray = rawLLMContent as Array<LLMPart>; // Use LLMPart
+    const textParts = partsArray
+      .filter(
+        (
+          part,
+        ): part is { type: "text"; text: string } => // Type guard
+          part.type === "text" && typeof part.text === "string",
+      )
+      .map((part) => ({ type: "text" as const, text: part.text }));
+
+    if (textParts.length === 0) {
+      return "";
+    }
+    if (textParts.length === 1 && textParts[0]) {
+      return textParts[0].text;
+    }
+    return textParts;
+  }
+
+  return "";
+}
+
 // Define the state that is passed between nodes in the graph
 const AgentState = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
@@ -585,10 +646,19 @@ async function processSupervisorToolCalls(
     id?: string;
     type?: string;
   }>,
-  response: { content?: unknown },
+  response: {
+    content?: unknown;
+    tool_calls?: Array<{
+      name: string;
+      args: Record<string, unknown>;
+      id?: string;
+      type?: "tool_call";
+    }>;
+  },
 ): Promise<{ messages: BaseMessage[]; next: string }> {
   try {
     const processedToolCalls = processToolCalls(toolCalls);
+    const cleanContent = getCleanContentForAiMessage(response.content);
 
     if (processedToolCalls.length === 0) {
       logger.warn(
@@ -596,22 +666,20 @@ async function processSupervisorToolCalls(
       );
       return {
         messages: [
-          new AIMessage(
-            contentToString(response.content) || "I understand your request.",
-          ),
+          new AIMessage({
+            content: cleanContent || "I understand your request.",
+          }),
         ],
         next: END,
       };
     }
 
-    // Look for the route_to_agent tool call
     const routingCall = processedToolCalls.find(
       (tc) => tc.name === "route_to_agent",
-    );
+    ); // This is a ValidatedToolCall or undefined, where id is string
 
     if (routingCall) {
       try {
-        // Validate the routing arguments
         const validatedArgs = validateToolArgs(
           routingCall.args,
           RouteToAgentSchema,
@@ -619,7 +687,6 @@ async function processSupervisorToolCalls(
         );
         let destination = validatedArgs.next;
 
-        // Convert "__end__" string to END symbol for LangGraph routing
         if (destination === "__end__") {
           destination = END;
         }
@@ -628,9 +695,10 @@ async function processSupervisorToolCalls(
 
         return {
           messages: [
-            new AIMessage(
-              contentToString(response.content) || "I understand your request.",
-            ),
+            new AIMessage({
+              content: cleanContent || "I understand your request.",
+              tool_calls: [routingCall],
+            }),
           ],
           next: destination,
         };
@@ -651,13 +719,12 @@ async function processSupervisorToolCalls(
       }
     }
 
-    // If no routing tool call found, handle directly
     logger.warn("No route_to_agent tool call found, handling directly");
     return {
       messages: [
-        new AIMessage(
-          contentToString(response.content) || "I understand your request.",
-        ),
+        new AIMessage({
+          content: cleanContent || "I understand your request.",
+        }),
       ],
       next: END,
     };
@@ -679,9 +746,12 @@ function handleSupervisorDirectResponse(response: { content?: unknown }): {
   messages: BaseMessage[];
   next: string;
 } {
-  const content = contentToString(response.content);
+  const cleanContent = getCleanContentForAiMessage(response.content);
 
-  if (!content || content.trim() === "") {
+  if (
+    !cleanContent ||
+    (typeof cleanContent === "string" && cleanContent.trim() === "")
+  ) {
     logger.warn("Supervisor response had empty content");
     return {
       messages: [
@@ -695,7 +765,7 @@ function handleSupervisorDirectResponse(response: { content?: unknown }): {
 
   logger.info("Supervisor providing direct response");
   return {
-    messages: [new AIMessage(content)],
+    messages: [new AIMessage({ content: cleanContent })],
     next: END,
   };
 }
@@ -1243,7 +1313,15 @@ interface AgentConfig {
   processToolCalls?: (
     toolCalls: ValidatedToolCall[],
     userId: string,
-    response: { content?: unknown },
+    response: {
+      content?: unknown;
+      tool_calls?: Array<{
+        name?: string;
+        args?: unknown;
+        id?: string;
+        type?: string;
+      }>;
+    },
   ) => Promise<string>;
   requiresUserId?: boolean;
 }
@@ -1324,16 +1402,14 @@ async function handleAgentToolCalls(
   userId: string,
 ): Promise<{ messages: BaseMessage[]; next: string }> {
   try {
-    // Check for tool calls in the normal location first
     let toolCallsToProcess = response.tool_calls;
+    const cleanContent = getCleanContentForAiMessage(response.content);
 
-    // If no tool calls in the expected location, try to extract from content
     if (
       (!toolCallsToProcess || toolCallsToProcess.length === 0) &&
       response?.content
     ) {
       const extractedToolCalls = extractToolCallsFromContent(response.content);
-
       if (extractedToolCalls && extractedToolCalls.length > 0) {
         logger.info(
           `Successfully extracted tool calls from content for ${config.agentType}`,
@@ -1342,13 +1418,15 @@ async function handleAgentToolCalls(
             toolNames: extractedToolCalls.map((tc) => tc.name),
           },
         );
-
         toolCallsToProcess = extractedToolCalls;
       }
     }
 
     if (!toolCallsToProcess || toolCallsToProcess.length === 0) {
-      return handleDirectAgentResponse(response, config.agentType);
+      return handleDirectAgentResponse(
+        { content: cleanContent },
+        config.agentType,
+      );
     }
 
     const processedToolCalls = processToolCalls(toolCallsToProcess);
@@ -1357,37 +1435,54 @@ async function handleAgentToolCalls(
       logger.warn(`All ${config.agentType} tool calls were filtered out`, {
         agentType: config.agentType,
       });
-      return handleDirectAgentResponse(response, config.agentType);
+      return handleDirectAgentResponse(
+        { content: cleanContent },
+        config.agentType,
+      );
     }
 
-    // Create the AI message with tool_calls (this preserves the tool call structure)
     const aiMessageWithToolCalls = new AIMessage({
-      content: contentToString(response.content) || "",
-      tool_calls: (toolCallsToProcess ?? []).map((tc) => ({
-        name: tc.name ?? "",
-        args: tc.args ?? {},
-        id: tc.id ?? "",
-        type: "tool_call" as const,
-      })),
+      content: cleanContent,
+      tool_calls: (response.tool_calls ?? [])
+        .map((tc) => {
+          let parsedArgs: Record<string, unknown> = {};
+          if (typeof tc.args === "string") {
+            try {
+              parsedArgs = JSON.parse(tc.args) as Record<string, unknown>;
+            } catch (e) {
+              logger.warn(
+                "Failed to parse stringified tool call args for AIMessage",
+                { args: tc.args, error: e },
+              );
+              // Keep parsedArgs as {} if parsing fails
+            }
+          } else if (typeof tc.args === "object" && tc.args !== null) {
+            parsedArgs = tc.args as Record<string, unknown>;
+          } // else tc.args is undefined or some other type, parsedArgs remains {}
+
+          return {
+            name: tc.name ?? "",
+            args: parsedArgs,
+            id: tc.id,
+            type: "tool_call" as const,
+          };
+        })
+        .filter((tc) => tc.id && tc.name), // Also ensure name is present for a valid tool_call
     });
 
-    // If there's a custom tool call processor, use it to generate a summary
-    // but still maintain the proper LangChain structure
     if (config.processToolCalls) {
       try {
         const customResult = await config.processToolCalls(
           processedToolCalls,
           userId,
-          response,
+          // Pass the original response structure, now AgentConfig.processToolCalls expects tool_calls
+          { content: cleanContent, tool_calls: response.tool_calls },
         );
-
-        // Create a ToolMessage for the custom processing result
-        // We'll use a generic tool_call_id since the custom processor handles multiple tools
         const customResultMessage = new ToolMessage({
           content: customResult,
-          tool_call_id: processedToolCalls[0]?.id ?? "custom_processing",
+          tool_call_id:
+            processedToolCalls[0]?.id ?? `custom_processing_${Date.now()}`,
         });
-
         return {
           messages: [aiMessageWithToolCalls, customResultMessage],
           next: "supervisor",
@@ -1400,26 +1495,21 @@ async function handleAgentToolCalls(
               : String(customError),
           agentType: config.agentType,
         });
-
-        // Fall back to default processing if custom processor fails
+        // Fallback to default processing if custom processor fails
       }
     }
 
-    // Default processing: Execute tool calls and create ToolMessage instances
     const toolMessages: ToolMessage[] = [];
     const tools = config.getTools(userId);
 
     for (const toolCall of processedToolCalls) {
       try {
-        // Find the matching tool
         const tool = tools.find((t) => t.name === toolCall.name);
-
         if (!tool) {
           logger.warn(`Tool ${toolCall.name} not found in available tools`, {
             agentType: config.agentType,
             availableTools: tools.map((t) => t.name),
           });
-
           toolMessages.push(
             new ToolMessage({
               content: `Error: Tool ${toolCall.name} not found`,
@@ -1429,14 +1519,11 @@ async function handleAgentToolCalls(
           continue;
         }
 
-        // Execute the tool
         logger.info(`Executing tool ${toolCall.name}`, {
           agentType: config.agentType,
           toolArgs: toolCall.args,
         });
-
         const toolResult = await tool.invoke(toolCall.args);
-
         toolMessages.push(
           new ToolMessage({
             content:
@@ -1446,7 +1533,6 @@ async function handleAgentToolCalls(
             tool_call_id: toolCall.id,
           }),
         );
-
         logger.info(`Tool ${toolCall.name} executed successfully`, {
           agentType: config.agentType,
           resultLength:
@@ -1457,13 +1543,11 @@ async function handleAgentToolCalls(
       } catch (toolError) {
         const errorMessage =
           toolError instanceof Error ? toolError.message : String(toolError);
-
         logger.error(`Error executing tool ${toolCall.name}`, {
           agentType: config.agentType,
           error: errorMessage,
           toolArgs: toolCall.args,
         });
-
         toolMessages.push(
           new ToolMessage({
             content: `Error executing ${toolCall.name}: ${errorMessage}`,
@@ -1473,8 +1557,6 @@ async function handleAgentToolCalls(
       }
     }
 
-    // Return both the AI message with tool_calls and the tool result messages
-    // This maintains the proper LangChain conversation structure
     return {
       messages: [aiMessageWithToolCalls, ...toolMessages],
       next: "supervisor",
@@ -1484,7 +1566,6 @@ async function handleAgentToolCalls(
       error: error instanceof Error ? error.message : String(error),
       agentType: config.agentType,
     });
-
     return {
       messages: [
         new AIMessage(
@@ -1501,9 +1582,12 @@ function handleDirectAgentResponse(
   response: { content?: unknown },
   agentType: string,
 ): { messages: BaseMessage[]; next: string } {
-  const content = contentToString(response.content);
+  const cleanContent = getCleanContentForAiMessage(response.content);
 
-  if (!content || content.trim() === "") {
+  if (
+    !cleanContent ||
+    (typeof cleanContent === "string" && cleanContent.trim() === "")
+  ) {
     logger.warn(`${agentType} response had empty content`, { agentType });
     return {
       messages: [
@@ -1517,11 +1601,14 @@ function handleDirectAgentResponse(
 
   logger.info(`${agentType} generated response`, {
     agentType,
-    responseLength: content.length,
+    responseLength:
+      typeof cleanContent === "string"
+        ? cleanContent.length
+        : JSON.stringify(cleanContent).length,
   });
 
   return {
-    messages: [new AIMessage(content)],
+    messages: [new AIMessage({ content: cleanContent })],
     next: "supervisor",
   };
 }

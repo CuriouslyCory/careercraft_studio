@@ -137,6 +137,7 @@ model User {
     userDetails     UserDetail[]
     jobPostings     JobPosting[]
     chatMessages    ChatMessage[]
+    chatDetails     ChatDetails[]
     userSkills      UserSkill[]
     userLinks       UserLink[]
 }
@@ -265,6 +266,21 @@ model EducationRequirement {
     @@index([jobPostingId])
 }
 
+model ChatDetails {
+    id             String   @id @default(cuid())
+    conversationId String   @unique
+    name           String   @default("New Conversation")
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+
+    user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId   String
+    messages ChatMessage[]
+
+    @@index([userId])
+    @@index([conversationId])
+}
+
 model ChatMessage {
     id        String      @id @default(cuid())
     role      MessageRole
@@ -277,6 +293,7 @@ model ChatMessage {
 
     // For conversation threading
     conversationId String?
+    chatDetails    ChatDetails? @relation(fields: [conversationId], references: [conversationId], onDelete: Cascade)
 
     @@index([userId])
     @@index([conversationId])

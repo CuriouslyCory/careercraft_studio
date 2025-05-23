@@ -3,6 +3,7 @@ import { useSession } from "next-auth/react";
 import { v4 as uuidv4 } from "uuid";
 import { api } from "~/trpc/react";
 import { type ChatMessage } from "@prisma/client";
+import { useSearchParams } from "next/navigation";
 
 // Type for processing metadata
 type ProcessingMetadata = {
@@ -19,6 +20,7 @@ export type UISimpleMessage = {
 };
 
 export function useTrpcChat() {
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<UISimpleMessage[]>([]);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -48,6 +50,21 @@ export function useTrpcChat() {
       enabled: !!conversationId && !!session?.user,
     },
   );
+
+  // Function to load a specific conversation
+  const loadConversation = useCallback((targetConversationId: string) => {
+    setConversationId(targetConversationId);
+    setMessages([]); // Clear current messages
+    initializationRef.current = true; // Mark as initialized to prevent auto-creation
+  }, []);
+
+  // Check for conversation parameter in URL
+  useEffect(() => {
+    const conversationParam = searchParams.get("conversation");
+    if (conversationParam && conversationParam !== conversationId) {
+      loadConversation(conversationParam);
+    }
+  }, [searchParams, conversationId, loadConversation]);
 
   // Set up the subscription
   api.ai.chat.useSubscription(subscriptionInput ?? { messages: [] }, {
@@ -263,5 +280,6 @@ export function useTrpcChat() {
     isLoading,
     error,
     conversationId,
+    loadConversation,
   };
 }
