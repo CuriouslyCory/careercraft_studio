@@ -28,6 +28,9 @@ type UserResumeData = Prisma.UserGetPayload<{
         workHistory: true;
       };
     };
+    userLinks: {
+      orderBy: { createdAt: "desc" };
+    };
   };
 }>;
 
@@ -74,6 +77,9 @@ export class ResumeDataGenerator {
           },
           orderBy: [{ proficiency: "desc" }, { yearsExperience: "desc" }],
         },
+        userLinks: {
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
@@ -90,7 +96,12 @@ export class ResumeDataGenerator {
   async generateResumeDataSections(
     userId: string,
     sections: Array<
-      "work_history" | "education" | "skills" | "achievements" | "details"
+      | "work_history"
+      | "education"
+      | "skills"
+      | "achievements"
+      | "details"
+      | "links"
     >,
   ): Promise<string> {
     const fullData = await this.generateResumeData(userId);
@@ -129,6 +140,19 @@ export class ResumeDataGenerator {
       }
       if (userData.email) {
         sections.push(`**Email:** ${userData.email}`);
+      }
+      sections.push("");
+    }
+
+    // User Links
+    if (userData.userLinks.length > 0) {
+      sections.push("## User Links");
+      sections.push("");
+
+      for (const link of userData.userLinks) {
+        const typeDisplay =
+          link.type && link.type !== "OTHER" ? ` (${link.type})` : "";
+        sections.push(`- **${link.title}${typeDisplay}:** ${link.url}`);
       }
       sections.push("");
     }
@@ -369,6 +393,7 @@ export class ResumeDataGenerator {
       "Skills Overview": "skills",
       "Key Achievements": "achievements",
       "Additional Information": "details",
+      "User Links": "links",
     };
 
     return mapping[sectionTitle] ?? null;
@@ -538,7 +563,12 @@ export async function generateUserResumeDataSections(
   db: PrismaClient,
   userId: string,
   sections: Array<
-    "work_history" | "education" | "skills" | "achievements" | "details"
+    | "work_history"
+    | "education"
+    | "skills"
+    | "achievements"
+    | "details"
+    | "links"
   >,
 ): Promise<string> {
   const generator = new ResumeDataGenerator(db);

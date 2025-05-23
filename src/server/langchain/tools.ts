@@ -19,7 +19,7 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
   return new DynamicStructuredTool({
     name: "get_user_profile",
     description:
-      "Retrieve details from the user's stored profile including work history, education, skills, achievements, and preferences",
+      "Retrieve details from the user's stored profile including work history, education, skills, achievements, preferences, and user links",
     schema: z.object({
       dataType: z.enum([
         "work_history",
@@ -27,6 +27,7 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
         "skills",
         "achievements",
         "preferences",
+        "user_links",
         "all",
       ]),
     }),
@@ -189,6 +190,24 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
               })),
             );
 
+          case "user_links":
+            const userLinks = await db.userLink.findMany({
+              where: { userId },
+            });
+
+            if (userLinks.length === 0) {
+              return "No user links found for this user.";
+            }
+
+            return JSON.stringify(
+              userLinks.map((link) => ({
+                id: link.id,
+                title: link.title,
+                type: link.type,
+                url: link.url,
+              })),
+            );
+
           case "all":
             // Fetch all data types and combine them
             const allWorkHistory = await db.workHistory.findMany({
@@ -210,6 +229,12 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
 
             const allUserDetails = await db.userDetail.findMany({
               where: { userId },
+            });
+
+            // Get all user links
+            const allUserLinks = await db.userLink.findMany({
+              where: { userId },
+              orderBy: { createdAt: "desc" },
             });
 
             // Get all skills from UserSkill table
@@ -277,10 +302,16 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
                 category: detail.category,
                 content: detail.content,
               })),
+              user_links: allUserLinks.map((link) => ({
+                id: link.id,
+                title: link.title,
+                type: link.type,
+                url: link.url,
+              })),
             });
 
           default:
-            return "Invalid data type requested. Use 'work_history', 'education', 'skills', 'achievements', 'preferences', or 'all'.";
+            return "Invalid data type requested. Use 'work_history', 'education', 'skills', 'achievements', 'preferences', 'user_links', or 'all'.";
         }
       } catch (error) {
         console.error("Error retrieving user profile data:", error);
@@ -1052,12 +1083,13 @@ export function createGenerateResumeDataTool(
             "skills",
             "achievements",
             "details",
+            "links",
             "all",
           ]),
         )
         .default(["all"])
         .describe(
-          "Specific sections to include. Use 'all' for complete user data, or specify individual sections like 'work_history', 'education', 'skills', 'achievements', 'details'",
+          "Specific sections to include. Use 'all' for complete user data, or specify individual sections like 'work_history', 'education', 'skills', 'achievements', 'details', 'links'",
         ),
     }),
     func: async ({
@@ -1069,6 +1101,7 @@ export function createGenerateResumeDataTool(
         | "skills"
         | "achievements"
         | "details"
+        | "links"
         | "all"
       >;
     }) => {
@@ -1098,11 +1131,12 @@ export function createGenerateResumeDataTool(
               | "education"
               | "skills"
               | "achievements"
-              | "details" => section !== "all",
+              | "details"
+              | "links" => section !== "all",
           );
 
           if (filteredSections.length === 0) {
-            return "No valid sections specified. Please choose from: work_history, education, skills, achievements, details, or all.";
+            return "No valid sections specified. Please choose from: work_history, education, skills, achievements, details, links, or all.";
           }
 
           const resumeData = await generateUserResumeDataSections(

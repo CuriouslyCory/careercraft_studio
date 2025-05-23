@@ -95,6 +95,28 @@ export const ContactInfoSchema = z
   .optional()
   .describe("Contact information extracted from the document.");
 
+export const UserLinkSchema = z.object({
+  title: z
+    .string()
+    .describe(
+      "Title or name of the link (e.g., 'LinkedIn', 'Personal Website', 'GitHub', 'Portfolio')",
+    ),
+  url: z.string().describe("The actual URL"),
+  type: z
+    .string()
+    .optional()
+    .describe(
+      "Type of link (e.g., 'LINKEDIN', 'GITHUB', 'PORTFOLIO', 'PERSONAL_WEBSITE', 'OTHER')",
+    ),
+});
+
+export const UserLinksArraySchema = z
+  .array(UserLinkSchema)
+  .optional()
+  .describe(
+    "User links including social media profiles, personal websites, portfolios, and other relevant URLs found in the document.",
+  );
+
 export const SummarySchema = z
   .string()
   .optional()
@@ -137,6 +159,7 @@ export const ResumeDataSchema = z.object({
   education: EducationArraySchema,
   contact_info: ContactInfoSchema,
   key_achievements: KeyAchievementsArraySchema,
+  user_links: UserLinksArraySchema,
 });
 
 export type ParsedResumeData = z.infer<typeof ResumeDataSchema>;
@@ -146,6 +169,9 @@ export type EducationType = z.infer<typeof EducationTypeEnum>;
 export type EducationData = z.infer<typeof EducationSchema>;
 export type ContactInfoData = z.infer<typeof ContactInfoSchema>;
 export type KeyAchievementsData = z.infer<typeof KeyAchievementsArraySchema>;
+export type UserLinkData = z.infer<typeof UserLinkSchema>;
+export type UserLinksData = z.infer<typeof UserLinksArraySchema>;
+
 // Define the tools we'll use
 const tools: StructuredTool[] = [];
 

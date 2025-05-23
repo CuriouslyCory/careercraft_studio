@@ -4,6 +4,7 @@ import { workHistoryRouter } from "./work-history";
 import { educationRouter } from "./education";
 import { jobPostingRouter } from "./job-posting";
 import { keyAchievementsRouter } from "./key-achievements";
+import { userLinksRouter } from "./user-links";
 
 // Main document router that combines all sub-routers
 export const documentRouter = createTRPCRouter({
@@ -49,6 +50,12 @@ export const documentRouter = createTRPCRouter({
   createJobPosting: jobPostingRouter.create,
   updateJobPosting: jobPostingRouter.update,
   deleteJobPosting: jobPostingRouter.delete,
+
+  // User Links operations
+  listUserLinks: userLinksRouter.list,
+  createUserLink: userLinksRouter.create,
+  updateUserLink: userLinksRouter.update,
+  deleteUserLink: userLinksRouter.delete,
 });
 
 // Export types and utilities for use in other parts of the application
@@ -68,6 +75,8 @@ export { processEducation } from "./education";
 export { processJobPosting } from "./job-posting";
 
 export { processKeyAchievements } from "./key-achievements";
+
+export { processUserLinks } from "./user-links";
 
 export {
   extractContentFromPDF,

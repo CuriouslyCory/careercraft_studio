@@ -12,6 +12,7 @@ import { processJobPosting } from "./job-posting";
 import { processWorkExperience } from "./work-history";
 import { processEducation } from "./education";
 import { processKeyAchievements } from "./key-achievements";
+import { processUserLinks } from "./user-links";
 import {
   DocumentProcessingError,
   LLMProcessingError,
@@ -165,6 +166,12 @@ export const documentOpsRouter = createTRPCRouter({
             ? parsed.key_achievements
             : [];
           await processKeyAchievements(keyAchievements, userId, ctx);
+
+          // Process user links
+          const userLinks = Array.isArray(parsed.user_links)
+            ? parsed.user_links
+            : [];
+          await processUserLinks(userLinks, userId, ctx);
         } catch (err) {
           // Log the error but don't throw to allow document creation to succeed
           console.error("Error parsing or inserting related records:", err);
@@ -199,6 +206,7 @@ export const documentOpsRouter = createTRPCRouter({
     await ctx.db.workHistory.deleteMany({ where: { userId } });
     await ctx.db.education.deleteMany({ where: { userId } });
     await ctx.db.keyAchievement.deleteMany({ where: { userId } });
+    await ctx.db.userLink.deleteMany({ where: { userId } });
     await ctx.db.document.deleteMany({ where: { userId } });
     return { success: true };
   }),
@@ -245,12 +253,13 @@ export const documentOpsRouter = createTRPCRouter({
               "skills",
               "achievements",
               "details",
+              "links",
               "all",
             ]),
           )
           .default(["all"])
           .describe(
-            "Specific sections to include. Use 'all' for complete user data, or specify individual sections like 'work_history', 'education', 'skills', 'achievements', 'details'",
+            "Specific sections to include. Use 'all' for complete user data, or specify individual sections like 'work_history', 'education', 'skills', 'achievements', 'details', 'links'",
           ),
       }),
     )
@@ -280,12 +289,13 @@ export const documentOpsRouter = createTRPCRouter({
               | "education"
               | "skills"
               | "achievements"
-              | "details" => section !== "all",
+              | "details"
+              | "links" => section !== "all",
           );
 
           if (filteredSections.length === 0) {
             throw new Error(
-              "No valid sections specified. Please choose from: work_history, education, skills, achievements, details, or all.",
+              "No valid sections specified. Please choose from: work_history, education, skills, achievements, details, links, or all.",
             );
           }
 
