@@ -1,23 +1,12 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { ResumeDataSchema } from "~/server/langchain/agent";
-import { createLLM } from "~/server/langchain/agent";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   extractContentFromPDF,
   extractContentFromText,
 } from "./utils/pdf-parser";
 import { detectDocumentType } from "./utils/type-detection";
 import { processJobPosting } from "./job-posting";
-import { processWorkExperience } from "./work-history";
-import { processEducation } from "./education";
-import { processKeyAchievements } from "./key-achievements";
-import { processUserLinks } from "./user-links";
-import {
-  DocumentProcessingError,
-  LLMProcessingError,
-  extractContent,
-} from "./types";
+import { DocumentProcessingError, LLMProcessingError } from "./types";
 
 export const documentOpsRouter = createTRPCRouter({
   upload: protectedProcedure
@@ -97,30 +86,38 @@ export const documentOpsRouter = createTRPCRouter({
           );
         }
       } else {
-        // Process as resume (existing logic)
+        // Process as resume using centralized service
         console.log("Processing as resume...");
         try {
-          const resumeJsonSchema = JSON.stringify(
-            zodToJsonSchema(ResumeDataSchema),
-            null,
-            2,
+          const { parseResume } = await import(
+            "~/server/services/resume-parser"
           );
-          const schemaDescription = `\nReturn the data as JSON matching this schema exactly (do not add, remove, or rename fields):\n\n${resumeJsonSchema}\nIf a value is missing, use an empty string or omit the field (if optional). For date fields, either provide a valid ISO 8601 date string or omit the field entirely - never use null. All arrays must be arrays, not objects. Do not add, remove, or rename any fields.\n`;
+          const result = await parseResume(
+            rawContent,
+            ctx.session.user.id,
+            ctx.db,
+            {
+              title: title ?? originalName,
+              saveDocument: false, // We'll create the document ourselves to maintain existing flow
+            },
+          );
 
-          const llm = createLLM();
-          llm.withStructuredOutput(ResumeDataSchema);
-          const llmResponse = await llm.invoke([
-            [
-              "system",
-              `Please parse the following resume text and return the structured data. ${schemaDescription}`,
-            ],
-            ["user", `Resume text: """${rawContent}"""`],
-          ]);
-          processedContent = extractContent(llmResponse);
-          console.log("LLM processed resume content");
+          if (!result.success) {
+            throw new LLMProcessingError(
+              result.error ?? "Failed to process resume content",
+              "processResume",
+              new Error(result.error ?? "Unknown error"),
+              0,
+            );
+          }
+
+          processedContent = result.processedContent ?? "";
+          console.log(
+            "Resume processed successfully using centralized service",
+          );
         } catch (err) {
           throw new LLMProcessingError(
-            "Failed to process resume content using LLM",
+            "Failed to process resume content using centralized service",
             "processResume",
             err instanceof Error ? err : new Error(String(err)),
             0,
@@ -138,59 +135,12 @@ export const documentOpsRouter = createTRPCRouter({
         },
       });
 
-      // Step 5: Parse and store structured data (only for resumes)
+      // Step 5: For resumes, the centralized service already handled structured data processing
+      // We just need to log success since the parsing was done by the service
       if (detectedType === "resume") {
-        try {
-          // Remove code block markers if present
-          let clean = processedContent.trim();
-          if (clean.startsWith("```json"))
-            clean = clean.replace(/^```json\n?/, "");
-          if (clean.endsWith("```")) clean = clean.replace(/```$/, "");
-          const parsed = ResumeDataSchema.parse(JSON.parse(clean));
-          const userId = ctx.session.user.id;
-
-          // Process work experience
-          const workExperience = Array.isArray(parsed.work_experience)
-            ? parsed.work_experience
-            : [];
-          await processWorkExperience(workExperience, userId, ctx);
-
-          // Process education
-          const educationArr = Array.isArray(parsed.education)
-            ? parsed.education
-            : [];
-          await processEducation(educationArr, userId, ctx);
-
-          // Process key achievements
-          const keyAchievements = Array.isArray(parsed.key_achievements)
-            ? parsed.key_achievements
-            : [];
-          await processKeyAchievements(keyAchievements, userId, ctx);
-
-          // Process user links
-          const userLinks = Array.isArray(parsed.user_links)
-            ? parsed.user_links
-            : [];
-          await processUserLinks(userLinks, userId, ctx);
-        } catch (err) {
-          // Log the error but don't throw to allow document creation to succeed
-          console.error("Error parsing or inserting related records:", err);
-
-          // Create a more structured error for monitoring/debugging
-          const structuredError = new DocumentProcessingError(
-            "Failed to parse or store structured resume data",
-            err instanceof Error ? err : new Error(String(err)),
-            "resume",
-            "storing",
-            {
-              documentId: doc.id,
-              processedContentLength: processedContent.length,
-            },
-          );
-
-          // In a production environment, you might want to send this to an error tracking service
-          console.error("Structured error for monitoring:", structuredError);
-        }
+        console.log(
+          "Resume structured data processing completed by centralized service",
+        );
       }
 
       return doc;

@@ -1157,6 +1157,57 @@ export function createGenerateResumeDataTool(
 }
 
 // =============================================================================
+// RESUME PARSING TOOLS
+// =============================================================================
+
+/**
+ * Tool to parse resume text and store structured data
+ */
+export function createResumeParsingTool(userId: string): DynamicStructuredTool {
+  return new DynamicStructuredTool({
+    name: "parse_and_store_resume",
+    description:
+      "Parse resume text using AI to extract structured information and store it in the user's profile. This processes work experience, education, skills, achievements, and personal links.",
+    schema: z.object({
+      resumeText: z
+        .string()
+        .min(50, "Resume text must be at least 50 characters")
+        .describe("The complete resume text to parse and process"),
+      title: z
+        .string()
+        .optional()
+        .describe(
+          "Optional title for the document (defaults to 'Parsed Resume')",
+        ),
+    }),
+    func: async ({
+      resumeText,
+      title = "Parsed Resume",
+    }: {
+      resumeText: string;
+      title?: string;
+    }) => {
+      try {
+        if (!userId) {
+          return "User ID is required but not provided. Please ensure you're logged in.";
+        }
+
+        // Use the centralized resume parsing service
+        const { parseResumeFromText } = await import(
+          "~/server/services/resume-parser"
+        );
+        return await parseResumeFromText(resumeText, userId, db, title);
+      } catch (error) {
+        console.error("Error in resume parsing tool:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return `Error parsing resume: ${errorMessage}`;
+      }
+    },
+  });
+}
+
+// =============================================================================
 // ROUTING TOOLS
 // =============================================================================
 
@@ -1198,6 +1249,7 @@ export function getDataManagerTools(userId: string): DynamicStructuredTool[] {
     storeUserPreferenceTool,
     storeWorkHistoryTool,
     createUserProfileTool(userId),
+    createResumeParsingTool(userId),
   ];
 }
 

@@ -7,6 +7,7 @@ Resume Master is a tool that helps you create resumes and cover letters tailored
 - AI chat with your resume and cover letter
 - Resume and cover letter generation
 - Job posting analysis
+- Resume parsing from text or uploaded files
 
 ## AI Chat Features
 
@@ -26,10 +27,36 @@ The `agentTeam.ts` file defines the AI's workflow using LangChain's StateGraph. 
 
 Key specialized agents include:
 
-- **Data Manager:** Handles storing, retrieving, and managing user profile data (work history, skills, etc.).
+- **Data Manager:** Handles storing, retrieving, and managing user profile data (work history, skills, etc.). Can also parse resume text when users paste it in chat.
 - **Resume Generator:** Creates and helps refine resumes based on user data.
 - **Cover Letter Generator:** Generates and tailors cover letters for specific job applications.
 - **User Profile:** Provides information to the user about their stored data.
 - **Job Posting Manager:** Parses, stores, and analyzes job postings, including comparing job requirements to user skills.
 
 Each specialized agent has access to specific tools enabling it to perform its function, interacting with the application's database and other backend services. The supervisor ensures smooth transitions between agents based on the conversation flow.
+
+## Resume Parsing Service
+
+The application includes a centralized resume parsing service (`src/server/services/resume-parser.ts`) that processes resume text using AI and stores structured data in the user's profile.
+
+### Features
+
+- **AI-Powered Parsing:** Uses LLM to extract structured information from resume text
+- **Data Storage:** Automatically processes and stores work experience, education, achievements, and links
+- **Flexible Usage:** Can be used both for file uploads and chat-based text parsing
+- **Error Handling:** Graceful handling of parsing errors with detailed feedback
+
+### Usage
+
+The service can be used in multiple ways:
+
+1. **File Upload:** When users upload PDF or text files through the document upload feature
+2. **Chat Parsing:** When users paste resume text directly in the AI chat interface
+3. **Programmatic:** Direct API calls for custom integrations
+
+### Key Components
+
+- `ResumeParsingService`: Main class that orchestrates the parsing process
+- `parseResume()`: Full-featured parsing with document creation
+- `parseResumeFromText()`: Simplified parsing optimized for chat usage
+- Automatic integration with existing data processing functions for work history, education, achievements, and user links

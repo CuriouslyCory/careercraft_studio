@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { type PrismaClient } from "@prisma/client";
 import { mergeWorkAchievements } from "./utils/llm-merger";
+import { distance } from "fastest-levenshtein";
 
 // Helper function to check if two work history records match
 export function doWorkHistoryRecordsMatch(
@@ -16,11 +17,13 @@ export function doWorkHistoryRecordsMatch(
     endDate?: Date;
   },
 ): boolean {
-  // Company name must match (case insensitive, ignoring all whitespace)
+  // Company name must match using Levenshtein distance (case insensitive, ignoring all whitespace)
   const existingCompany = existing.companyName.toLowerCase().replace(/\s/g, "");
   const newCompany = (newRecord.company ?? "").toLowerCase().replace(/\s/g, "");
 
-  if (existingCompany !== newCompany) {
+  // Allow for a Levenshtein distance of up to 5 characters
+  const nameDistance = distance(existingCompany, newCompany);
+  if (nameDistance > 5) {
     return false;
   }
 

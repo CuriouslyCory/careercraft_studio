@@ -556,8 +556,8 @@ async function supervisorNode(
 Your primary job is to analyze messages and route them to the correct specialized agent. Your routing decisions are critical to system functioning.
 
 IMPORTANT ROUTING RULES:
-1. For data storage or retrieval requests (work history, education, etc.): Route to 'data_manager'
-   Example: "Can you store my work experience?", "Look up my skills", "Save my preferences"
+1. For data storage or retrieval requests (work history, education, etc.) OR resume parsing: Route to 'data_manager'
+   Example: "Can you store my work experience?", "Look up my skills", "Save my preferences", "Parse this resume", "I'm pasting my resume"
 
 2. For resume creation, editing, or advice: Route to 'resume_generator'
    Example: "Create a resume", "How should I format my resume?", "Help with my resume"
@@ -914,6 +914,23 @@ async function processDataManagerToolCalls(
             : "unknown";
         toolCallSummary += `Error retrieving ${dataType} data: ${error instanceof Error ? error.message : String(error)}\n`;
       }
+    } else if (toolCall.name === "parse_and_store_resume") {
+      try {
+        // The resume parsing tool handles its own processing and returns a detailed summary
+        const resumeParsingTool = getDataManagerTools(userId).find(
+          (t) => t.name === "parse_and_store_resume",
+        );
+        if (resumeParsingTool) {
+          const result = (await resumeParsingTool.invoke(
+            toolCall.args,
+          )) as string;
+          toolCallSummary += `${result}\n\n`;
+        } else {
+          toolCallSummary += `• Error: Resume parsing tool not found\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error parsing resume: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
     } else {
       toolCallSummary += `• ${toolCall.name}: Processed successfully\n`;
     }
@@ -937,13 +954,21 @@ Your job is to:
 1. Look up information relating to the user, including work history, skills, achievements, and preferences.
 2. Identify information in messages that should be stored
 3. Store work history, skills, achievements, and user preferences
-4. Organize and maintain the user's data
-5. Format retrieved data in user-friendly formats (especially markdown when requested)
+4. Parse and process resume text when users provide it
+5. Organize and maintain the user's data
+6. Format retrieved data in user-friendly formats (especially markdown when requested)
 
 You have access to these tools:
 - store_user_preference: For storing user preferences about grammar, phrases, resume style, etc.
 - store_work_history: For storing details about previous jobs, responsibilities, achievements
 - get_user_profile: For retrieving existing user data
+- parse_and_store_resume: For parsing resume text and extracting/storing structured data
+
+**IMPORTANT**: When a user provides resume text (either by pasting it directly or asking you to parse a resume), use the parse_and_store_resume tool to process it. This will:
+- Extract structured information using AI
+- Store work history, education, skills, and achievements in their profile
+- Save the resume as a document for future reference
+- Provide a detailed summary of what was processed
 
 When retrieving skills data, present it in a well-organized markdown format grouped by proficiency level.
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.
