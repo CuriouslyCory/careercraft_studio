@@ -47,7 +47,6 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
               where: { userId },
               include: {
                 achievements: true,
-                skills: true,
               },
               orderBy: { startDate: "desc" },
             });
@@ -55,6 +54,15 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
             if (workHistory.length === 0) {
               return "No work history found for this user.";
             }
+
+            // Get UserSkills associated with work history
+            const workHistorySkills = await db.userSkill.findMany({
+              where: {
+                userId,
+                workHistoryId: { in: workHistory.map((wh) => wh.id) },
+              },
+              include: { skill: true },
+            });
 
             return JSON.stringify(
               workHistory.map((job) => ({
@@ -66,7 +74,13 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
                   ? job.endDate.toISOString().split("T")[0]
                   : "Present",
                 achievements: job.achievements.map((a) => a.description),
-                skills: job.skills.map((s) => s.name),
+                skills: workHistorySkills
+                  .filter((ws) => ws.workHistoryId === job.id)
+                  .map((ws) => ({
+                    name: ws.skill.name,
+                    proficiency: ws.proficiency,
+                    yearsExperience: ws.yearsExperience,
+                  })),
               })),
             );
 
@@ -94,25 +108,31 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
             );
 
           case "skills":
-            // For skills, we need to get them from work history
-            const workHistoryForSkills = await db.workHistory.findMany({
+            // Get skills from the modern UserSkill table
+            const userSkills = await db.userSkill.findMany({
               where: { userId },
-              include: { skills: true },
+              include: { skill: true, workHistory: true },
+              orderBy: [{ proficiency: "desc" }, { yearsExperience: "desc" }],
             });
 
-            if (workHistoryForSkills.length === 0) {
+            if (userSkills.length === 0) {
               return "No skills found for this user.";
             }
 
-            // Collect all unique skills
-            const skillSet = new Set<string>();
-            workHistoryForSkills.forEach((job) => {
-              job.skills.forEach((skill) => {
-                skillSet.add(skill.name);
-              });
-            });
-
-            return JSON.stringify(Array.from(skillSet));
+            return JSON.stringify(
+              userSkills.map((us) => ({
+                id: us.id,
+                name: us.skill.name,
+                category: us.skill.category,
+                proficiency: us.proficiency,
+                yearsExperience: us.yearsExperience,
+                source: us.source,
+                workContext: us.workHistory
+                  ? `${us.workHistory.jobTitle} at ${us.workHistory.companyName}`
+                  : null,
+                notes: us.notes,
+              })),
+            );
 
           case "achievements":
             // Get both work achievements and key achievements
@@ -175,7 +195,6 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
               where: { userId },
               include: {
                 achievements: true,
-                skills: true,
               },
               orderBy: { startDate: "desc" },
             });
@@ -193,12 +212,20 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
               where: { userId },
             });
 
-            // Collect all skills for the complete profile
-            const allSkills = new Set<string>();
-            allWorkHistory.forEach((job) => {
-              job.skills.forEach((skill) => {
-                allSkills.add(skill.name);
-              });
+            // Get all skills from UserSkill table
+            const allUserSkills = await db.userSkill.findMany({
+              where: { userId },
+              include: { skill: true, workHistory: true },
+              orderBy: [{ proficiency: "desc" }, { yearsExperience: "desc" }],
+            });
+
+            // Get UserSkills associated with work history for work_history section
+            const allWorkHistorySkills = await db.userSkill.findMany({
+              where: {
+                userId,
+                workHistoryId: { in: allWorkHistory.map((wh) => wh.id) },
+              },
+              include: { skill: true },
             });
 
             return JSON.stringify({
@@ -211,7 +238,13 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
                   ? job.endDate.toISOString().split("T")[0]
                   : "Present",
                 achievements: job.achievements.map((a) => a.description),
-                skills: job.skills.map((s) => s.name),
+                skills: allWorkHistorySkills
+                  .filter((ws) => ws.workHistoryId === job.id)
+                  .map((ws) => ({
+                    name: ws.skill.name,
+                    proficiency: ws.proficiency,
+                    yearsExperience: ws.yearsExperience,
+                  })),
               })),
               education: allEducation.map((edu) => ({
                 id: edu.id,
@@ -223,7 +256,18 @@ export function createUserProfileTool(userId: string): DynamicStructuredTool {
                   ? edu.dateCompleted.toISOString().split("T")[0]
                   : null,
               })),
-              skills: Array.from(allSkills),
+              skills: allUserSkills.map((us) => ({
+                id: us.id,
+                name: us.skill.name,
+                category: us.skill.category,
+                proficiency: us.proficiency,
+                yearsExperience: us.yearsExperience,
+                source: us.source,
+                workContext: us.workHistory
+                  ? `${us.workHistory.jobTitle} at ${us.workHistory.companyName}`
+                  : null,
+                notes: us.notes,
+              })),
               key_achievements: allKeyAchievements.map((achievement) => ({
                 id: achievement.id,
                 description: achievement.content,
