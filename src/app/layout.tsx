@@ -30,13 +30,7 @@ export default async function RootLayout({
     <html lang="en" className={`${geist.variable}`}>
       <body>
         <TRPCReactProvider session={session}>
-          <SidebarProvider>
-            <BioSidebar />
-            <main className="flex h-screen w-full">
-              <SidebarTrigger />
-              {children}
-            </main>
-          </SidebarProvider>
+          {children}
           <Toaster />
         </TRPCReactProvider>
       </body>

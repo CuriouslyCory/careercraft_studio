@@ -16,6 +16,7 @@ export const documentRouter = createTRPCRouter({
   deleteDocument: documentOpsRouter.delete,
   generateResumeData: documentOpsRouter.generateResumeData,
   generateTailoredResume: documentOpsRouter.generateTailoredResume,
+  generateTailoredCoverLetter: documentOpsRouter.generateTailoredCoverLetter,
   getJobPostDocument: documentOpsRouter.getJobPostDocument,
   updateJobPostDocument: documentOpsRouter.updateJobPostDocument,
   deleteJobPostDocument: documentOpsRouter.deleteJobPostDocument,

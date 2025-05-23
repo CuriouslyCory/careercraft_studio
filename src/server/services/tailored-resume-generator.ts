@@ -26,6 +26,15 @@ const TailoredResumeSchema = z.object({
 
 export type TailoredResume = z.infer<typeof TailoredResumeSchema>;
 
+// Schema for the generated cover letter
+const TailoredCoverLetterSchema = z.object({
+  content: z
+    .string()
+    .describe("The full cover letter content tailored to the job"),
+});
+
+export type TailoredCoverLetter = z.infer<typeof TailoredCoverLetterSchema>;
+
 interface JobPostingData {
   id: string;
   title: string;
@@ -388,6 +397,131 @@ Focus on relevant experience and skills. Use markdown formatting within each sec
 
     return requirements.join("\n\n");
   }
+
+  async generateTailoredCoverLetter(
+    userId: string,
+    jobPostingId: string,
+  ): Promise<TailoredCoverLetter> {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+    if (!jobPostingId) {
+      throw new Error("Job posting ID is required");
+    }
+
+    // 1. Fetch user data using the resume data generator
+    const userProfileData = await generateUserResumeData(this.db, userId);
+
+    // 2. Fetch job posting data with all requirements
+    const jobPostingData = await this.fetchJobPostingData(jobPostingId, userId);
+
+    // 3. Use LLM to generate tailored cover letter
+    const tailoredCoverLetter = await this.generateCoverLetterWithLLM(
+      userProfileData,
+      jobPostingData,
+    );
+
+    return tailoredCoverLetter;
+  }
+
+  private async generateCoverLetterWithLLM(
+    userProfileData: string,
+    jobPostingData: JobPostingData,
+  ): Promise<TailoredCoverLetter> {
+    const llm = createLLM(); // Remove temperature parameter until we fix the function signature
+
+    const systemPrompt = `You are an expert cover letter writer. Create a professional, tailored cover letter based on the user's data and job requirements.
+
+RULES:
+- Only use information from the user profile data provided
+- Never fabricate skills, experiences, or qualifications
+- Incorporate job-relevant keywords naturally
+- Address the specific company and role
+- Keep content concise and professional
+
+FORMAT: Return valid JSON with this exact field:
+- content: The full cover letter text`;
+
+    const userPrompt = `Please generate a tailored cover letter that:
+1. Introduces the user and expresses interest in the specific ${jobPostingData.title} role at ${jobPostingData.company}
+2. Highlights the user's most relevant skills and experiences that match the job requirements
+3. Demonstrates understanding of the company and role
+4. Encourages the reader to review the attached resume
+5. Only uses information provided in the user profile data
+
+JOB: ${jobPostingData.title} at ${jobPostingData.company}
+LOCATION: ${jobPostingData.location}
+
+JOB DESCRIPTION:
+${jobPostingData.content}
+
+USER DATA:
+${userProfileData}
+
+Focus on relevance and enthusiasm. Write the full cover letter content.`;
+
+    try {
+      const llmWithStructuredOutput = llm.withStructuredOutput(
+        TailoredCoverLetterSchema,
+      );
+
+      const response = await llmWithStructuredOutput.invoke([
+        ["system", systemPrompt],
+        ["user", userPrompt],
+      ]);
+
+      const validatedResponse = TailoredCoverLetterSchema.parse(response);
+
+      return validatedResponse;
+    } catch (error) {
+      console.error("Error generating tailored cover letter:", error);
+
+      // Fallback: Try without structured output if schema parsing fails
+      try {
+        console.log("Retrying cover letter without structured output...");
+        const fallbackResponse = await llm.invoke([
+          [
+            "system",
+            systemPrompt +
+              "\n\nIMPORTANT: Return only valid JSON with the required 'content' field.",
+          ],
+          ["user", userPrompt],
+        ]);
+
+        const content =
+          typeof fallbackResponse.content === "string"
+            ? fallbackResponse.content
+            : JSON.stringify(fallbackResponse.content);
+
+        // Clean up the response to extract JSON
+        let jsonStr = content.trim();
+
+        // Remove markdown code blocks if present
+        if (jsonStr.startsWith("```json")) {
+          jsonStr = jsonStr.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+        } else if (jsonStr.startsWith("```")) {
+          jsonStr = jsonStr.replace(/^```\s*/, "").replace(/\s*```$/, "");
+        }
+
+        const parsedResponse = JSON.parse(jsonStr) as unknown;
+        const validatedResponse =
+          TailoredCoverLetterSchema.parse(parsedResponse);
+
+        return validatedResponse;
+      } catch (fallbackError) {
+        console.error("Cover letter fallback also failed:", fallbackError);
+
+        if (error instanceof Error) {
+          throw new Error(
+            `Failed to generate tailored cover letter: ${error.message}`,
+          );
+        }
+        throw new Error(
+          "Failed to generate tailored cover letter due to an unknown error",
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -455,4 +589,27 @@ export function formatTailoredResumeAsMarkdown(resume: TailoredResume): string {
   }
 
   return sections.join("\n").trim();
+}
+
+/**
+ * Standalone function that can be called from TRPC or agent tools
+ */
+export async function generateTailoredCoverLetter(
+  db: PrismaClient,
+  userId: string,
+  jobPostingId: string,
+): Promise<TailoredCoverLetter> {
+  const generator = new TailoredResumeGenerator(db);
+  return generator.generateTailoredCoverLetter(userId, jobPostingId);
+}
+
+/**
+ * Utility function to format the tailored cover letter as a complete markdown document (optional)
+ */
+export function formatTailoredCoverLetterAsMarkdown(
+  coverLetter: TailoredCoverLetter,
+): string {
+  // Since the schema is just a content string, we just return it.
+  // Add markdown formatting like headers, lists, etc., if the LLM is instructed to use them.
+  return coverLetter.content;
 }

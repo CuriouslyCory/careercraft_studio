@@ -13,6 +13,8 @@ import {
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "~/trpc/react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 const BIO_VIEWS = [
   { key: "documents", label: "Documents" },
@@ -28,6 +30,7 @@ const BIO_VIEWS = [
 export function BioSidebar() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const session = useSession();
   const activeView = searchParams.get("bio") ?? "documents";
   const [truncateStatus, setTruncateStatus] = useState<
     null | "success" | "error"
@@ -85,23 +88,12 @@ export function BioSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t p-3">
-        <button
-          className="w-full rounded-lg bg-red-500 px-4 py-2 text-white transition-colors hover:bg-red-600 disabled:bg-red-300"
-          onClick={handleTruncate}
-          disabled={truncateLoading}
+        <Link
+          href={session ? "/api/auth/signout" : "/api/auth/signin"}
+          className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
         >
-          {truncateLoading ? "Deleting..." : "Delete All Resume Data"}
-        </button>
-        {truncateStatus === "success" && (
-          <p className="mt-2 text-center text-sm text-green-600">
-            All resume data deleted successfully.
-          </p>
-        )}
-        {truncateStatus === "error" && (
-          <p className="mt-2 text-center text-sm text-red-600">
-            Failed to delete resume data.
-          </p>
-        )}
+          {session ? "Sign out" : "Sign in"}
+        </Link>
       </SidebarFooter>
     </Sidebar>
   );

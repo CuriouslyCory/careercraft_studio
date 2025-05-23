@@ -18,9 +18,6 @@ import {
   LLMProcessingError,
   extractContent,
 } from "./types";
-// Add type imports for Puppeteer and markdown-it
-import type { Browser, Page } from "puppeteer";
-import type MarkdownIt from "markdown-it";
 
 export const documentOpsRouter = createTRPCRouter({
   upload: protectedProcedure
@@ -385,6 +382,71 @@ export const documentOpsRouter = createTRPCRouter({
         console.error("Error generating tailored resume:", error);
         throw new Error(
           `Failed to generate tailored resume: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }),
+
+  generateTailoredCoverLetter: protectedProcedure
+    .input(
+      z.object({
+        jobPostingId: z.string().min(1, "Job posting ID is required"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { jobPostingId } = input;
+      const userId = ctx.session.user.id;
+
+      try {
+        const { generateTailoredCoverLetter } = await import(
+          "~/server/services/tailored-resume-generator"
+        );
+
+        // Verify job posting exists and belongs to user
+        const jobPosting = await ctx.db.jobPosting.findUnique({
+          where: {
+            id: jobPostingId,
+            userId: userId,
+          },
+        });
+
+        if (!jobPosting) {
+          throw new Error(
+            "Job posting not found or you don't have access to it",
+          );
+        }
+
+        // Generate the tailored cover letter
+        const tailoredCoverLetter = await generateTailoredCoverLetter(
+          ctx.db,
+          userId,
+          jobPostingId,
+        );
+
+        // Save to JobPostDocument table
+        await ctx.db.jobPostDocument.upsert({
+          where: {
+            jobPostingId: jobPostingId,
+          },
+          update: {
+            coverLetterContent: tailoredCoverLetter.content,
+            coverLetterGeneratedAt: new Date(),
+          },
+          create: {
+            jobPostingId: jobPostingId,
+            coverLetterContent: tailoredCoverLetter.content,
+            coverLetterGeneratedAt: new Date(),
+          },
+        });
+
+        return {
+          success: true,
+          message: "Cover letter generated and saved successfully",
+          jobPostingId: jobPostingId,
+        };
+      } catch (error) {
+        console.error("Error generating tailored cover letter:", error);
+        throw new Error(
+          `Failed to generate tailored cover letter: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }),

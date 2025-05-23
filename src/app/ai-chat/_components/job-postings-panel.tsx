@@ -112,6 +112,21 @@ export function JobPostingsPanel() {
       },
     });
 
+  const generateCoverLetterMutation =
+    api.document.generateTailoredCoverLetter.useMutation({
+      onSuccess: (result: {
+        success: boolean;
+        message: string;
+        jobPostingId: string;
+      }) => {
+        void jobPostingsQuery.refetch();
+        toast.success(result.message);
+      },
+      onError: (error) => {
+        toast.error(`Failed to generate cover letter: ${error.message}`);
+      },
+    });
+
   const deleteDocumentMutation = api.document.deleteJobPostDocument.useMutation(
     {
       onSuccess: (result) => {
@@ -368,6 +383,12 @@ export function JobPostingsPanel() {
         documentType: viewingDocument.type,
       });
     }
+  };
+
+  const handleGenerateCoverLetter = (jobPostingId: string) => {
+    generateCoverLetterMutation.mutate({
+      jobPostingId,
+    });
   };
 
   if (jobPostingsQuery.isLoading) {
@@ -969,7 +990,7 @@ export function JobPostingsPanel() {
                                   <>
                                     <DropdownMenuItem
                                       onClick={() =>
-                                        handleViewDocument(
+                                        handleEditDocument(
                                           job.id,
                                           job.title,
                                           job.document?.coverLetterContent ??
@@ -982,29 +1003,25 @@ export function JobPostingsPanel() {
                                       <MailIcon className="size-4" />
                                       View Cover Letter
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        handleEditDocument(
-                                          job.id,
-                                          job.title,
-                                          job.document?.coverLetterContent ??
-                                            "",
-                                          "coverLetter",
-                                        )
-                                      }
-                                      className="text-purple-600"
-                                    >
-                                      <EditIcon className="size-4" />
-                                      Edit Cover Letter
-                                    </DropdownMenuItem>
                                   </>
                                 ) : (
                                   <DropdownMenuItem
-                                    disabled
-                                    className="text-muted-foreground"
+                                    onClick={() =>
+                                      handleGenerateCoverLetter(job.id)
+                                    }
+                                    disabled={
+                                      generateCoverLetterMutation.isPending &&
+                                      generateCoverLetterMutation.variables
+                                        ?.jobPostingId === job.id
+                                    }
+                                    className="text-purple-600"
                                   >
                                     <MailIcon className="size-4" />
-                                    Generate Cover Letter (Coming Soon)
+                                    {generateCoverLetterMutation.isPending &&
+                                    generateCoverLetterMutation.variables
+                                      ?.jobPostingId === job.id
+                                      ? "Generating Cover Letter..."
+                                      : "Generate Cover Letter"}
                                   </DropdownMenuItem>
                                 )}
 
