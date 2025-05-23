@@ -18,6 +18,9 @@ import {
   LLMProcessingError,
   extractContent,
 } from "./types";
+// Add type imports for Puppeteer and markdown-it
+import type { Browser, Page } from "puppeteer";
+import type MarkdownIt from "markdown-it";
 
 export const documentOpsRouter = createTRPCRouter({
   upload: protectedProcedure
@@ -515,4 +518,239 @@ export const documentOpsRouter = createTRPCRouter({
         message: `${documentType === "resume" ? "Resume" : "Cover letter"} updated successfully`,
       };
     }),
+
+  exportToPDF: protectedProcedure
+    .input(
+      z.object({
+        jobPostingId: z.string(),
+        documentType: z.enum(["resume", "coverLetter"]),
+        content: z.string(),
+        jobTitle: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { content, documentType, jobTitle } = input;
+
+      try {
+        // Import Puppeteer dynamically
+        const puppeteer = await import("puppeteer");
+
+        // Create HTML content with proper styling
+        const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${documentType === "resume" ? "Resume" : "Cover Letter"} - ${jobTitle}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      font-size: 14px;
+      background: white;
+      margin: 0;
+      padding: 40px;
+    }
+    
+    .document-container {
+      max-width: 8.5in;
+      margin: 0 auto;
+      background: white;
+    }
+    
+    /* Typography */
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 16px; color: #1a1a1a; }
+    h2 { font-size: 20px; font-weight: 600; margin: 24px 0 12px 0; color: #2d2d2d; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px; }
+    h3 { font-size: 18px; font-weight: 600; margin: 16px 0 8px 0; color: #374151; }
+    h4 { font-size: 16px; font-weight: 500; margin: 12px 0 6px 0; color: #4b5563; }
+    h5 { font-size: 14px; font-weight: 500; margin: 8px 0 4px 0; color: #6b7280; }
+    h6 { font-size: 13px; font-weight: 500; margin: 6px 0 4px 0; color: #6b7280; }
+    
+    p { margin-bottom: 12px; }
+    
+    /* Lists */
+    ul, ol {
+      margin: 8px 0 16px 20px;
+    }
+    
+    li {
+      margin-bottom: 4px;
+    }
+    
+    /* Links */
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+    
+    a:hover {
+      text-decoration: underline;
+    }
+    
+    /* Code */
+    code {
+      background: #f3f4f6;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      font-size: 12px;
+    }
+    
+    pre {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      padding: 16px;
+      margin: 16px 0;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    
+    th {
+      background: #f9fafb;
+      font-weight: 600;
+    }
+    
+    /* Blockquotes */
+    blockquote {
+      border-left: 4px solid #e5e7eb;
+      margin: 16px 0;
+      padding: 0 16px;
+      color: #6b7280;
+      font-style: italic;
+    }
+    
+    /* HR */
+    hr {
+      border: none;
+      border-top: 1px solid #e5e7eb;
+      margin: 24px 0;
+    }
+    
+    /* Print optimizations */
+    @media print {
+      body {
+        margin: 0;
+        padding: 20px;
+      }
+      
+      .document-container {
+        max-width: none;
+      }
+      
+      /* Prevent page breaks inside important elements */
+      h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+      }
+      
+      p, li {
+        page-break-inside: avoid;
+      }
+      
+      /* Ensure black text for printing */
+      body, p, li, td, th {
+        color: #000 !important;
+      }
+      
+      a {
+        color: #000 !important;
+        text-decoration: underline !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="document-container">
+    ${await convertMarkdownToHTML(content)}
+  </div>
+</body>
+</html>`;
+
+        // Launch Puppeteer browser
+        const browser = await puppeteer.launch({
+          headless: true,
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        });
+
+        const page = await browser.newPage();
+
+        // Set content and wait for any dynamic content to load
+        await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+
+        // Generate PDF with optimized settings
+        const pdfBuffer = await page.pdf({
+          format: "A4",
+          margin: {
+            top: "0.5in",
+            right: "0.5in",
+            bottom: "0.5in",
+            left: "0.5in",
+          },
+          printBackground: true,
+          preferCSSPageSize: true,
+        });
+
+        await browser.close();
+
+        // Convert buffer to base64 for transport
+        const base64PDF = Buffer.from(pdfBuffer).toString("base64");
+
+        return {
+          success: true,
+          pdfBase64: base64PDF,
+          filename: `${documentType}-${jobTitle.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`,
+        };
+      } catch (error) {
+        console.error("PDF generation error:", error);
+        throw new Error(
+          `Failed to generate PDF: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }),
 });
+
+// Helper function to convert markdown to HTML
+async function convertMarkdownToHTML(markdown: string): Promise<string> {
+  try {
+    // Import markdown-it dynamically
+    const MarkdownIt = await import("markdown-it");
+    const md = new MarkdownIt.default({
+      html: true,
+      linkify: true,
+      typographer: true,
+    });
+
+    return md.render(markdown);
+  } catch (error) {
+    console.error("Markdown conversion error:", error);
+    // Fallback: simple HTML escaping and line break conversion
+    return markdown
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+  }
+}

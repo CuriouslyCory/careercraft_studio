@@ -1,10 +1,31 @@
 "use client";
 
-import { useRef, useState, useCallback, useMemo, useEffect } from "react";
-import { Editor } from "@toast-ui/react-editor";
+import { useRef, useCallback, useMemo, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "~/components/ui/button";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
+
+// Dynamically import the ToastUI Editor to prevent SSR issues
+const Editor = dynamic(
+  () => import("@toast-ui/react-editor").then((mod) => mod.Editor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-96 items-center justify-center rounded-lg border bg-gray-50">
+        <div className="text-center">
+          <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
+          <p className="text-gray-600">Loading editor...</p>
+        </div>
+      </div>
+    ),
+  },
+);
+
+// Type for the editor instance
+type EditorElement = {
+  getInstance(): { getMarkdown(): string };
+};
 
 interface DocumentEditorProps {
   jobPostingId: string;
@@ -52,7 +73,7 @@ export function DocumentEditor({
   onSave,
   onCancel,
 }: DocumentEditorProps) {
-  const editorRef = useRef<Editor>(null);
+  const editorRef = useRef<EditorElement | null>(null);
 
   // Memoize toolbar configuration for performance
   const toolbarItems = useMemo(
@@ -92,9 +113,41 @@ export function DocumentEditor({
     },
   );
 
+  const exportToPDFMutation = api.document.exportToPDF.useMutation({
+    onSuccess: (result) => {
+      // Create a download link for the PDF
+      const pdfBlob = new Blob(
+        [
+          new Uint8Array(
+            atob(result.pdfBase64)
+              .split("")
+              .map((char) => char.charCodeAt(0)),
+          ),
+        ],
+        { type: "application/pdf" },
+      );
+
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("PDF downloaded successfully!");
+    },
+    onError: (error) => {
+      toast.error(`Failed to export PDF: ${error.message}`);
+    },
+  });
+
   // Consolidated loading state using mutation states
   const isLoading =
-    updateDocumentMutation.isPending || deleteDocumentMutation.isPending;
+    updateDocumentMutation.isPending ||
+    deleteDocumentMutation.isPending ||
+    exportToPDFMutation.isPending;
 
   // Memoized save handler with improved validation and error handling
   const handleSave = useCallback(async () => {
@@ -196,6 +249,45 @@ export function DocumentEditor({
     }
   }, [jobPostingId, documentType, deleteDocumentMutation]);
 
+  // Memoized export to PDF handler
+  const handleExportToPDF = useCallback(async () => {
+    if (!editorRef.current) {
+      toast.error("Editor not properly initialized");
+      return;
+    }
+
+    try {
+      // Type guard to safely access getInstance method
+      const editor = editorRef.current;
+      if (
+        !editor ||
+        !("getInstance" in editor) ||
+        typeof editor.getInstance !== "function"
+      ) {
+        toast.error("Editor instance not available");
+        return;
+      }
+
+      const editorInstance = editor.getInstance() as { getMarkdown(): string };
+      if (!editorInstance || typeof editorInstance.getMarkdown !== "function") {
+        toast.error("Editor instance not available");
+        return;
+      }
+
+      const content = editorInstance.getMarkdown();
+
+      void exportToPDFMutation.mutate({
+        jobPostingId,
+        documentType,
+        content,
+        jobTitle,
+      });
+    } catch (error) {
+      console.error("Export PDF error:", error);
+      toast.error("Failed to export PDF");
+    }
+  }, [jobPostingId, documentType, jobTitle, exportToPDFMutation]);
+
   // Keyboard shortcuts for improved UX
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -238,6 +330,14 @@ export function DocumentEditor({
             {updateDocumentMutation.isPending ? "Saving..." : "Save"}
           </Button>
           <Button
+            onClick={() => void handleExportToPDF()}
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700"
+            aria-label={`Export ${documentType === "resume" ? "resume" : "cover letter"} to PDF`}
+          >
+            {exportToPDFMutation.isPending ? "Exporting..." : "Export PDF"}
+          </Button>
+          <Button
             onClick={handleDelete}
             disabled={isLoading}
             variant="destructive"
@@ -261,7 +361,9 @@ export function DocumentEditor({
 
       <div className="h-fit overflow-hidden rounded-lg border">
         <Editor
-          ref={editorRef}
+          ref={(ref: EditorElement | null) => {
+            editorRef.current = ref;
+          }}
           initialValue={initialContent}
           previewStyle="vertical"
           height="calc(100vh - 90px)"

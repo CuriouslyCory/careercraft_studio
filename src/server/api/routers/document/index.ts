@@ -19,6 +19,7 @@ export const documentRouter = createTRPCRouter({
   getJobPostDocument: documentOpsRouter.getJobPostDocument,
   updateJobPostDocument: documentOpsRouter.updateJobPostDocument,
   deleteJobPostDocument: documentOpsRouter.deleteJobPostDocument,
+  exportToPDF: documentOpsRouter.exportToPDF,
 
   // Work History operations
   listWorkHistory: workHistoryRouter.list,
