@@ -414,6 +414,7 @@ model JobPosting {
     user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
     userId                 String
     details                JobPostingDetails?
+    document               JobPostDocument?
     experienceRequirements ExperienceRequirement[]
     skillRequirements      JobSkillRequirement[]
     educationRequirements  EducationRequirement[]
@@ -437,6 +438,26 @@ model JobPostingDetails {
     bonusEducationRequirements  String[] // Preferred education and certifications
     bonusExperienceRequirements Json[] // Preferred experience requirements
     bonusIndustryKnowledge      String[] // Preferred industry knowledge
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+    jobPostingId String     @unique
+
+    @@index([jobPostingId])
+}
+
+model JobPostDocument {
+    id String @id @default(cuid())
+
+    // Document content
+    resumeContent      String? @db.Text // Generated resume content in markdown
+    coverLetterContent String? @db.Text // Generated cover letter content in markdown
+
+    // Metadata
+    resumeGeneratedAt      DateTime? // When resume was last generated
+    coverLetterGeneratedAt DateTime? // When cover letter was last generated
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt

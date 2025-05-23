@@ -323,21 +323,29 @@ export const documentOpsRouter = createTRPCRouter({
     .input(
       z.object({
         jobPostingId: z.string().min(1, "Job posting ID is required"),
-        format: z
-          .enum(["structured", "markdown"])
-          .default("structured")
-          .describe(
-            "Output format: 'structured' returns JSON sections, 'markdown' returns complete formatted resume",
-          ),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { jobPostingId, format } = input;
+      const { jobPostingId } = input;
       const userId = ctx.session.user.id;
 
       try {
         const { generateTailoredResume, formatTailoredResumeAsMarkdown } =
           await import("~/server/services/tailored-resume-generator");
+
+        // Verify job posting exists and belongs to user
+        const jobPosting = await ctx.db.jobPosting.findUnique({
+          where: {
+            id: jobPostingId,
+            userId: userId,
+          },
+        });
+
+        if (!jobPosting) {
+          throw new Error(
+            "Job posting not found or you don't have access to it",
+          );
+        }
 
         // Generate the tailored resume
         const tailoredResume = await generateTailoredResume(
@@ -346,41 +354,165 @@ export const documentOpsRouter = createTRPCRouter({
           jobPostingId,
         );
 
-        if (format === "markdown") {
-          // Return as complete markdown document
-          const markdownResume = formatTailoredResumeAsMarkdown(tailoredResume);
-          return {
-            success: true,
-            format: "markdown" as const,
-            data: markdownResume,
-            sections: Object.keys(tailoredResume).filter(
-              (key) =>
-                tailoredResume[key as keyof typeof tailoredResume] &&
-                String(
-                  tailoredResume[key as keyof typeof tailoredResume],
-                ).trim() !== "",
-            ),
-          };
-        } else {
-          // Return as structured sections
-          return {
-            success: true,
-            format: "structured" as const,
-            data: tailoredResume,
-            sections: Object.keys(tailoredResume).filter(
-              (key) =>
-                tailoredResume[key as keyof typeof tailoredResume] &&
-                String(
-                  tailoredResume[key as keyof typeof tailoredResume],
-                ).trim() !== "",
-            ),
-          };
-        }
+        // Convert to markdown format for storage
+        const markdownResume = formatTailoredResumeAsMarkdown(tailoredResume);
+
+        // Save to JobPostDocument table
+        await ctx.db.jobPostDocument.upsert({
+          where: {
+            jobPostingId: jobPostingId,
+          },
+          update: {
+            resumeContent: markdownResume,
+            resumeGeneratedAt: new Date(),
+          },
+          create: {
+            jobPostingId: jobPostingId,
+            resumeContent: markdownResume,
+            resumeGeneratedAt: new Date(),
+          },
+        });
+
+        return {
+          success: true,
+          message: "Resume generated and saved successfully",
+          jobPostingId: jobPostingId,
+        };
       } catch (error) {
         console.error("Error generating tailored resume:", error);
         throw new Error(
           `Failed to generate tailored resume: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+    }),
+
+  getJobPostDocument: protectedProcedure
+    .input(
+      z.object({
+        jobPostingId: z.string().min(1, "Job posting ID is required"),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { jobPostingId } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify job posting belongs to user
+      const jobPosting = await ctx.db.jobPosting.findUnique({
+        where: {
+          id: jobPostingId,
+          userId: userId,
+        },
+      });
+
+      if (!jobPosting) {
+        throw new Error("Job posting not found or you don't have access to it");
+      }
+
+      const document = await ctx.db.jobPostDocument.findUnique({
+        where: {
+          jobPostingId: jobPostingId,
+        },
+      });
+
+      return document;
+    }),
+
+  deleteJobPostDocument: protectedProcedure
+    .input(
+      z.object({
+        jobPostingId: z.string().min(1, "Job posting ID is required"),
+        documentType: z.enum(["resume", "coverLetter"]),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { jobPostingId, documentType } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify job posting belongs to user
+      const jobPosting = await ctx.db.jobPosting.findUnique({
+        where: {
+          id: jobPostingId,
+          userId: userId,
+        },
+      });
+
+      if (!jobPosting) {
+        throw new Error("Job posting not found or you don't have access to it");
+      }
+
+      const updateData =
+        documentType === "resume"
+          ? {
+              resumeContent: null,
+              resumeGeneratedAt: null,
+            }
+          : {
+              coverLetterContent: null,
+              coverLetterGeneratedAt: null,
+            };
+
+      await ctx.db.jobPostDocument.update({
+        where: {
+          jobPostingId: jobPostingId,
+        },
+        data: updateData,
+      });
+
+      return {
+        success: true,
+        message: `${documentType === "resume" ? "Resume" : "Cover letter"} deleted successfully`,
+      };
+    }),
+
+  updateJobPostDocument: protectedProcedure
+    .input(
+      z.object({
+        jobPostingId: z.string().min(1, "Job posting ID is required"),
+        documentType: z.enum(["resume", "coverLetter"]),
+        content: z.string().min(1, "Content is required"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { jobPostingId, documentType, content } = input;
+      const userId = ctx.session.user.id;
+
+      // Verify job posting belongs to user
+      const jobPosting = await ctx.db.jobPosting.findUnique({
+        where: {
+          id: jobPostingId,
+          userId: userId,
+        },
+      });
+
+      if (!jobPosting) {
+        throw new Error("Job posting not found or you don't have access to it");
+      }
+
+      const updateData =
+        documentType === "resume"
+          ? {
+              resumeContent: content,
+              resumeGeneratedAt: new Date(),
+            }
+          : {
+              coverLetterContent: content,
+              coverLetterGeneratedAt: new Date(),
+            };
+
+      await ctx.db.jobPostDocument.upsert({
+        where: {
+          jobPostingId: jobPostingId,
+        },
+        update: updateData,
+        create: {
+          jobPostingId: jobPostingId,
+          ...updateData,
+        },
+      });
+
+      return {
+        success: true,
+        message: `${documentType === "resume" ? "Resume" : "Cover letter"} updated successfully`,
+      };
     }),
 });

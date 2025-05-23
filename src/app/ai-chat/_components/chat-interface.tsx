@@ -67,12 +67,8 @@ export function ChatInterface() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-6"></div>
       <div className="mb-4 flex items-center gap-4">
         <div className="flex-grow border-b border-gray-200 pb-2 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Resume Master AI Assistant
-          </h1>
           {conversationId && (
             <p className="text-xs text-gray-500">
               Conversation ID: {conversationId.slice(0, 8)}...

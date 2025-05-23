@@ -8,7 +8,10 @@ export const jobPostingRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.jobPosting.findMany({
       where: { userId: ctx.session.user.id },
-      include: { details: true },
+      include: {
+        details: true,
+        document: true,
+      },
       orderBy: { createdAt: "desc" },
     });
   }),

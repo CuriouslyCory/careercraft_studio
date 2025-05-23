@@ -12,6 +12,20 @@ import { cn } from "~/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
 import type { JsonValue } from "@prisma/client/runtime/library";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "~/components/ui/dropdown-menu";
+import {
+  ChevronDownIcon,
+  FileTextIcon,
+  MailIcon,
+  EditIcon,
+} from "lucide-react";
+import { DocumentEditor } from "./document-editor";
 
 interface JobPostingFormData {
   title: string;
@@ -53,6 +67,16 @@ type JobPosting = {
     updatedAt: Date;
     jobPostingId: string;
   } | null;
+  document: {
+    id: string;
+    resumeContent: string | null;
+    coverLetterContent: string | null;
+    resumeGeneratedAt: Date | null;
+    coverLetterGeneratedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    jobPostingId: string;
+  } | null;
 };
 
 // Field info component for displaying validation errors
@@ -83,11 +107,18 @@ export function JobPostingsPanel() {
     jobPostingId: string;
     jobTitle: string;
   } | null>(null);
-  const [generatedResume, setGeneratedResume] = useState<{
+  const [viewingDocument, setViewingDocument] = useState<{
     jobPostingId: string;
     jobTitle: string;
-    resumeData: string;
-    format: "structured" | "markdown";
+    content: string;
+    type: "resume" | "coverLetter";
+  } | null>(null);
+
+  const [editingDocument, setEditingDocument] = useState<{
+    jobPostingId: string;
+    jobTitle: string;
+    content: string;
+    type: "resume" | "coverLetter";
   } | null>(null);
 
   const queryClient = api.useUtils();
@@ -105,24 +136,27 @@ export function JobPostingsPanel() {
 
   const generateResumeMutation =
     api.document.generateTailoredResume.useMutation({
-      onSuccess: (result, variables) => {
-        const jobPosting = jobPostingsQuery.data?.find(
-          (job) => job.id === variables.jobPostingId,
-        );
-        if (jobPosting && typeof result.data === "string") {
-          setGeneratedResume({
-            jobPostingId: variables.jobPostingId,
-            jobTitle: jobPosting.title,
-            resumeData: result.data,
-            format: result.format,
-          });
-          toast.success("Resume generated successfully!");
-        }
+      onSuccess: (result) => {
+        void jobPostingsQuery.refetch();
+        toast.success(result.message);
       },
       onError: (error) => {
         toast.error(`Failed to generate resume: ${error.message}`);
       },
     });
+
+  const deleteDocumentMutation = api.document.deleteJobPostDocument.useMutation(
+    {
+      onSuccess: (result) => {
+        void jobPostingsQuery.refetch();
+        toast.success(result.message);
+        setViewingDocument(null); // Close the viewing modal
+      },
+      onError: (error) => {
+        toast.error(`Failed to delete document: ${error.message}`);
+      },
+    },
+  );
 
   // Add new job posting form
   const addJobForm = useForm({
@@ -295,29 +329,78 @@ export function JobPostingsPanel() {
   const handleGenerateResume = (jobPostingId: string) => {
     generateResumeMutation.mutate({
       jobPostingId,
-      format: "markdown", // Default to markdown format for better readability
     });
   };
 
-  const handleCloseResume = () => {
-    setGeneratedResume(null);
+  const handleViewDocument = (
+    jobPostingId: string,
+    jobTitle: string,
+    content: string,
+    type: "resume" | "coverLetter",
+  ) => {
+    setViewingDocument({
+      jobPostingId,
+      jobTitle,
+      content,
+      type,
+    });
   };
 
-  const handleDownloadResume = () => {
-    if (!generatedResume) return;
+  const handleCloseDocument = () => {
+    setViewingDocument(null);
+  };
 
-    const blob = new Blob([generatedResume.resumeData], {
+  const handleEditDocument = (
+    jobPostingId: string,
+    jobTitle: string,
+    content: string,
+    type: "resume" | "coverLetter",
+  ) => {
+    setEditingDocument({
+      jobPostingId,
+      jobTitle,
+      content,
+      type,
+    });
+  };
+
+  const handleCloseEdit = () => {
+    setEditingDocument(null);
+    void jobPostingsQuery.refetch(); // Refresh the data after editing
+  };
+
+  const handleDownloadDocument = () => {
+    if (!viewingDocument) return;
+
+    const blob = new Blob([viewingDocument.content], {
       type: "text/markdown",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `resume-${generatedResume.jobTitle.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.md`;
+    a.download = `${viewingDocument.type}-${viewingDocument.jobTitle.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success("Resume downloaded!");
+    toast.success(`${viewingDocument.type} downloaded!`);
+  };
+
+  const handleDeleteDocument = () => {
+    if (!viewingDocument) return;
+
+    const documentName =
+      viewingDocument.type === "resume" ? "resume" : "cover letter";
+    if (
+      confirm(
+        `Are you sure you want to delete this ${documentName}? This action cannot be undone.`,
+      )
+    ) {
+      deleteDocumentMutation.mutate({
+        jobPostingId: viewingDocument.jobPostingId,
+        documentType: viewingDocument.type,
+      });
+    }
   };
 
   if (jobPostingsQuery.isLoading) {
@@ -345,22 +428,47 @@ export function JobPostingsPanel() {
     );
   }
 
-  // Show generated resume if one is available
-  if (generatedResume) {
+  // Show document editor if one is being edited
+  if (editingDocument) {
+    return (
+      <DocumentEditor
+        jobPostingId={editingDocument.jobPostingId}
+        jobTitle={editingDocument.jobTitle}
+        initialContent={editingDocument.content}
+        documentType={editingDocument.type}
+        onSave={handleCloseEdit}
+        onCancel={handleCloseEdit}
+      />
+    );
+  }
+
+  // Show document if one is being viewed
+  if (viewingDocument) {
     return (
       <div className="h-full space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">
-            Generated Resume for {generatedResume.jobTitle}
+            {viewingDocument.type === "resume" ? "Resume" : "Cover Letter"} for{" "}
+            {viewingDocument.jobTitle}
           </h2>
           <div className="flex gap-2">
             <Button
-              onClick={handleDownloadResume}
+              onClick={handleDownloadDocument}
               className="bg-green-600 hover:bg-green-700"
             >
-              Download Resume
+              Download{" "}
+              {viewingDocument.type === "resume" ? "Resume" : "Cover Letter"}
             </Button>
-            <Button variant="outline" onClick={handleCloseResume}>
+            <Button
+              onClick={handleDeleteDocument}
+              disabled={deleteDocumentMutation.isPending}
+              variant="destructive"
+            >
+              {deleteDocumentMutation.isPending
+                ? "Deleting..."
+                : `Delete ${viewingDocument.type === "resume" ? "Resume" : "Cover Letter"}`}
+            </Button>
+            <Button variant="outline" onClick={handleCloseDocument}>
               Back to Job Postings
             </Button>
           </div>
@@ -368,7 +476,7 @@ export function JobPostingsPanel() {
         <div className="h-full overflow-y-auto rounded-lg border bg-white p-6">
           <div className="prose prose-sm max-w-none">
             <ReactMarkdown components={markdownComponents}>
-              {generatedResume.resumeData}
+              {viewingDocument.content}
             </ReactMarkdown>
           </div>
         </div>
@@ -823,38 +931,129 @@ export function JobPostingsPanel() {
                         >
                           View
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            handleViewCompatibility(job.id, job.title)
-                          }
-                          className="text-blue-600 hover:bg-blue-50"
-                        >
-                          Compatibility
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleGenerateResume(job.id)}
-                          disabled={generateResumeMutation.isPending}
-                          className="text-green-600 hover:bg-green-50"
-                        >
-                          {generateResumeMutation.isPending &&
-                          generateResumeMutation.variables?.jobPostingId ===
-                            job.id
-                            ? "Generating..."
-                            : "Generate Resume"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(job.id)}
-                          disabled={deleteMutation.isPending}
-                          className="text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </Button>
+                        {generateResumeMutation.isPending &&
+                        generateResumeMutation.variables?.jobPostingId ===
+                          job.id ? (
+                          <div className="flex items-center gap-2 rounded-md border px-3 py-1.25 text-sm font-semibold text-blue-600 shadow-sm">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+                            Generating
+                          </div>
+                        ) : (
+                          <>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex items-center gap-1"
+                                >
+                                  Actions
+                                  <ChevronDownIcon className="size-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleViewCompatibility(job.id, job.title)
+                                  }
+                                  className="text-blue-600"
+                                >
+                                  <FileTextIcon className="size-4" />
+                                  Compatibility Report
+                                </DropdownMenuItem>
+
+                                <DropdownMenuSeparator />
+
+                                {job.document?.resumeContent ? (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleEditDocument(
+                                        job.id,
+                                        job.title,
+                                        job.document?.resumeContent ?? "",
+                                        "resume",
+                                      )
+                                    }
+                                    className="text-green-600"
+                                  >
+                                    <FileTextIcon className="size-4" />
+                                    View Resume
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() => handleGenerateResume(job.id)}
+                                    disabled={
+                                      generateResumeMutation.isPending &&
+                                      generateResumeMutation.variables
+                                        ?.jobPostingId === job.id
+                                    }
+                                    className="text-green-600"
+                                  >
+                                    <FileTextIcon className="size-4" />
+                                    {generateResumeMutation.isPending &&
+                                    generateResumeMutation.variables
+                                      ?.jobPostingId === job.id
+                                      ? "Generating Resume..."
+                                      : "Generate Resume"}
+                                  </DropdownMenuItem>
+                                )}
+
+                                {job.document?.coverLetterContent ? (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleViewDocument(
+                                          job.id,
+                                          job.title,
+                                          job.document?.coverLetterContent ??
+                                            "",
+                                          "coverLetter",
+                                        )
+                                      }
+                                      className="text-purple-600"
+                                    >
+                                      <MailIcon className="size-4" />
+                                      View Cover Letter
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleEditDocument(
+                                          job.id,
+                                          job.title,
+                                          job.document?.coverLetterContent ??
+                                            "",
+                                          "coverLetter",
+                                        )
+                                      }
+                                      className="text-purple-600"
+                                    >
+                                      <EditIcon className="size-4" />
+                                      Edit Cover Letter
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : (
+                                  <DropdownMenuItem
+                                    disabled
+                                    className="text-muted-foreground"
+                                  >
+                                    <MailIcon className="size-4" />
+                                    Generate Cover Letter (Coming Soon)
+                                  </DropdownMenuItem>
+                                )}
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(job.id)}
+                                  disabled={deleteMutation.isPending}
+                                  variant="destructive"
+                                >
+                                  Delete Job Posting
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </>
+                        )}
                       </>
                     )}
                   </td>
