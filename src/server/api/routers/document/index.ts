@@ -26,14 +26,10 @@ export const documentRouter = createTRPCRouter({
   updateWorkAchievement: workHistoryRouter.updateAchievement,
   deleteWorkAchievement: workHistoryRouter.deleteAchievement,
 
-  // Legacy WorkSkill functions (DEPRECATED - use userSkills API instead)
-  listWorkSkills: workHistoryRouter.listSkills,
-  createWorkSkill: workHistoryRouter.createSkill,
-  deleteWorkSkill: workHistoryRouter.deleteSkill,
-
   // Modern UserSkill functions for work history context
   listUserSkillsForWork: workHistoryRouter.listUserSkillsForWork,
   addUserSkillToWork: workHistoryRouter.addUserSkillToWork,
+  removeUserSkillFromWork: workHistoryRouter.removeUserSkillFromWork,
 
   // Education operations
   listEducation: educationRouter.list,

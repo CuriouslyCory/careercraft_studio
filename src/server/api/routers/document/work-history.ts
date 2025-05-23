@@ -62,7 +62,7 @@ export const workHistoryRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.workHistory.findMany({
       where: { userId: ctx.session.user.id },
-      include: { achievements: true, skills: true },
+      include: { achievements: true },
       orderBy: { startDate: "desc" },
     });
   }),
@@ -162,47 +162,6 @@ export const workHistoryRouter = createTRPCRouter({
       });
     }),
 
-  // Legacy WorkSkill CRUD (DEPRECATED - use UserSkill instead)
-  // These are kept for backward compatibility but should not be used for new code
-  listSkills: protectedProcedure
-    .input(z.object({ workHistoryId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      console.warn(
-        "DEPRECATED: Using legacy WorkSkill - switch to UserSkill API",
-      );
-      return ctx.db.workSkill.findMany({
-        where: { workHistoryId: input.workHistoryId },
-        orderBy: { createdAt: "asc" },
-      });
-    }),
-
-  createSkill: protectedProcedure
-    .input(
-      z.object({
-        workHistoryId: z.string(),
-        name: z.string(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      console.warn(
-        "DEPRECATED: Creating legacy WorkSkill - switch to UserSkill API",
-      );
-      return ctx.db.workSkill.create({
-        data: input,
-      });
-    }),
-
-  deleteSkill: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      console.warn(
-        "DEPRECATED: Deleting legacy WorkSkill - switch to UserSkill API",
-      );
-      return ctx.db.workSkill.delete({
-        where: { id: input.id },
-      });
-    }),
-
   // Modern UserSkill functions for work history context
   listUserSkillsForWork: protectedProcedure
     .input(z.object({ workHistoryId: z.string() }))
@@ -295,6 +254,18 @@ export const workHistoryRouter = createTRPCRouter({
         include: {
           skill: true,
           workHistory: true,
+        },
+      });
+    }),
+
+  removeUserSkillFromWork: protectedProcedure
+    .input(z.object({ userSkillId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify the user skill belongs to this user and delete it
+      return await ctx.db.userSkill.delete({
+        where: {
+          id: input.userSkillId,
+          userId: ctx.session.user.id,
         },
       });
     }),
@@ -469,23 +440,6 @@ export async function processWorkExperience(
               source: "WORK_EXPERIENCE",
               notes: `Used at ${exp.company} - ${exp.jobTitle}`,
               workHistoryId,
-            },
-          });
-        }
-
-        // Also create legacy WorkSkill for backward compatibility (will be deprecated)
-        const existingLegacySkill = await ctx.db.workSkill.findFirst({
-          where: {
-            workHistoryId,
-            name: skillName,
-          },
-        });
-
-        if (!existingLegacySkill) {
-          await ctx.db.workSkill.create({
-            data: {
-              name: skillName,
-              workHistory: { connect: { id: workHistoryId } },
             },
           });
         }

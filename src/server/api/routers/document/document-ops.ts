@@ -193,6 +193,7 @@ export const documentOpsRouter = createTRPCRouter({
     const userId = ctx.session.user.id;
     // Delete in order of dependencies
     await ctx.db.workSkill.deleteMany({ where: { workHistory: { userId } } });
+    await ctx.db.userSkill.deleteMany({ where: { userId } });
     await ctx.db.workAchievement.deleteMany({
       where: { workHistory: { userId } },
     });

@@ -10,6 +10,7 @@ import {
   type WorkHistoryFormValues,
 } from "./work-history-schema";
 import { z } from "zod";
+import { UserSkillsForWork } from "./user-skills-for-work";
 
 export function WorkHistoryPanel() {
   const [editId, setEditId] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export function WorkHistoryPanel() {
 
   const queryClient = api.useUtils();
   const workHistoryQuery = api.document.listWorkHistory.useQuery();
+
   const updateMutation = api.document.updateWorkHistory.useMutation({
     onSuccess: () => {
       void workHistoryQuery.refetch();
@@ -45,6 +47,7 @@ export function WorkHistoryPanel() {
       toast.error(`Failed to update work history: ${error.message}`);
     },
   });
+
   const deleteMutation = api.document.deleteWorkHistory.useMutation({
     onMutate: async (deleteData) => {
       // Cancel any outgoing refetches
@@ -81,6 +84,7 @@ export function WorkHistoryPanel() {
       }
     },
   });
+
   const createMutation = api.document.createWorkHistory.useMutation({
     onMutate: async (newData) => {
       // Cancel any outgoing refetches
@@ -108,7 +112,6 @@ export function WorkHistoryPanel() {
         endDate: newData.endDate ? new Date(newData.endDate) : null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        skills: [],
         achievements: [],
       };
 
@@ -154,118 +157,28 @@ export function WorkHistoryPanel() {
     },
   });
 
-  // Add skills mutations
-  const createSkillMutation = api.document.createWorkSkill.useMutation({
-    onMutate: async (newData) => {
-      // Cancel any outgoing refetches
-      await queryClient.document.listWorkHistory.cancel();
-
-      // Save the current state
-      const previousWorkHistory = workHistoryQuery.data ?? [];
-
-      // Create a temporary ID for the optimistic skill
-      const tempId = `temp-skill-${Date.now()}`;
-
-      // Optimistically update the UI
-      queryClient.document.listWorkHistory.setData(undefined, (old) => {
-        if (!old) return previousWorkHistory;
-
-        return old.map((workHistory) => {
-          if (workHistory.id === newData.workHistoryId) {
-            // Create the new skill with temporary ID
-            const newSkill = {
-              id: tempId,
-              name: newData.name,
-              workHistoryId: newData.workHistoryId,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            };
-
-            // Add it to the existing skills
-            return {
-              ...workHistory,
-              skills: [...(workHistory.skills || []), newSkill],
-            };
-          }
-          return workHistory;
-        });
-      });
-
-      // Clear the input
+  // Modern UserSkill mutations
+  const addUserSkillMutation = api.document.addUserSkillToWork.useMutation({
+    onSuccess: () => {
+      void queryClient.document.listWorkHistory.invalidate();
       setNewSkill("");
-
-      // Return the previous state in case we need to revert
-      return { previousWorkHistory };
+      toast.success("Skill added");
     },
-    onError: (error, _newData, context) => {
-      // If the mutation fails, restore the previous state
-      if (context?.previousWorkHistory) {
-        queryClient.document.listWorkHistory.setData(
-          undefined,
-          context.previousWorkHistory,
-        );
-      }
+    onError: (error) => {
       toast.error(`Failed to add skill: ${error.message}`);
     },
-    onSettled: (data, error) => {
-      // Sync with server
-      void queryClient.document.listWorkHistory.invalidate();
-
-      // Show success toast if no error
-      if (!error) {
-        toast.success("Skill added");
-      }
-    },
   });
 
-  const deleteSkillMutation = api.document.deleteWorkSkill.useMutation({
-    onMutate: async (deleteData) => {
-      // Cancel any outgoing refetches
-      await queryClient.document.listWorkHistory.cancel();
-
-      // Save the current state
-      const previousWorkHistory = workHistoryQuery.data ?? [];
-
-      // Optimistically update the UI
-      queryClient.document.listWorkHistory.setData(undefined, (old) => {
-        if (!old) return previousWorkHistory;
-
-        return old.map((workHistory) => {
-          // Filter out the deleted skill
-          const updatedSkills =
-            workHistory.skills?.filter((skill) => skill.id !== deleteData.id) ||
-            [];
-
-          return {
-            ...workHistory,
-            skills: updatedSkills,
-          };
-        });
-      });
-
-      // Return the previous state in case we need to revert
-      return { previousWorkHistory };
-    },
-    onError: (error, _deleteData, context) => {
-      // If the mutation fails, restore the previous state
-      if (context?.previousWorkHistory) {
-        queryClient.document.listWorkHistory.setData(
-          undefined,
-          context.previousWorkHistory,
-        );
-      }
-      toast.error(`Failed to remove skill: ${error.message}`);
-    },
-    onSettled: (data, error) => {
-      // Sync with server
-      void queryClient.document.listWorkHistory.invalidate();
-
-      // Show success toast if no error
-      if (!error) {
+  const removeUserSkillMutation =
+    api.document.removeUserSkillFromWork.useMutation({
+      onSuccess: () => {
+        void queryClient.document.listWorkHistory.invalidate();
         toast.success("Skill removed");
-      }
-    },
-  });
+      },
+      onError: (error) => {
+        toast.error(`Failed to remove skill: ${error.message}`);
+      },
+    });
 
   const handleEdit = (workHistory: {
     id: string;
@@ -417,14 +330,14 @@ export function WorkHistoryPanel() {
   const handleAddSkill = (workHistoryId: string) => {
     if (!newSkill.trim()) return;
 
-    createSkillMutation.mutate({
+    addUserSkillMutation.mutate({
       workHistoryId,
-      name: newSkill.trim(),
+      skillName: newSkill.trim(),
     });
   };
 
-  const handleDeleteSkill = (skillId: string) => {
-    deleteSkillMutation.mutate({ id: skillId });
+  const handleDeleteSkill = (userSkillId: string) => {
+    removeUserSkillMutation.mutate({ userSkillId });
   };
 
   const handleSkillInputKeyDown = (
@@ -543,25 +456,15 @@ export function WorkHistoryPanel() {
                     </div>
                   )}
 
-                  {/* Enhanced skills section with add/delete functionality */}
+                  {/* Skills section with modern UserSkill system */}
                   <div className="mt-3">
                     <h4 className="mb-2 text-sm font-medium">Skills:</h4>
                     <div className="flex flex-wrap gap-1">
-                      {work.skills?.map((skill) => (
-                        <div
-                          key={skill.id}
-                          className="group relative rounded-full bg-gray-100 px-2 py-1 text-xs"
-                        >
-                          {skill.name}
-                          <button
-                            onClick={() => handleDeleteSkill(skill.id)}
-                            className="absolute -top-1 -right-1 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white group-hover:flex"
-                            aria-label="Remove skill"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                      {/* Display modern UserSkills */}
+                      <UserSkillsForWork
+                        workHistoryId={work.id}
+                        onDeleteSkill={handleDeleteSkill}
+                      />
 
                       {/* Input field for adding new skills */}
                       <div className="flex items-center">
@@ -582,7 +485,7 @@ export function WorkHistoryPanel() {
                         <button
                           onClick={() => handleAddSkill(work.id)}
                           disabled={
-                            !newSkill.trim() || createSkillMutation.isPending
+                            !newSkill.trim() || addUserSkillMutation.isPending
                           }
                           className="ml-1 rounded bg-blue-500 px-2 py-1 text-xs text-white disabled:bg-blue-300"
                         >
