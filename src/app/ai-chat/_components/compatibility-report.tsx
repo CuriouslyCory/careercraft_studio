@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import type { CompatibilityReport } from "~/server/services/compatibility-analyzer";
+import { AddSkillModal } from "./add-skill-modal";
 
 interface CompatibilityReportModalProps {
   jobPostingId: string;
@@ -23,9 +25,22 @@ export function CompatibilityReportContent({
   jobTitle,
   onBack,
 }: CompatibilityReportContentProps) {
+  const [showAddSkillModal, setShowAddSkillModal] = useState(false);
+  const [suggestedSkillName, setSuggestedSkillName] = useState("");
+
   const compatibilityQuery = api.compatibility.analyze.useQuery({
     jobPostingId,
   });
+
+  const handleAddSkillClick = (skillName = "") => {
+    setSuggestedSkillName(skillName);
+    setShowAddSkillModal(true);
+  };
+
+  const handleSkillAdded = () => {
+    // Refetch the compatibility report to show updated analysis
+    void compatibilityQuery.refetch();
+  };
 
   if (compatibilityQuery.isLoading) {
     return (
@@ -166,10 +181,24 @@ export function CompatibilityReportContent({
         <div className="space-y-6">
           {/* Skills Analysis */}
           <div>
-            <h4 className="mb-4 text-lg font-semibold">Skills Analysis</h4>
+            <div className="mb-4 flex items-center justify-between">
+              <h4 className="text-lg font-semibold">Skills Analysis</h4>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddSkillClick()}
+                className="text-blue-600 hover:text-blue-700"
+              >
+                + Add Skill
+              </Button>
+            </div>
             <div className="space-y-3">
               {report.skillMatches.map((match, index) => (
-                <SkillMatchCard key={index} match={match} />
+                <SkillMatchCard
+                  key={index}
+                  match={match}
+                  onAddSkill={handleAddSkillClick}
+                />
               ))}
             </div>
           </div>
@@ -197,6 +226,15 @@ export function CompatibilityReportContent({
           )}
         </div>
       </div>
+
+      {/* Add Skill Modal */}
+      {showAddSkillModal && (
+        <AddSkillModal
+          onClose={() => setShowAddSkillModal(false)}
+          onSkillAdded={handleSkillAdded}
+          missingSkillName={suggestedSkillName}
+        />
+      )}
     </div>
   );
 }
@@ -393,8 +431,10 @@ export function CompatibilityReportModal({
 
 function SkillMatchCard({
   match,
+  onAddSkill,
 }: {
   match: CompatibilityReport["skillMatches"][0];
+  onAddSkill?: (skillName?: string) => void;
 }) {
   return (
     <div
@@ -445,6 +485,19 @@ function SkillMatchCard({
         </div>
       )}
       <div className="text-sm text-gray-500 italic">{match.reason}</div>
+      {/* Only show Add Skill button if user doesn't have this skill and onAddSkill is provided */}
+      {!match.userSkill && onAddSkill && (
+        <div className="mt-2 text-right">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onAddSkill(match.skill.name)}
+            className="text-blue-600 hover:text-blue-700"
+          >
+            + Add This Skill
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
