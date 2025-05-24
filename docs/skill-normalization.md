@@ -2,7 +2,7 @@
 
 ## Overview
 
-The skill normalization system solves the problem of skill deduplication while maintaining granularity for ATS (Applicant Tracking System) matching. It intelligently groups detailed skill variants under base skills while preserving the specific details as aliases.
+The Skill Normalization System intelligently handles skill deduplication and categorization across multiple industries while maintaining granularity for ATS (Applicant Tracking System) matching. It prevents users from managing multiple similar entries while preserving detailed skill variants for better job matching.
 
 ## Problem Statement
 
@@ -26,177 +26,395 @@ The challenge is maintaining granularity for ATS matching while preventing users
 
 1. **SkillNormalizationService** (`src/server/services/skill-normalization.ts`)
 
-   - Parses skill names to extract base skills and details
-   - Creates normalized base skills and detailed aliases
-   - Handles bulk skill processing efficiently
+   - Intelligent skill parsing with regex patterns
+   - Multi-industry categorization logic
+   - Bulk processing with duplicate prevention
+   - Automatic alias creation for common variations
 
-2. **Skill Database Schema** (Prisma)
+2. **Database Schema** (Prisma)
 
-   - `Skill` table: Canonical base skills
-   - `SkillAlias` table: Alternative names and detailed variants
-   - `SkillSimilarity` table: Relationships between skills
+   - `Skill` - Canonical base skills (e.g., "React")
+   - `SkillAlias` - Alternative names (e.g., "ReactJS", "React.js")
+   - `SkillSimilarity` - Related skills with similarity scores
 
 3. **API Integration**
-   - Updated job posting tools to use normalization
-   - Updated work history processing to use normalization
-   - New skills router for management and migration
+   - Job posting imports automatically normalize skills
+   - User skill addition uses normalization
+   - Compatibility analysis leverages normalized data
 
-### How It Works
+## Multi-Industry Support
 
-#### 1. Skill Parsing
+### Supported Industries
 
-The system uses pattern matching to identify base skills and extract details:
+The system now supports skills across multiple industries:
+
+**Technology & Engineering**
+
+- Programming languages, frameworks, databases
+- Cloud platforms, DevOps tools, design software
+- Examples: "React (hooks, context)" → "React", "AWS (Lambda, S3)" → "AWS"
+
+**Healthcare & Medical**
+
+- Medical procedures, equipment, software systems
+- Patient care, diagnostic skills
+- Examples: "EMR (Epic, Cerner)" → "EMR", "IV Therapy (peripheral, central)" → "IV Therapy"
+
+**Finance & Business**
+
+- Financial analysis, accounting software, trading platforms
+- Risk management, regulatory compliance
+- Examples: "Excel (pivot tables, macros)" → "Excel", "QuickBooks (payroll, invoicing)" → "QuickBooks"
+
+**Legal**
+
+- Legal research, software platforms, case management
+- Contract law, litigation skills
+- Examples: "Westlaw (case research, statutes)" → "Westlaw", "Legal Research (federal, state)" → "Legal Research"
+
+**Sales & Marketing**
+
+- CRM systems, digital marketing, sales techniques
+- Market research, content creation
+- Examples: "Salesforce (leads, opportunities)" → "Salesforce", "Google Analytics (conversion tracking)" → "Google Analytics"
+
+**Manufacturing & Operations**
+
+- Manufacturing equipment, quality control, supply chain
+- Lean methodology, safety protocols
+- Examples: "Six Sigma (DMAIC, black belt)" → "Six Sigma", "AutoCAD (2D, 3D modeling)" → "AutoCAD"
+
+**Creative & Media**
+
+- Graphic design software, video/audio editing
+- Creative writing, photography equipment
+- Examples: "Photoshop (photo editing, compositing)" → "Photoshop", "Final Cut Pro (color grading)" → "Final Cut Pro"
+
+**Education & Training**
+
+- Learning management systems, curriculum development
+- Educational technology, assessment methods
+- Examples: "Canvas LMS (course design, grading)" → "Canvas", "Curriculum Development (standards-based)" → "Curriculum Development"
+
+### Category Structure
+
+The system uses a flat category structure that scales horizontally:
 
 ```typescript
-// Input: "React (hooks, context, component architecture)"
-// Output:
-{
-  baseSkill: "React",
-  details: "hooks, context, component architecture",
-  confidence: 0.9,
-  pattern: "parentheses"
+enum SkillCategory {
+  // Technology & Engineering
+  PROGRAMMING_LANGUAGE,
+  FRAMEWORK_LIBRARY,
+  DATABASE,
+  CLOUD_PLATFORM,
+  DEVOPS_TOOLS,
+  DESIGN_TOOLS,
+
+  // Healthcare & Medical
+  MEDICAL_PROCEDURE,
+  MEDICAL_EQUIPMENT,
+  DIAGNOSTIC_SKILLS,
+  PATIENT_CARE,
+  MEDICAL_SOFTWARE,
+
+  // Finance & Business
+  FINANCIAL_ANALYSIS,
+  ACCOUNTING_SOFTWARE,
+  TRADING_PLATFORMS,
+  REGULATORY_COMPLIANCE,
+  RISK_MANAGEMENT,
+
+  // Legal
+  LEGAL_RESEARCH,
+  LEGAL_SOFTWARE,
+  CASE_MANAGEMENT,
+  LITIGATION_SKILLS,
+  CONTRACT_LAW,
+
+  // Manufacturing & Operations
+  MANUFACTURING_EQUIPMENT,
+  QUALITY_CONTROL,
+  SUPPLY_CHAIN,
+  LEAN_METHODOLOGY,
+  SAFETY_PROTOCOLS,
+
+  // Sales & Marketing
+  CRM_SYSTEMS,
+  DIGITAL_MARKETING,
+  SALES_TECHNIQUES,
+  MARKET_RESEARCH,
+  CONTENT_CREATION,
+
+  // Education & Training
+  CURRICULUM_DEVELOPMENT,
+  EDUCATIONAL_TECHNOLOGY,
+  ASSESSMENT_METHODS,
+  CLASSROOM_MANAGEMENT,
+  LEARNING_MANAGEMENT_SYSTEMS,
+
+  // Creative & Media
+  GRAPHIC_DESIGN_SOFTWARE,
+  VIDEO_EDITING,
+  AUDIO_PRODUCTION,
+  CREATIVE_WRITING,
+  PHOTOGRAPHY_EQUIPMENT,
+
+  // Universal Categories
+  PROJECT_MANAGEMENT,
+  SOFT_SKILLS,
+  INDUSTRY_KNOWLEDGE,
+  CERTIFICATION,
+  METHODOLOGY,
+  LANGUAGES,
+  OTHER,
 }
 ```
 
-#### 2. Normalization Process
+## Intelligent Categorization
 
-1. Parse the skill name to extract base skill and details
-2. Find or create the base skill in the database
-3. Create aliases for common variations (ReactJS, React.js, etc.)
-4. If details exist, create an alias for the full detailed name
-5. Return the base skill ID for database references
+The system uses multiple approaches for skill categorization:
 
-#### 3. Database Structure
+### 1. Pattern Matching
 
-```
-Skill (Base Skills)
-├── id: "skill_123"
-├── name: "React"
-├── category: "FRAMEWORK_LIBRARY"
-└── aliases:
-    ├── "ReactJS"
-    ├── "React.js"
-    └── "React (hooks, context, component architecture)"
+Predefined patterns for popular skills:
+
+```typescript
+{
+  pattern: /^Salesforce\s*\(.*\)$/i,
+  baseSkill: "Salesforce",
+  category: "CRM_SYSTEMS",
+}
 ```
 
-### Benefits
+### 2. Keyword Detection
 
-1. **User Experience**: Users see clean, deduplicated skill lists
-2. **ATS Compatibility**: Detailed variants are preserved as searchable aliases
-3. **Data Consistency**: All references point to canonical base skills
-4. **Flexibility**: System handles various input formats automatically
+Context-aware categorization based on skill content:
 
-### Usage Examples
+```typescript
+// Healthcare detection
+if (/\b(medical|patient|clinical|hospital|nurse|doctor)\b/.test(skillName)) {
+  // Further categorization based on specific keywords
+}
+```
 
-#### Job Posting Import
+### 3. Fallback Logic
+
+- Pattern match → Keyword detection → Default category → "OTHER"
+
+## Usage Examples
+
+### Healthcare Skills
 
 ```typescript
 const skillNormalizer = new SkillNormalizationService(db);
+
 const normalizedSkills = await skillNormalizer.normalizeSkills([
-  "React (hooks, context)",
-  "Next.js (SSR/SSG)",
-  "TypeScript",
+  "EMR (Epic systems, patient charting)",
+  "IV Therapy (peripheral access, medication administration)",
+  "CPR (AHA certified, pediatric advanced life support)",
+  "Phlebotomy (venipuncture, specimen collection)",
 ]);
 
-// Results in:
-// - Base skill "React" with alias "React (hooks, context)"
-// - Base skill "Next.js" with alias "Next.js (SSR/SSG)"
-// - Base skill "TypeScript"
+// Results:
+// - Base: "EMR", Alias: "EMR (Epic systems, patient charting)", Category: "MEDICAL_SOFTWARE"
+// - Base: "IV Therapy", Alias: "IV Therapy (peripheral access...)", Category: "MEDICAL_PROCEDURE"
 ```
 
-#### User Skill Management
+### Finance Skills
 
 ```typescript
-// User adds "React (advanced patterns)"
-const normalized = await skillNormalizer.normalizeSkill(
-  "React (advanced patterns)",
-  "FRAMEWORK_LIBRARY",
-);
+const normalizedSkills = await skillNormalizer.normalizeSkills([
+  "Excel (financial modeling, pivot tables, VBA)",
+  "Financial Modeling (DCF, LBO, comparable company analysis)",
+  "Bloomberg Terminal (equity research, bond pricing)",
+  "QuickBooks (accounts payable, financial reporting)",
+]);
 
-// Creates:
-// - UserSkill linked to base "React" skill
-// - Alias "React (advanced patterns)" for ATS matching
+// Results:
+// - Base: "Excel", Category: "ACCOUNTING_SOFTWARE"
+// - Base: "Financial Modeling", Category: "FINANCIAL_ANALYSIS"
 ```
 
-### Migration
-
-For existing systems, use the migration endpoint:
+### Manufacturing Skills
 
 ```typescript
-// API call
-await trpc.skills.migrateExisting.mutate();
-
-// This will:
-// 1. Identify duplicate skills
-// 2. Consolidate them under base skills
-// 3. Create appropriate aliases
-// 4. Update all references
+const normalizedSkills = await skillNormalizer.normalizeSkills([
+  "Lean Manufacturing (5S, kaizen, value stream mapping)",
+  "Six Sigma (DMAIC, statistical process control, black belt)",
+  "AutoCAD (mechanical design, 3D modeling, technical drawings)",
+  "Quality Control (ISO 9001, inspection procedures, root cause analysis)",
+]);
 ```
 
-### Configuration
+## Continuous Improvement Strategy
 
-#### Skill Patterns
+### 1. Data-Driven Pattern Discovery
 
-The system includes predefined patterns for popular technologies:
+**Monitoring New Skills:**
 
 ```typescript
+// Track frequently imported skills that don't match patterns
+const unmatchedSkills = await db.skill.findMany({
+  where: {
+    category: "OTHER",
+    userSkills: { some: {} }, // Has been used by users
+  },
+  orderBy: { userSkills: { _count: "desc" } },
+});
+```
+
+**Pattern Analysis:**
+
+- Monitor skill imports from job postings
+- Identify common formats not covered by current patterns
+- Track user-added skills that need better categorization
+
+### 2. Industry-Specific Expansion
+
+**Adding New Industries:**
+
+1. **Research**: Identify common skills and tools in the target industry
+2. **Pattern Development**: Create regex patterns for industry-specific skills
+3. **Alias Mapping**: Define common variations and abbreviations
+4. **Category Expansion**: Add new categories if needed
+5. **Testing**: Validate with real job postings from the industry
+
+**Example: Adding Retail Industry:**
+
+```typescript
+// New categories
+RETAIL_SOFTWARE, INVENTORY_MANAGEMENT, POINT_OF_SALE, MERCHANDISING, CUSTOMER_SERVICE
+
+// New patterns
 {
-  pattern: /^React(?:\.js|JS)?\s*\(.*\)$/i,
-  baseSkill: "React",
-  category: "FRAMEWORK_LIBRARY",
+  pattern: /^POS\s*\(.*\)$/i,
+  baseSkill: "Point of Sale",
+  category: "POINT_OF_SALE",
 }
 ```
 
-#### Aliases
+### 3. Machine Learning Enhancement
 
-Common aliases are automatically created:
+**Future Improvements:**
 
-```typescript
-"React": ["ReactJS", "React.js", "React JS"]
-```
+- **Skill Embedding Models**: Use semantic similarity for better skill matching
+- **Industry Classification**: ML models to automatically detect industry context
+- **Similarity Learning**: Automatically discover skill relationships from job data
 
-### API Endpoints
+### 4. Feedback Loop Integration
 
-#### Skills Router (`/api/trpc/skills`)
-
-- `suggestions` - Get skill suggestions for autocomplete
-- `normalize` - Normalize a single skill name
-- `parseSkillName` - Parse skill name to see normalization result
-- `migrateExisting` - Migrate existing skills to normalized format
-- `listWithAliases` - Get all skills with their aliases
-
-### Best Practices
-
-1. **Always use normalization** when processing skills from external sources
-2. **Batch process** multiple skills for efficiency
-3. **Review patterns** regularly and add new ones for emerging technologies
-4. **Monitor aliases** to ensure they're meaningful and searchable
-5. **Test migration** on a copy of production data first
-
-### Future Enhancements
-
-1. **Machine Learning**: Use ML to identify similar skills automatically
-2. **Skill Hierarchies**: Create parent-child relationships between skills
-3. **Industry-Specific**: Customize patterns for different industries
-4. **User Feedback**: Allow users to suggest skill relationships
-5. **Analytics**: Track which aliases are most commonly used
-
-### Troubleshooting
-
-#### Common Issues
-
-1. **Skill not recognized**: Add new patterns to `SKILL_PATTERNS`
-2. **Wrong category**: Update pattern category or add manual override
-3. **Duplicate aliases**: System handles gracefully, logs warnings
-4. **Migration errors**: Check for foreign key constraints
-
-#### Debugging
-
-Use the `parseSkillName` endpoint to test how skills are being parsed:
+**User Feedback Collection:**
 
 ```typescript
-const result = await trpc.skills.parseSkillName.query({
-  skillName: "React (hooks, context)",
-});
-// Returns parsing details for debugging
+// Track skill normalization accuracy
+interface SkillFeedback {
+  originalSkill: string;
+  suggestedBase: string;
+  suggestedCategory: SkillCategory;
+  userAccepted: boolean;
+  userCorrectedBase?: string;
+  userCorrectedCategory?: SkillCategory;
+}
 ```
+
+**Automated Improvements:**
+
+- Monitor skill merge/split requests from users
+- Track job matching success rates by skill category
+- Analyze compatibility report feedback to identify missing skills
+
+### 5. API Integration Points
+
+**External Skill Databases:**
+
+- Integrate with O\*NET skill taxonomy
+- Import from job board skill classifications
+- Sync with industry certification bodies
+
+**Real-time Learning:**
+
+```typescript
+// Auto-improve patterns based on usage
+async function improvePatterns() {
+  const frequentSkills = await analyzeSkillUsagePatterns();
+  const newPatterns = await generatePatternsFromUsage(frequentSkills);
+  await validateAndDeployPatterns(newPatterns);
+}
+```
+
+## Performance Considerations
+
+### Scaling Strategy
+
+**Horizontal Scaling Benefits:**
+
+- Categories can be added without breaking existing data
+- New industries don't require structural changes
+- Pattern matching is fast and cacheable
+
+**Optimization Techniques:**
+
+- Cache frequently accessed patterns
+- Batch process skill normalization during imports
+- Index skills by category for faster searches
+
+### Alternative Architectures
+
+**Hierarchical Taxonomy (Future Option):**
+
+```typescript
+interface SkillHierarchy {
+  industry: string; // "Healthcare", "Technology"
+  domain: string; // "Software", "Procedures"
+  category: string; // "EMR", "Patient Care"
+  skill: string; // "Epic", "IV Therapy"
+}
+```
+
+**Benefits of Current Flat Structure:**
+
+- ✅ Simple to understand and maintain
+- ✅ Fast queries and compatibility analysis
+- ✅ Easy to extend with new categories
+- ✅ No complex hierarchy management
+
+**When to Consider Hierarchical:**
+
+- When supporting 50+ industries
+- When skill relationships become complex
+- When requiring industry-specific skill trees
+
+## Migration and Deployment
+
+### Database Migration
+
+```sql
+-- New categories are automatically handled by Prisma enum
+-- Existing skills remain categorized as before
+-- New skills get intelligent categorization
+```
+
+### Rollout Strategy
+
+1. **Phase 1**: Deploy expanded categories and patterns
+2. **Phase 2**: Run migration to recategorize existing skills
+3. **Phase 3**: Monitor and tune categorization accuracy
+4. **Phase 4**: Add ML-powered improvements
+
+## Monitoring and Analytics
+
+### Key Metrics
+
+- **Categorization Accuracy**: % of skills correctly categorized
+- **Pattern Coverage**: % of skills matched by patterns vs. keyword detection
+- **Industry Distribution**: Skill usage across different industries
+- **Alias Effectiveness**: How often aliases are used in job matching
+
+### Success Indicators
+
+- Reduced duplicate skills in user profiles
+- Improved job compatibility scoring accuracy
+- Higher user satisfaction with skill suggestions
+- Better ATS keyword matching rates
+
+This multi-industry approach maintains the system's simplicity while dramatically expanding its applicability across diverse career fields.

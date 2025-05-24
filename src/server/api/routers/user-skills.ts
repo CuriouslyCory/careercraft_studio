@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { ProficiencyLevel, SkillSource } from "@prisma/client";
+import { SkillNormalizationService } from "~/server/services/skill-normalization";
 
 export const userSkillsRouter = createTRPCRouter({
   /**
@@ -32,36 +33,19 @@ export const userSkillsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // First, find or create the skill
-      let skill = await ctx.db.skill.findFirst({
-        where: {
-          OR: [
-            { name: { equals: input.skillName, mode: "insensitive" } },
-            {
-              aliases: {
-                some: {
-                  alias: { equals: input.skillName, mode: "insensitive" },
-                },
-              },
-            },
-          ],
-        },
-      });
-
-      // Create new skill with default category
-      skill ??= await ctx.db.skill.create({
-        data: {
-          name: input.skillName,
-          category: "OTHER", // Default category, can be updated later
-        },
-      });
+      // Use SkillNormalizationService to handle skill creation/normalization
+      const skillNormalizer = new SkillNormalizationService(ctx.db);
+      const normalizedSkill = await skillNormalizer.normalizeSkill(
+        input.skillName,
+        "OTHER", // Default category, can be improved with better categorization logic
+      );
 
       // Check if user already has this skill
       const existingUserSkill = await ctx.db.userSkill.findUnique({
         where: {
           userId_skillId: {
             userId: ctx.session.user.id,
-            skillId: skill.id,
+            skillId: normalizedSkill.baseSkillId,
           },
         },
       });
@@ -70,11 +54,11 @@ export const userSkillsRouter = createTRPCRouter({
         throw new Error("You already have this skill in your profile");
       }
 
-      // Create the user skill
+      // Create the user skill using the normalized base skill
       return await ctx.db.userSkill.create({
         data: {
           userId: ctx.session.user.id,
-          skillId: skill.id,
+          skillId: normalizedSkill.baseSkillId,
           proficiency: input.proficiency,
           yearsExperience: input.yearsExperience,
           source: input.source,
@@ -167,27 +151,24 @@ export const userSkillsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const skills = await ctx.db.skill.findMany({
+      // Use SkillNormalizationService for intelligent suggestions
+      const skillNormalizer = new SkillNormalizationService(ctx.db);
+      const suggestions = await skillNormalizer.getSkillSuggestions(
+        input.query,
+        input.limit,
+      );
+
+      // Also include aliases in the response for context
+      const skillsWithAliases = await ctx.db.skill.findMany({
         where: {
-          OR: [
-            { name: { contains: input.query, mode: "insensitive" } },
-            {
-              aliases: {
-                some: {
-                  alias: { contains: input.query, mode: "insensitive" },
-                },
-              },
-            },
-          ],
+          id: { in: suggestions.map((s) => s.id) },
         },
         include: {
           aliases: true,
         },
-        take: input.limit,
-        orderBy: { name: "asc" },
       });
 
-      return skills.map((skill) => ({
+      return skillsWithAliases.map((skill) => ({
         id: skill.id,
         name: skill.name,
         category: skill.category,

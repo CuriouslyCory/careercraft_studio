@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { CompatibilityAnalyzer } from "~/server/services/compatibility-analyzer";
+import { SkillNormalizationService } from "~/server/services/skill-normalization";
 
 export const compatibilityRouter = createTRPCRouter({
   /**
@@ -30,55 +31,32 @@ export const compatibilityRouter = createTRPCRouter({
 
       const details = jobPosting.details;
 
-      // Create JobSkillRequirement records for required skills
-      const allRequiredSkills = [
-        ...details.technicalSkills,
-        ...details.softSkills,
-      ];
+      // Use the SkillNormalizationService for consistent skill handling
+      await ctx.db.$transaction(async (tx) => {
+        const skillNormalizer = new SkillNormalizationService(tx);
 
-      const allBonusSkills = [
-        ...details.bonusTechnicalSkills,
-        ...details.bonusSoftSkills,
-      ];
+        // Create JobSkillRequirement records for required skills
+        const allRequiredSkills = [
+          ...details.technicalSkills,
+          ...details.softSkills,
+        ];
 
-      // Process required skills
-      for (const skillName of allRequiredSkills) {
-        if (skillName.trim()) {
-          // Find or create the skill
-          let skill = await ctx.db.skill.findFirst({
-            where: {
-              OR: [
-                { name: { equals: skillName, mode: "insensitive" } },
-                {
-                  aliases: {
-                    some: {
-                      alias: { equals: skillName, mode: "insensitive" },
-                    },
-                  },
-                },
-              ],
-            },
-          });
+        const allBonusSkills = [
+          ...details.bonusTechnicalSkills,
+          ...details.bonusSoftSkills,
+        ];
 
-          if (!skill) {
-            // Create new skill with appropriate category
-            const category = details.technicalSkills.includes(skillName)
-              ? "PROGRAMMING_LANGUAGE"
-              : "SOFT_SKILLS";
+        // Process required skills with normalization
+        const requiredSkillResults = await skillNormalizer.normalizeSkills(
+          allRequiredSkills,
+          "PROGRAMMING_LANGUAGE", // Default category for required skills
+        );
 
-            skill = await ctx.db.skill.create({
-              data: {
-                name: skillName,
-                category,
-              },
-            });
-          }
-
-          // Create the skill requirement
+        for (const skillResult of requiredSkillResults) {
           try {
-            await ctx.db.jobSkillRequirement.create({
+            await tx.jobSkillRequirement.create({
               data: {
-                skillId: skill.id,
+                skillId: skillResult.baseSkillId,
                 jobPostingId: jobPosting.id,
                 isRequired: true,
                 priority: 1,
@@ -86,49 +64,23 @@ export const compatibilityRouter = createTRPCRouter({
             });
           } catch (error) {
             // Skip if already exists
-            console.log(`Skill requirement already exists for ${skillName}`);
+            console.log(
+              `Skill requirement already exists for ${skillResult.baseSkillName}`,
+            );
           }
         }
-      }
 
-      // Process bonus skills
-      for (const skillName of allBonusSkills) {
-        if (skillName.trim()) {
-          // Find or create the skill
-          let skill = await ctx.db.skill.findFirst({
-            where: {
-              OR: [
-                { name: { equals: skillName, mode: "insensitive" } },
-                {
-                  aliases: {
-                    some: {
-                      alias: { equals: skillName, mode: "insensitive" },
-                    },
-                  },
-                },
-              ],
-            },
-          });
+        // Process bonus skills with normalization
+        const bonusSkillResults = await skillNormalizer.normalizeSkills(
+          allBonusSkills,
+          "SOFT_SKILLS", // Default category for bonus skills
+        );
 
-          if (!skill) {
-            // Create new skill with appropriate category
-            const category = details.bonusTechnicalSkills.includes(skillName)
-              ? "PROGRAMMING_LANGUAGE"
-              : "SOFT_SKILLS";
-
-            skill = await ctx.db.skill.create({
-              data: {
-                name: skillName,
-                category,
-              },
-            });
-          }
-
-          // Create the skill requirement
+        for (const skillResult of bonusSkillResults) {
           try {
-            await ctx.db.jobSkillRequirement.create({
+            await tx.jobSkillRequirement.create({
               data: {
-                skillId: skill.id,
+                skillId: skillResult.baseSkillId,
                 jobPostingId: jobPosting.id,
                 isRequired: false,
                 priority: 2,
@@ -136,10 +88,12 @@ export const compatibilityRouter = createTRPCRouter({
             });
           } catch (error) {
             // Skip if already exists
-            console.log(`Skill requirement already exists for ${skillName}`);
+            console.log(
+              `Skill requirement already exists for ${skillResult.baseSkillName}`,
+            );
           }
         }
-      }
+      });
 
       migratedCount++;
     }
