@@ -10,7 +10,7 @@ import {
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { Annotation } from "@langchain/langgraph";
 import {
-  createUserProfileTool,
+  getUserProfileTool,
   getDataManagerTools,
   getResumeGeneratorTools,
   getCoverLetterGeneratorTools,
@@ -808,7 +808,7 @@ async function processDataManagerToolCalls(
           GetUserProfileSchema,
           "get_user_profile",
         );
-        const profileTool = createUserProfileTool(userId);
+        const profileTool = getUserProfileTool(userId);
         const result = (await profileTool.invoke(args)) as string;
 
         // Format the data based on the type requested
@@ -931,6 +931,46 @@ async function processDataManagerToolCalls(
       } catch (error) {
         toolCallSummary += `• Error parsing resume: ${error instanceof Error ? error.message : String(error)}\n`;
       }
+    } else if (
+      toolCall.name.startsWith("get_work_achievements") ||
+      toolCall.name.includes("work_achievement")
+    ) {
+      try {
+        // Find the appropriate work achievement tool
+        const achievementTool = getDataManagerTools(userId).find(
+          (t) => t.name === toolCall.name,
+        );
+        if (achievementTool) {
+          const result = (await achievementTool.invoke(
+            toolCall.args,
+          )) as string;
+
+          // Format the result nicely for work achievement operations
+          if (toolCall.name === "get_work_achievements") {
+            try {
+              const parsedResult = JSON.parse(result) as {
+                workHistory: { jobTitle: string; companyName: string };
+                achievements: Array<{ id: string; description: string }>;
+              };
+
+              toolCallSummary += `• **${parsedResult.workHistory.jobTitle}** at **${parsedResult.workHistory.companyName}**\n`;
+              toolCallSummary += `  Current achievements (${parsedResult.achievements.length}):\n`;
+              parsedResult.achievements.forEach((achievement, index) => {
+                toolCallSummary += `  ${index + 1}. ${achievement.description} *(ID: ${achievement.id})*\n`;
+              });
+              toolCallSummary += `\n`;
+            } catch {
+              toolCallSummary += `• ${result}\n`;
+            }
+          } else {
+            toolCallSummary += `• ${result}\n`;
+          }
+        } else {
+          toolCallSummary += `• Error: Tool ${toolCall.name} not found\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error with ${toolCall.name}: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
     } else {
       toolCallSummary += `• ${toolCall.name}: Processed successfully\n`;
     }
@@ -964,11 +1004,26 @@ You have access to these tools:
 - get_user_profile: For retrieving existing user data
 - parse_and_store_resume: For parsing resume text and extracting/storing structured data
 
+**Work Achievement Management Tools:**
+- get_work_achievements: Get all achievements for a specific work history record by ID
+- add_work_achievement: Add a single achievement to a work history record
+- update_work_achievement: Update the description of a specific achievement
+- delete_work_achievement: Delete a specific achievement
+- replace_work_achievements: Replace all achievements for a work history with new ones
+- merge_and_replace_work_achievements: Merge existing achievements with new ones using AI, then replace
+- merge_work_achievements: Standalone tool to merge two sets of achievements using AI
+
 **IMPORTANT**: When a user provides resume text (either by pasting it directly or asking you to parse a resume), use the parse_and_store_resume tool to process it. This will:
 - Extract structured information using AI
 - Store work history, education, skills, and achievements in their profile
 - Save the resume as a document for future reference
 - Provide a detailed summary of what was processed
+
+**Work Achievement Workflow Examples:**
+- To merge achievements for a specific job: Use merge_and_replace_work_achievements with the work history ID and new achievements
+- To edit individual achievements: Use get_work_achievements to see current ones, then update_work_achievement or delete_work_achievement as needed
+- To completely replace achievements: Use replace_work_achievements with the new list
+- To add achievements without affecting existing ones: Use add_work_achievement
 
 When retrieving skills data, present it in a well-organized markdown format grouped by proficiency level.
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.
@@ -1032,7 +1087,7 @@ async function processUserProfileToolCalls(
           GetUserProfileSchema,
           "get_user_profile",
         );
-        const profileTool = createUserProfileTool(userId);
+        const profileTool = getUserProfileTool(userId);
         const result = (await profileTool.invoke(args)) as string;
 
         let formattedResult: string;

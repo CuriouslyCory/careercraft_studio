@@ -3,6 +3,7 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { type PrismaClient } from "@prisma/client";
 import { mergeWorkAchievements } from "./utils/llm-merger";
 import { distance } from "fastest-levenshtein";
+import { SkillNormalizationService } from "~/server/services/skill-normalization";
 
 // Helper function to check if two work history records match
 export function doWorkHistoryRecordsMatch(
@@ -194,34 +195,18 @@ export const workHistoryRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Find or create the skill
-      let skill = await ctx.db.skill.findFirst({
-        where: {
-          OR: [
-            { name: { equals: input.skillName, mode: "insensitive" } },
-            {
-              aliases: {
-                some: {
-                  alias: { equals: input.skillName, mode: "insensitive" },
-                },
-              },
-            },
-          ],
-        },
-      });
-
-      skill ??= await ctx.db.skill.create({
-        data: {
-          name: input.skillName,
-          category: "OTHER", // Default category, can be updated later
-        },
-      });
+      // Find or create the skill using normalization
+      const skillNormalizer = new SkillNormalizationService(ctx.db);
+      const normalizedSkill = await skillNormalizer.normalizeSkill(
+        input.skillName,
+        "OTHER", // Default category, can be categorized later
+      );
 
       // Check if user already has this skill
       const existingUserSkill = await ctx.db.userSkill.findFirst({
         where: {
           userId: ctx.session.user.id,
-          skillId: skill.id,
+          skillId: normalizedSkill.baseSkillId,
         },
       });
 
@@ -247,7 +232,7 @@ export const workHistoryRouter = createTRPCRouter({
       return await ctx.db.userSkill.create({
         data: {
           userId: ctx.session.user.id,
-          skillId: skill.id,
+          skillId: normalizedSkill.baseSkillId,
           proficiency: input.proficiency ?? "INTERMEDIATE",
           yearsExperience: input.yearsExperience,
           source: "WORK_EXPERIENCE",
@@ -379,38 +364,25 @@ export async function processWorkExperience(
       workHistoryId = wh.id;
     }
 
-    // Process skills for this work history using modern UserSkill approach
+    // Process skills for this work history using normalized skills
     const skills = Array.isArray(exp.skills) ? exp.skills : [];
-    for (const skillName of skills) {
-      if (typeof skillName === "string" && skillName.trim()) {
-        // Find or create the skill in the normalized table
-        let skill = await ctx.db.skill.findFirst({
-          where: {
-            OR: [
-              { name: { equals: skillName, mode: "insensitive" } },
-              {
-                aliases: {
-                  some: {
-                    alias: { equals: skillName, mode: "insensitive" },
-                  },
-                },
-              },
-            ],
-          },
-        });
 
-        skill ??= await ctx.db.skill.create({
-          data: {
-            name: skillName,
-            category: "OTHER", // Default category, can be categorized later
-          },
-        });
+    if (skills.length > 0) {
+      // Use skill normalization service for consistent skill handling
+      const skillNormalizer = new SkillNormalizationService(ctx.db);
+      const normalizedSkills = await skillNormalizer.normalizeSkills(
+        skills.filter(
+          (s): s is string => typeof s === "string" && s.trim() !== "",
+        ),
+        "OTHER", // Default category, can be categorized later
+      );
 
-        // Check if user already has this skill
+      for (const normalizedSkill of normalizedSkills) {
+        // Check if user already has this base skill
         const existingUserSkill = await ctx.db.userSkill.findFirst({
           where: {
             userId,
-            skillId: skill.id,
+            skillId: normalizedSkill.baseSkillId,
           },
         });
 
@@ -428,14 +400,14 @@ export async function processWorkExperience(
           // If already linked to a different work history, we could create skill aliases or leave as-is
           // For now, we'll skip to avoid duplicates
         } else {
-          // Create new UserSkill linked to this work history
+          // Create new UserSkill linked to this work history using the normalized base skill
           await ctx.db.userSkill.create({
             data: {
               userId,
-              skillId: skill.id,
+              skillId: normalizedSkill.baseSkillId,
               proficiency: "INTERMEDIATE", // Default proficiency, can be updated later
               source: "WORK_EXPERIENCE",
-              notes: `Used at ${exp.company} - ${exp.jobTitle}`,
+              notes: `Used at ${exp.company} - ${exp.jobTitle}${normalizedSkill.detailedVariant ? ` (${normalizedSkill.detailedVariant})` : ""}`,
               workHistoryId,
             },
           });

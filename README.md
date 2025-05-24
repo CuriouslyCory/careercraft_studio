@@ -27,7 +27,7 @@ The `agentTeam.ts` file defines the AI's workflow using LangChain's StateGraph. 
 
 Key specialized agents include:
 
-- **Data Manager:** Handles storing, retrieving, and managing user profile data (work history, skills, etc.). Can also parse resume text when users paste it in chat.
+- **Data Manager:** Handles storing, retrieving, and managing user profile data (work history, skills, etc.). Can also parse resume text when users paste it in chat. Now includes comprehensive work achievement management capabilities.
 - **Resume Generator:** Creates and helps refine resumes based on user data.
 - **Cover Letter Generator:** Generates and tailors cover letters for specific job applications.
 - **User Profile:** Provides information to the user about their stored data.
@@ -90,4 +90,69 @@ const result = await parseResume(resumeText, userId, db);
 const result = await parseResume(resumeText, userId, db, {
   useBatchedOperations: false,
 });
+```
+
+## Work Achievement Management
+
+The Data Manager agent now includes comprehensive tools for managing work achievements, allowing for fine-grained editing and AI-powered merging of achievement data.
+
+### Achievement Management Tools
+
+The following tools are available for managing work achievements:
+
+#### Core Operations
+
+- **`get_work_achievements`:** Retrieve all achievements for a specific work history record
+- **`add_work_achievement`:** Add a single new achievement to a work history record
+- **`update_work_achievement`:** Update the description of a specific achievement
+- **`delete_work_achievement`:** Delete a specific achievement
+
+#### Batch Operations
+
+- **`replace_work_achievements`:** Replace all achievements for a work history with new ones
+- **`merge_and_replace_work_achievements`:** Merge existing achievements with new ones using AI, then replace
+
+#### AI-Powered Merging
+
+- **`merge_work_achievements`:** Standalone tool to merge two sets of achievements using LLM for deduplication and optimization
+
+### Usage Examples
+
+**Get achievements for a specific job:**
+
+```
+"Show me the achievements for my Software Engineer role at Tech Corp"
+```
+
+**Merge achievements:**
+
+```
+"I have some new achievements for my previous job. Can you merge them with the existing ones?"
+```
+
+**Replace all achievements:**
+
+```
+"Replace all my achievements for the Marketing Manager role with these new bullet points..."
+```
+
+### Features
+
+- **Database Transactions:** All replacement operations use transactions to ensure data consistency
+- **User Authentication:** All operations verify that work history records belong to the authenticated user
+- **AI-Powered Merging:** Uses LLM to intelligently combine and deduplicate achievement lists
+- **Detailed Feedback:** Provides clear success messages and handles errors gracefully
+- **ID Tracking:** All operations provide achievement IDs for precise editing
+
+### Database Operations
+
+The achievement management tools interact directly with the database through:
+
+- **WorkHistory** records to verify ownership and get context
+- **WorkAchievement** records for all CRUD operations
+- **Atomic transactions** for batch operations to ensure consistency
+- **Optimistic handling** of concurrent edits and missing records
+
+```
+
 ```
