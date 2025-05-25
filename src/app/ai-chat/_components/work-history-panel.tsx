@@ -11,6 +11,7 @@ import {
 } from "./work-history-schema";
 import { z } from "zod";
 import { UserSkillsForWork } from "./user-skills-for-work";
+import { type WorkAchievementDeduplicationResult } from "~/server/api/routers/document/work-history";
 
 export function WorkHistoryPanel() {
   const [editId, setEditId] = useState<string | null>(null);
@@ -33,6 +34,11 @@ export function WorkHistoryPanel() {
   const [activeWorkHistoryId, setActiveWorkHistoryId] = useState<string | null>(
     null,
   );
+  const [showDedupePreview, setShowDedupePreview] = useState<string | null>(
+    null,
+  ); // workHistoryId for which preview is shown
+  const [dedupePreview, setDedupePreview] =
+    useState<WorkAchievementDeduplicationResult | null>(null);
 
   const queryClient = api.useUtils();
   const workHistoryQuery = api.document.listWorkHistory.useQuery();
@@ -177,6 +183,26 @@ export function WorkHistoryPanel() {
       },
       onError: (error) => {
         toast.error(`Failed to remove skill: ${error.message}`);
+      },
+    });
+
+  // Work achievements deduplication mutation
+  const deduplicateWorkAchievementsMutation =
+    api.document.deduplicateAndMergeWorkAchievements.useMutation({
+      onSuccess: (result) => {
+        if (result.success) {
+          void workHistoryQuery.refetch();
+          setShowDedupePreview(null);
+          setDedupePreview(null);
+          toast.success(result.message);
+        } else {
+          toast.error(result.message);
+        }
+      },
+      onError: (error) => {
+        toast.error(
+          `Failed to deduplicate work achievements: ${error.message}`,
+        );
       },
     });
 
@@ -351,6 +377,30 @@ export function WorkHistoryPanel() {
     }
   };
 
+  const handleDeduplicatePreview = (workHistoryId: string) => {
+    deduplicateWorkAchievementsMutation.mutate(
+      { workHistoryId, dryRun: true },
+      {
+        onSuccess: (result) => {
+          setDedupePreview(result);
+          setShowDedupePreview(workHistoryId);
+        },
+      },
+    );
+  };
+
+  const handleDeduplicateApply = (workHistoryId: string) => {
+    deduplicateWorkAchievementsMutation.mutate(
+      { workHistoryId, dryRun: false },
+      {
+        onSuccess: () => {
+          setShowDedupePreview(null);
+          setDedupePreview(null);
+        },
+      },
+    );
+  };
+
   if (workHistoryQuery.isLoading) {
     return <div className="p-4 text-center">Loading your work history...</div>;
   }
@@ -455,7 +505,23 @@ export function WorkHistoryPanel() {
                   {/* Display achievements if needed */}
                   {work.achievements && work.achievements.length > 0 && (
                     <div className="mt-2">
-                      <h4 className="text-sm font-medium">Achievements:</h4>
+                      <div className="mb-2 flex items-center justify-between">
+                        <h4 className="text-sm font-medium">Achievements:</h4>
+                        {work.achievements.length > 1 && (
+                          <button
+                            onClick={() => handleDeduplicatePreview(work.id)}
+                            disabled={
+                              deduplicateWorkAchievementsMutation.isPending
+                            }
+                            className="rounded bg-orange-500 px-2 py-1 text-xs text-white hover:bg-orange-600 disabled:bg-orange-300"
+                            title="Remove duplicates and merge similar achievements"
+                          >
+                            {deduplicateWorkAchievementsMutation.isPending
+                              ? "Processing..."
+                              : "Clean Up"}
+                          </button>
+                        )}
+                      </div>
                       <ul className="ml-4 list-disc text-sm">
                         {work.achievements.map((achievement) => (
                           <li key={achievement.id}>
@@ -463,6 +529,74 @@ export function WorkHistoryPanel() {
                           </li>
                         ))}
                       </ul>
+
+                      {/* Work Achievements Deduplication Preview Modal for this specific work history */}
+                      {showDedupePreview === work.id && dedupePreview && (
+                        <div className="mt-3 rounded border border-orange-200 bg-orange-50 p-3">
+                          <h4 className="mb-2 text-sm font-medium text-orange-800">
+                            Achievements Deduplication Preview
+                          </h4>
+                          <div className="mb-3 text-xs text-orange-700">
+                            <p>
+                              <strong>Original:</strong>{" "}
+                              {dedupePreview.originalCount} •
+                              <strong> Final:</strong>{" "}
+                              {dedupePreview.finalCount} •
+                              <strong> Duplicates removed:</strong>{" "}
+                              {dedupePreview.exactDuplicatesRemoved} •
+                              <strong> Groups merged:</strong>{" "}
+                              {dedupePreview.similarGroupsMerged}
+                            </p>
+                          </div>
+
+                          {dedupePreview.preview &&
+                            dedupePreview.preview.length > 0 && (
+                              <div className="mb-3">
+                                <h5 className="mb-2 text-xs font-medium text-orange-800">
+                                  Preview of cleaned achievements:
+                                </h5>
+                                <div className="max-h-40 space-y-1 overflow-y-auto">
+                                  {dedupePreview.preview.map(
+                                    (item, index: number) => (
+                                      <div
+                                        key={index}
+                                        className="rounded border bg-white p-2 text-xs"
+                                      >
+                                        <span className="text-gray-600">
+                                          {index + 1}.
+                                        </span>{" "}
+                                        {item.description}
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                          <div className="flex justify-end space-x-2">
+                            <button
+                              onClick={() => {
+                                setShowDedupePreview(null);
+                                setDedupePreview(null);
+                              }}
+                              className="rounded bg-gray-300 px-2 py-1 text-xs hover:bg-gray-400"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleDeduplicateApply(work.id)}
+                              disabled={
+                                deduplicateWorkAchievementsMutation.isPending
+                              }
+                              className="rounded bg-orange-500 px-2 py-1 text-xs text-white hover:bg-orange-600 disabled:bg-orange-300"
+                            >
+                              {deduplicateWorkAchievementsMutation.isPending
+                                ? "Applying..."
+                                : "Apply Changes"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

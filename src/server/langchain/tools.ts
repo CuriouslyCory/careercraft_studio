@@ -683,6 +683,92 @@ function createDeduplicateKeyAchievementsTool(
 }
 
 // =============================================================================
+// WORK ACHIEVEMENTS DEDUPLICATION TOOL
+// =============================================================================
+
+/**
+ * Creates a tool for deduplicating and merging similar work achievements for a specific work history using AI
+ */
+function createDeduplicateWorkAchievementsTool(
+  userId: string,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
+    name: "deduplicate_and_merge_work_achievements",
+    description:
+      "Remove exact duplicate work achievements and intelligently merge similar ones for a specific work history using AI while preserving all important details. This helps clean up achievements for a particular job by combining related accomplishments without losing any information.",
+    schema: z.object({
+      workHistoryId: z
+        .string()
+        .min(1, "Work history ID is required")
+        .describe("The work history ID to deduplicate achievements for"),
+      dryRun: z
+        .boolean()
+        .default(false)
+        .describe(
+          "If true, shows a preview of changes without actually applying them",
+        ),
+    }),
+    func: async ({
+      workHistoryId,
+      dryRun = false,
+    }: {
+      workHistoryId: string;
+      dryRun?: boolean;
+    }): Promise<string> => {
+      try {
+        console.log(
+          `Deduplicating work achievements for user ${userId}, workHistoryId: ${workHistoryId}, dryRun: ${dryRun}`,
+        );
+
+        // Use the centralized service function
+        const { deduplicateAndMergeWorkAchievements } = await import(
+          "~/server/api/routers/document/work-history"
+        );
+
+        const result = await deduplicateAndMergeWorkAchievements(
+          db,
+          userId,
+          workHistoryId,
+          dryRun,
+        );
+
+        // Format the response for the agent
+        let response = `## Work Achievements Deduplication ${dryRun ? "(Preview)" : "Complete"}\n\n`;
+        response += `${result.message}\n\n`;
+        response += `**Summary:**\n`;
+        response += `- Original count: ${result.originalCount}\n`;
+        response += `- Final count: ${result.finalCount}\n`;
+        response += `- Exact duplicates removed: ${result.exactDuplicatesRemoved}\n`;
+        response += `- Similar groups merged: ${result.similarGroupsMerged}\n\n`;
+
+        if (result.preview && result.preview.length > 0) {
+          response += `**${dryRun ? "Preview of" : "Final"} Achievements:**\n\n`;
+          result.preview.forEach(
+            (item: { description: string; action: string }, index: number) => {
+              response += `${index + 1}. ${item.description}\n`;
+            },
+          );
+        }
+
+        if (dryRun && result.originalCount > result.finalCount) {
+          response += `\n*To apply these changes, ask me to "deduplicate work achievements for this job" without the preview.*`;
+        }
+
+        return response;
+      } catch (error) {
+        console.error(
+          "Error in deduplicate_and_merge_work_achievements:",
+          error,
+        );
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return `Error deduplicating work achievements: ${errorMessage}. Please try again or contact support if the issue persists.`;
+      }
+    },
+  });
+}
+
+// =============================================================================
 // TOOL COLLECTIONS
 // =============================================================================
 
@@ -706,6 +792,8 @@ export function getDataManagerTools(userId: string): DynamicStructuredTool[] {
     mergeWorkAchievementsTool,
     // Key achievements deduplication tool
     createDeduplicateKeyAchievementsTool(userId),
+    // Work achievements deduplication tool
+    createDeduplicateWorkAchievementsTool(userId),
   ];
 }
 

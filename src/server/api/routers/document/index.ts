@@ -32,6 +32,8 @@ export const documentRouter = createTRPCRouter({
   createWorkAchievement: workHistoryRouter.createAchievement,
   updateWorkAchievement: workHistoryRouter.updateAchievement,
   deleteWorkAchievement: workHistoryRouter.deleteAchievement,
+  deduplicateAndMergeWorkAchievements:
+    workHistoryRouter.deduplicateAndMergeWorkAchievements,
 
   // Modern UserSkill functions for work history context
   listUserSkillsForWork: workHistoryRouter.listUserSkillsForWork,
@@ -99,3 +101,10 @@ export {
   type DeduplicationResult,
   type KeyAchievementRecord,
 } from "./key-achievements";
+
+// Export the centralized work achievements deduplication service
+export {
+  deduplicateAndMergeWorkAchievements,
+  type WorkAchievementDeduplicationResult,
+  type WorkAchievementRecord,
+} from "./work-history";

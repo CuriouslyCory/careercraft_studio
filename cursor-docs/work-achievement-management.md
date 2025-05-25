@@ -71,13 +71,33 @@ The following tools are available to the `Data Manager` agent for managing work 
     - **Note**: This tool itself doesn't directly modify the database; it provides the merged list that can then be used by other tools (like `replace_work_achievements`) or by the `merge_and_replace_work_achievements` tool.
     - **Usage Example**: This is more of an internal utility for the `merge_and_replace_work_achievements` tool but could theoretically be exposed if a user wanted to preview a merge.
 
+### Advanced Deduplication and Optimization
+
+8.  **`deduplicateAndMergeWorkAchievements`** (tRPC Route)
+    - **Purpose**: AI-powered deduplication and optimization of all achievements for a specific work history record. This function removes exact duplicates and intelligently merges similar achievements while optimizing all achievements for resume best practices.
+    - **Input**: `work_history_id`, `dry_run` (boolean for preview mode).
+    - **Output**: Comprehensive result including original count, final count, duplicates removed, groups merged, and preview of final achievements.
+    - **Key Features**:
+      - **Two-Phase Process**: First removes exact duplicates, then uses AI to merge similar achievements and optimize all achievements
+      - **Resume Optimization**: All achievements are enhanced with strong action verbs, quantifiable results, and ATS-friendly language
+      - **Comprehensive Output**: Returns ALL final achievements that should appear in the work history, including both merged entries and individually optimized standalone entries
+      - **Preview Mode**: Supports dry-run mode to preview changes before applying them
+      - **Database Transactions**: Ensures atomicity of all changes
+    - **Usage Example**: User clicks "Clean Up" button in the work history panel to deduplicate and optimize their achievements.
+
 ## Key Features of the System
 
-- **Database Transactions**: Batch operations like `replace_work_achievements` and `merge_and_replace_work_achievements` use database transactions. This ensures data consistency: either all changes are applied, or none are, preventing partial updates.
+- **Database Transactions**: Batch operations like `replace_work_achievements`, `merge_and_replace_work_achievements`, and `deduplicateAndMergeWorkAchievements` use database transactions. This ensures data consistency: either all changes are applied, or none are, preventing partial updates.
 - **User Authentication/Authorization**: All operations implicitly (or explicitly via the agent context) verify that the work history records being modified belong to the authenticated user.
-- **AI-Powered Merging**: The use of an LLM for `merge_work_achievements` allows for intelligent combination and deduplication of achievement lists, going beyond simple string matching. This helps users maintain a clean and effective list of accomplishments.
+- **AI-Powered Merging and Optimization**: The use of an LLM for achievement processing allows for:
+  - Intelligent combination and deduplication of achievement lists
+  - Resume optimization with strong action verbs and quantifiable results
+  - ATS-friendly language and formatting
+  - Preservation of all important details without making up information
+- **Comprehensive Achievement Processing**: The deduplication system ensures that ALL achievements are returned in the final output, including both merged entries and individually optimized standalone entries.
 - **Detailed Feedback**: The tools are designed to provide clear success messages upon completion and to handle errors gracefully, informing the user if an operation cannot be performed.
 - **ID Tracking**: Operations consistently return achievement IDs. This allows for precise follow-up editing or deletion by the user through subsequent commands.
+- **Preview Functionality**: The deduplication system supports preview mode, allowing users to see what changes will be made before applying them.
 
 ## Database Interactions
 
@@ -87,5 +107,43 @@ The achievement management tools interact with the database primarily through:
 - **`WorkAchievement` table/model**: For all CRUD operations (Create, Read, Update, Delete) on the achievements themselves.
 - **Atomic Transactions**: As mentioned, for batch operations to ensure data integrity.
 - **Optimistic Concurrency Handling (Assumed)**: While not explicitly stated in the README, robust systems often include mechanisms to handle cases where data might be changed between a read and a write operation, though this might be managed at a higher level by the agent or ORM.
+
+## AI Processing Details
+
+The AI-powered achievement processing follows these principles:
+
+1. **Preservation of Facts**: Preserves all quantifiable metrics, percentages, dollar amounts, timeframes, and headcounts from the original text
+2. **Smart Merging**: Only merges achievements that describe the same specific accomplishment or are near-duplicates
+3. **Skill Diversity**: Keeps achievements that demonstrate different skills or competencies separate
+4. **Professional Optimization**: Enhances language with strong action verbs and professional formatting while preserving factual accuracy
+5. **ATS Compatibility**: Maintains clear, keyword-rich language for applicant tracking systems
+6. **Comprehensive Output**: Returns every achievement that should appear in the final list, ensuring no achievements are lost in the process
+7. **Strict Validation**: Validates that every original achievement is accounted for in the final output through comprehensive index tracking
+
+### Validation Features
+
+The system includes robust validation to ensure data integrity:
+
+- **Complete Coverage**: Validates that every original achievement (1 to N) is referenced in at least one final achievement's originalIndices array
+- **Required Fields**: Schema enforces that originalIndices and action fields are provided for every final achievement
+- **Index Tracking**: Comprehensive logging and error handling for missing or duplicate achievement references
+- **Fallback Protection**: If AI processing fails validation, the system falls back to returning original achievements unchanged
+
+### Optimization Examples
+
+The AI applies professional resume optimization while preserving factual accuracy:
+
+- **Action Verb Enhancement**: "Developed interactive storytelling experiences" → "Developed innovative interactive storytelling experiences leveraging generative AI technology"
+- **Impact Emphasis**: "Managed the full development lifecycle" → "Successfully managed complete development lifecycle from conception to deployment"
+- **Technical Precision**: "Built a robust and scalable NFT marketplace" → "Architected and built robust, scalable NFT marketplace platform"
+
+### Error Handling
+
+The system includes comprehensive error handling:
+
+- **Missing Achievements**: Throws specific errors when achievements are not accounted for
+- **Invalid Structure**: Validates AI response structure and required fields
+- **Graceful Degradation**: Falls back to original achievements if processing fails
+- **Detailed Logging**: Provides comprehensive logging for debugging and monitoring
 
 By providing these comprehensive tools, CareerCraft Studio empowers users to meticulously curate the achievements section of their work history, which is often the most critical part of a resume.

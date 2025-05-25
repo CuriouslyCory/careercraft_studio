@@ -4,6 +4,9 @@ import { type PrismaClient } from "@prisma/client";
 import { mergeWorkAchievements } from "./utils/llm-merger";
 import { distance } from "fastest-levenshtein";
 import { SkillNormalizationService } from "~/server/services/skill-normalization";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { env } from "~/env";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 // Helper function to check if two work history records match
 export function doWorkHistoryRecordsMatch(
@@ -257,6 +260,32 @@ export const workHistoryRouter = createTRPCRouter({
         },
       });
     }),
+
+  /**
+   * Deduplicates and merges similar work achievements for a specific work history using AI.
+   * Removes exact duplicates and intelligently merges similar achievements
+   * while preserving all important details without making up information.
+   */
+  deduplicateAndMergeWorkAchievements: protectedProcedure
+    .input(
+      z.object({
+        workHistoryId: z
+          .string()
+          .describe("The work history ID to deduplicate achievements for"),
+        dryRun: z
+          .boolean()
+          .default(false)
+          .describe("If true, returns preview without making changes"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return await deduplicateAndMergeWorkAchievements(
+        ctx.db,
+        ctx.session.user.id,
+        input.workHistoryId,
+        input.dryRun,
+      );
+    }),
 });
 
 // Helper function for processing work experience from parsed resumes
@@ -414,5 +443,357 @@ export async function processWorkExperience(
         }
       }
     }
+  }
+}
+
+// Zod schema for AI merge result for work achievements
+const WorkAchievementMergeResultSchema = z.object({
+  finalAchievements: z.array(
+    z.object({
+      description: z
+        .string()
+        .describe(
+          "The final achievement description (either merged from multiple achievements or individually optimized)",
+        ),
+      originalIndices: z
+        .array(z.number())
+        .min(1)
+        .describe(
+          "Which original achievements were used to create this final achievement (1-indexed). For merged achievements, this will have multiple indices. For standalone achievements, this will have one index.",
+        ),
+      action: z
+        .enum(["merged", "optimized"])
+        .describe(
+          "Whether this achievement was created by merging multiple achievements or by optimizing a single achievement",
+        ),
+    }),
+  ),
+  reasoning: z
+    .string()
+    .optional()
+    .describe("Brief explanation of what was merged and optimized"),
+});
+
+type WorkAchievementMergeResult = z.infer<
+  typeof WorkAchievementMergeResultSchema
+>;
+
+// Types for the work achievement deduplication service
+export type WorkAchievementDeduplicationResult = {
+  success: boolean;
+  message: string;
+  originalCount: number;
+  finalCount: number;
+  exactDuplicatesRemoved: number;
+  similarGroupsMerged: number;
+  preview: Array<{ description: string; action: "kept" | "merged" | "final" }>;
+};
+
+export type WorkAchievementRecord = {
+  id: string;
+  description: string;
+  createdAt: Date;
+};
+
+/**
+ * Centralized service function for deduplicating and merging work achievements
+ * This function can be used by both tRPC routes and agent tools
+ */
+export async function deduplicateAndMergeWorkAchievements(
+  db: PrismaClient,
+  userId: string,
+  workHistoryId: string,
+  dryRun = false,
+): Promise<WorkAchievementDeduplicationResult> {
+  return await db.$transaction(async (tx) => {
+    // Verify the work history belongs to the user
+    const workHistory = await tx.workHistory.findFirst({
+      where: { id: workHistoryId, userId },
+    });
+
+    if (!workHistory) {
+      throw new Error("Work history not found or access denied");
+    }
+
+    // Get all work achievements for this work history
+    const achievements = await tx.workAchievement.findMany({
+      where: { workHistoryId },
+      orderBy: { createdAt: "asc" }, // Preserve chronological order
+    });
+
+    if (achievements.length <= 1) {
+      return {
+        success: true,
+        message:
+          "No deduplication needed - this work history has 1 or fewer achievements.",
+        originalCount: achievements.length,
+        finalCount: achievements.length,
+        exactDuplicatesRemoved: 0,
+        similarGroupsMerged: 0,
+        preview: [],
+      };
+    }
+
+    // Step 1: Remove exact duplicates
+    const { uniqueAchievements, exactDuplicatesRemoved } =
+      removeExactDuplicateWorkAchievements(achievements);
+
+    if (uniqueAchievements.length <= 1) {
+      if (!dryRun && exactDuplicatesRemoved > 0) {
+        // Delete the duplicate records
+        const duplicateIds = achievements
+          .filter((a) => !uniqueAchievements.some((u) => u.id === a.id))
+          .map((a) => a.id);
+
+        await tx.workAchievement.deleteMany({
+          where: {
+            id: { in: duplicateIds },
+            workHistoryId,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        message: `Removed ${exactDuplicatesRemoved} exact duplicates. No similar achievements to merge.`,
+        originalCount: achievements.length,
+        finalCount: uniqueAchievements.length,
+        exactDuplicatesRemoved,
+        similarGroupsMerged: 0,
+        preview: uniqueAchievements.map((a) => ({
+          description: a.description,
+          action: "kept" as const,
+        })),
+      };
+    }
+
+    // Step 2: Use AI to identify and merge similar achievements
+    const mergeResult = await mergeWorkAchievementsWithAI(uniqueAchievements);
+
+    if (dryRun) {
+      return {
+        success: true,
+        message: "Preview of work achievement deduplication and merge process",
+        originalCount: achievements.length,
+        finalCount: mergeResult.finalAchievements.length,
+        exactDuplicatesRemoved,
+        similarGroupsMerged: mergeResult.groupsMerged,
+        preview: mergeResult.finalAchievements.map((a) => ({
+          description: a.description,
+          action: "merged" as const,
+        })),
+      };
+    }
+
+    // Step 3: Apply changes to database
+    // Delete all existing achievements for this work history
+    await tx.workAchievement.deleteMany({
+      where: { workHistoryId },
+    });
+
+    // Create the merged achievements
+    await tx.workAchievement.createMany({
+      data: mergeResult.finalAchievements.map((achievement) => ({
+        description: achievement.description,
+        workHistoryId,
+      })),
+    });
+
+    return {
+      success: true,
+      message: `Successfully deduplicated and merged work achievements. Removed ${exactDuplicatesRemoved} exact duplicates and merged ${mergeResult.groupsMerged} groups of similar achievements.`,
+      originalCount: achievements.length,
+      finalCount: mergeResult.finalAchievements.length,
+      exactDuplicatesRemoved,
+      similarGroupsMerged: mergeResult.groupsMerged,
+      preview: mergeResult.finalAchievements.map((a) => ({
+        description: a.description,
+        action: "final" as const,
+      })),
+    };
+  });
+}
+
+/**
+ * Removes exact duplicate work achievements, keeping the oldest one
+ */
+export function removeExactDuplicateWorkAchievements(
+  achievements: WorkAchievementRecord[],
+) {
+  const seen = new Set<string>();
+  const uniqueAchievements: WorkAchievementRecord[] = [];
+  let exactDuplicatesRemoved = 0;
+
+  for (const achievement of achievements) {
+    const normalizedDescription = achievement.description.trim().toLowerCase();
+
+    if (!seen.has(normalizedDescription)) {
+      seen.add(normalizedDescription);
+      uniqueAchievements.push(achievement);
+    } else {
+      exactDuplicatesRemoved++;
+    }
+  }
+
+  return { uniqueAchievements, exactDuplicatesRemoved };
+}
+
+/**
+ * Uses AI to identify and merge similar work achievements while preserving all details
+ */
+export async function mergeWorkAchievementsWithAI(
+  achievements: WorkAchievementRecord[],
+): Promise<{
+  finalAchievements: Array<{ description: string }>;
+  groupsMerged: number;
+}> {
+  if (achievements.length <= 1) {
+    return {
+      finalAchievements: achievements.map((a) => ({
+        description: a.description,
+      })),
+      groupsMerged: 0,
+    };
+  }
+
+  try {
+    // Initialize the LLM with structured output
+    const llm = new ChatGoogleGenerativeAI({
+      apiKey: env.GOOGLE_API_KEY,
+      model: "gemini-2.0-flash",
+      temperature: 0.3, // Increased temperature for better optimization while maintaining accuracy
+    }).withStructuredOutput(WorkAchievementMergeResultSchema);
+
+    const achievementsList = achievements
+      .map((a, index) => `${index + 1}. ${a.description}`)
+      .join("\n");
+
+    // Generate JSON schema for the LLM prompt
+    const mergeResultJsonSchema = JSON.stringify(
+      zodToJsonSchema(WorkAchievementMergeResultSchema),
+      null,
+      2,
+    );
+
+    const prompt = `You are an expert at analyzing and merging professional work achievements for resume optimization. Your task is to identify ONLY truly similar or duplicate achievements and merge them while preserving ALL important details and creating compelling resume entries that work for both human recruiters and Applicant Tracking Systems (ATS). Most achievements should remain separate.
+
+CRITICAL RULES:
+1. PRESERVE all quantifiable metrics, percentages, dollar amounts, timeframes, headcounts from the original text
+2. ONLY merge achievements that describe the SAME specific accomplishment or are near-duplicates
+3. Keep achievements that demonstrate different skills, projects, or impacts as SEPARATE items
+4. OPTIMIZE language for professional impact while preserving factual accuracy
+5. Start each achievement with strong, dynamic action verbs
+6. **RETURN ALL FINAL ACHIEVEMENTS**: Your finalAchievements array must include EVERY achievement that should appear in the final list - both merged entries AND standalone entries that were optimized
+7. **ACCOUNT FOR EVERY ORIGINAL**: Every original achievement (1-${achievements.length}) must be referenced in at least one finalAchievement's originalIndices array
+
+RESUME OPTIMIZATION GUIDELINES:
+- **Strong Action Verbs**: Begin each achievement with powerful action verbs (Led, Developed, Increased, Streamlined, Implemented, Achieved, Delivered, etc.)
+- **Quantifiable Results**: Emphasize concrete numbers, percentages, dollar amounts, and measurable outcomes
+- **Impact Focus**: Highlight achievements and contributions, not just responsibilities
+- **Keyword Optimization**: Maintain industry-relevant keywords and terminology for ATS compatibility
+- **Clarity & Readability**: Use clear, concise language that's easily parsed by both humans and ATS
+- **Professional Formatting**: Ensure achievements work well in standard bullet point format
+
+OPTIMIZATION EXAMPLES:
+- "Developed interactive storytelling experiences powered by generative Al." → "Developed innovative interactive storytelling experiences leveraging generative AI technology"
+- "Managed the full development lifecycle" → "Successfully managed complete development lifecycle from conception to deployment"
+- "Built a robust and scalable NFT marketplace" → "Architected and built robust, scalable NFT marketplace platform"
+
+MERGING GUIDELINES:
+- **DO MERGE**: Near-duplicate achievements describing the same specific accomplishment
+  Example: "Increased team productivity by 20%" + "Boosted team efficiency by 20% through process improvements" → "Increased team productivity by 20% through process improvements"
+  
+- **DO NOT MERGE**: Different achievements in the same category/domain
+  Example: Keep separate: "Led team of 5 developers" + "Managed $100K budget" + "Reduced deployment time by 50%"
+  (These are 3 distinct management/leadership achievements showcasing different competencies)
+
+INPUT ACHIEVEMENTS:
+${achievementsList}
+
+INSTRUCTIONS:
+1. Identify achievements that are near-duplicates or describe the exact same accomplishment
+2. For true duplicates/near-duplicates, create ONE optimized achievement combining unique details (mark as "merged")
+3. For ALL other achievements (those not being merged), optimize them individually using the resume best practices above (mark as "optimized")
+4. Ensure EVERY achievement in your finalAchievements array starts with a strong action verb and demonstrates specific, measurable impact
+5. Your finalAchievements array must contain ALL achievements that should appear in the final work history - this includes both merged entries AND individually optimized standalone entries
+6. For each final achievement, include the originalIndices array showing which input achievements (1-indexed) were used to create it
+7. Set the action field to "merged" for achievements created by combining multiple inputs, or "optimized" for achievements that were enhanced from a single input
+8. **VALIDATION**: Ensure every number from 1 to ${achievements.length} appears in at least one originalIndices array
+
+**CRITICAL**: You must return exactly the right number of achievements. If you start with ${achievements.length} achievements and merge some, the total count of unique original indices across all finalAchievements must equal ${achievements.length}.
+
+Return the data as JSON matching this exact schema:
+
+${mergeResultJsonSchema}`;
+
+    const aiResult = (await llm.invoke(prompt)) as WorkAchievementMergeResult;
+
+    // Validate the AI result
+    if (
+      !aiResult.finalAchievements ||
+      !Array.isArray(aiResult.finalAchievements)
+    ) {
+      throw new Error("Invalid AI response structure");
+    }
+
+    // Validate that all original achievements are accounted for
+    const allReferencedIndices = new Set<number>();
+    for (const achievement of aiResult.finalAchievements) {
+      if (
+        !achievement.originalIndices ||
+        achievement.originalIndices.length === 0
+      ) {
+        throw new Error("Each final achievement must have originalIndices");
+      }
+      for (const index of achievement.originalIndices) {
+        allReferencedIndices.add(index);
+      }
+    }
+
+    // Check that all original achievements (1 to N) are referenced
+    const expectedIndices = new Set(
+      Array.from({ length: achievements.length }, (_, i) => i + 1),
+    );
+    const missingIndices = [...expectedIndices].filter(
+      (i) => !allReferencedIndices.has(i),
+    );
+
+    if (missingIndices.length > 0) {
+      console.error("Missing achievement indices:", missingIndices);
+      throw new Error(
+        `AI failed to account for achievements: ${missingIndices.join(", ")}`,
+      );
+    }
+
+    // Calculate how many groups were merged
+    const groupsMerged = Math.max(
+      0,
+      achievements.length - aiResult.finalAchievements.length,
+    );
+
+    console.log("AI Work Achievement Merging Result:", {
+      originalCount: achievements.length,
+      mergedCount: aiResult.finalAchievements.length,
+      groupsMerged,
+      reasoning: aiResult.reasoning,
+      allIndicesAccountedFor: allReferencedIndices.size === achievements.length,
+    });
+
+    return {
+      finalAchievements: aiResult.finalAchievements.map((a) => ({
+        description: a.description,
+      })),
+      groupsMerged,
+    };
+  } catch (error) {
+    console.error("Error in AI work achievement merging:", error);
+
+    // Fallback: return original achievements if AI processing fails
+    return {
+      finalAchievements: achievements.map((a) => ({
+        description: a.description,
+      })),
+      groupsMerged: 0,
+    };
   }
 }

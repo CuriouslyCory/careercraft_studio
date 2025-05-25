@@ -71,21 +71,11 @@ Tools mentioned are primarily used by the `Data Manager` agent, unless specified
 - **Tool**: `deduplicate_and_merge_key_achievements`
   - **Purpose**: Removes exact duplicate key achievements and intelligently merges only truly similar/duplicate ones using AI while preserving all important details and keeping distinct achievements separate.
   - **Arguments**: `dryRun` (boolean, optional, default: false). When true, shows a preview without making changes.
-- **Features**:
-  - **Exact Duplicate Removal**: Automatically identifies and removes achievements with identical content (case-insensitive).
-  - **Conservative AI Merging**: Uses LLM with structured output to identify only near-duplicate achievements describing the same specific accomplishment. Different achievements in the same category/domain remain separate.
-  - **Best Practice Preservation**: Maintains quantification (percentages, dollar amounts, headcounts), strong action verbs, and diverse skill demonstration.
-  - **Preview Mode**: Users can see what changes will be made before applying them.
-  - **No Information Loss**: The AI is specifically instructed never to make up details, change existing metrics, or merge distinct accomplishments.
-- **Implementation**:
-  - **Structured Output**: Uses Zod schema with `withStructuredOutput()` for reliable JSON parsing and validation.
-  - **Schema-Guided Prompts**: Includes JSON schema in LLM prompts for better compliance and consistency.
-  - **Centralized Service**: Uses `deduplicateAndMergeKeyAchievements()` service function from `~/server/api/routers/document/key-achievements` for consistent behavior across API and chat interfaces.
-  - **Shared Logic**: Both the tRPC endpoint and agent tool use the same underlying implementation to eliminate code duplication.
-- **Access Methods**:
-  - **Chat Interface**: Available through AI chat with commands like "Clean up my achievements list" or "Remove duplicate achievements"
-  - **UI Panel**: Direct access via "Clean Up" button in the Key Achievements Panel with preview and apply workflow
-  - **API Access**: Available via tRPC endpoint `document.deduplicateAndMergeKeyAchievements` for direct API usage
+- **AI Merging Philosophy**:
+  - **Conservative Approach**: Only merges achievements that describe the SAME specific accomplishment or are near-duplicates
+  - **Preservation Focus**: NEVER makes up details, preserves all quantifiable metrics, maintains professional language
+  - **Diversity Maintenance**: Keeps achievements demonstrating different skills, projects, or impacts as separate items
+  - **Quality Standards**: Maintains strong action verbs, specific measurable outcomes, and results-focused language
 - **Interactions**:
   - **Via Chat**:
     - User: "Clean up my achievements list" or "Remove duplicate achievements"
@@ -101,7 +91,33 @@ Tools mentioned are primarily used by the `Data Manager` agent, unless specified
   - **DO NOT MERGE**: Different achievements in same category, different metrics/contexts, or different skills/competencies
   - **Principle**: Better to keep achievements separate than incorrectly merge distinct accomplishments
 
-### 6. General User Details, Education, Skills, Links (Management Notes)
+### 6. Work Achievements Deduplication and Merging
+
+- **Tool**: `deduplicate_and_merge_work_achievements`
+  - **Purpose**: Removes exact duplicate work achievements and intelligently merges only truly similar/duplicate ones for a specific work history using AI while preserving all important details and keeping distinct achievements separate.
+  - **Arguments**:
+    - `workHistoryId` (string, required): The work history ID to deduplicate achievements for
+    - `dryRun` (boolean, optional, default: false): When true, shows a preview without making changes
+- **AI Merging Philosophy**: Same conservative approach as key achievements deduplication
+  - **Conservative Approach**: Only merges achievements that describe the SAME specific accomplishment or are near-duplicates
+  - **Preservation Focus**: NEVER makes up details, preserves all quantifiable metrics, maintains professional language
+  - **Diversity Maintenance**: Keeps achievements demonstrating different skills, projects, or impacts as separate items
+  - **Quality Standards**: Maintains strong action verbs, specific measurable outcomes, and results-focused language
+- **Interactions**:
+  - **Via Chat**:
+    - User: "Clean up achievements for my Software Engineer role" or "Remove duplicate achievements for this job"
+    - Agent: `Data Manager` uses `deduplicate_and_merge_work_achievements` with `{ workHistoryId: "...", dryRun: true }` to show preview first.
+    - User: "Apply those changes" (after seeing preview)
+    - Agent: `Data Manager` uses `deduplicate_and_merge_work_achievements` with `{ workHistoryId: "...", dryRun: false }` to apply changes.
+  - **Via tRPC API**:
+    - Available as `document.deduplicateAndMergeWorkAchievements` endpoint
+    - Can be integrated into UI panels for specific work history records
+- **Merging Philosophy**: Same principles as key achievements
+  - **DO MERGE**: Near-duplicates describing the same specific accomplishment
+  - **DO NOT MERGE**: Different achievements in same category, different metrics/contexts, or different skills/competencies
+  - **Principle**: Better to keep achievements separate than incorrectly merge distinct accomplishments
+
+### 7. General User Details, Education, Skills, Links (Management Notes)
 
 - **User Details (Name, Contact, Summary)**: While no specific tool like `update_user_details` is explicitly listed for the `Data Manager` in `agentTeam.ts`'s system message, these are fundamental pieces of a user profile. They are likely populated initially by `parse_and_store_resume` and could be updated via a more general-purpose profile update tool if one exists but isn't detailed, or through re-parsing sections of an updated resume.
 - **Education History**: Primarily populated by `parse_and_store_resume`. Specific tools for adding/updating individual education entries (like `add_education`) are not explicitly listed for the agents in `agentTeam.ts`.

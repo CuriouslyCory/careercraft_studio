@@ -1382,6 +1382,23 @@ async function processDataManagerToolCalls(
       } catch (error) {
         toolCallSummary += `• Error deduplicating key achievements: ${error instanceof Error ? error.message : String(error)}\n`;
       }
+    } else if (toolCall.name === "deduplicate_and_merge_work_achievements") {
+      try {
+        // The work achievements deduplication tool handles its own processing and returns a formatted summary
+        const deduplicationTool = getDataManagerTools(userId).find(
+          (t) => t.name === "deduplicate_and_merge_work_achievements",
+        );
+        if (deduplicationTool) {
+          const result = (await deduplicationTool.invoke(
+            toolCall.args,
+          )) as string;
+          toolCallSummary += `${result}\n\n`;
+        } else {
+          toolCallSummary += `• Error: Work achievements deduplication tool not found\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error deduplicating work achievements: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
     } else {
       toolCallSummary += `• ${toolCall.name}: Processed successfully\n`;
     }
@@ -1426,6 +1443,9 @@ You have access to these tools:
 
 **Key Achievements Management:**
 - deduplicate_and_merge_key_achievements: Remove exact duplicate key achievements and intelligently merge similar ones using AI while preserving all important details. Use dryRun=true to preview changes first.
+
+**Work Achievements Deduplication:**
+- deduplicate_and_merge_work_achievements: Remove exact duplicate work achievements and intelligently merge similar ones for a specific work history using AI while preserving all important details. Requires workHistoryId parameter. Use dryRun=true to preview changes first.
 
 **IMPORTANT**: When a user provides resume text (either by pasting it directly or asking you to parse a resume), use the parse_and_store_resume tool to process it. This will:
 - Extract structured information using AI
