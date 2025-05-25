@@ -3,8 +3,6 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { db } from "~/server/db";
 import { createLLM } from "./agent";
 import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
-import { parseJobPosting } from "./jobPostingParser";
-import { type ParsedJobPosting } from "./jobPostingSchemas";
 
 // Import from new modular structure
 import { getUserProfileTool as getUserProfileToolFromModule } from "./tools/user-profile-tools";
@@ -15,32 +13,12 @@ import {
   createAddWorkAchievementTool as createAddWorkAchievementToolFromModule,
   createUpdateWorkAchievementTool as createUpdateWorkAchievementToolFromModule,
   createDeleteWorkAchievementTool as createDeleteWorkAchievementToolFromModule,
-  mergeWorkAchievementsTool as mergeWorkAchievementsToolFromModule,
 } from "./tools/work-achievement-tools";
 import {
-  parseJobPostingTool as parseJobPostingToolFromModule,
-  createStoreJobPostingTool as createStoreJobPostingToolFromModule,
   createFindJobPostingsTool as createFindJobPostingsToolFromModule,
   createSkillComparisonTool as createSkillComparisonToolFromModule,
+  createParseAndStoreJobPostingTool as createParseAndStoreJobPostingToolFromModule,
 } from "./tools/job-posting-tools";
-import {
-  resumeFormatSchema,
-  resumeStyleSchema,
-  coverLetterStyleSchema,
-  type ResumeFormat,
-  type ResumeStyle,
-  type CoverLetterStyle,
-  type JobPostingSearchCriteria,
-} from "./tools/types";
-import {
-  validateUserId,
-  withErrorHandling,
-  handleToolError,
-  createSuccessMessage,
-  ResourceNotFoundError,
-  DatabaseError,
-} from "./tools/errors";
-import { TOOL_CONFIG, AGENT_MEMBERS } from "./tools/config";
 
 // =============================================================================
 // USER PROFILE TOOLS
@@ -123,22 +101,6 @@ export function createDeleteWorkAchievementTool(
 // =============================================================================
 
 /**
- * Tool to parse job posting content and extract structured data
- * Re-exported from the modular job-posting-tools module
- */
-export const parseJobPostingTool = parseJobPostingToolFromModule;
-
-/**
- * Tool to store parsed job posting data in the database
- * Re-exported from the modular job-posting-tools module
- */
-export function createStoreJobPostingTool(
-  userId: string,
-): DynamicStructuredTool {
-  return createStoreJobPostingToolFromModule(userId);
-}
-
-/**
  * Tool to find job postings by various criteria
  * Re-exported from the modular job-posting-tools module
  */
@@ -156,6 +118,16 @@ export function createSkillComparisonTool(
   userId: string,
 ): DynamicStructuredTool {
   return createSkillComparisonToolFromModule(userId);
+}
+
+/**
+ * Tool to parse and store job posting content in one action
+ * Re-exported from the modular job-posting-tools module
+ */
+export function createParseAndStoreJobPostingTool(
+  userId: string,
+): DynamicStructuredTool {
+  return createParseAndStoreJobPostingToolFromModule(userId);
 }
 
 // =============================================================================
@@ -546,6 +518,96 @@ export const supervisorRoutingTool = new DynamicStructuredTool({
 });
 
 // =============================================================================
+// CLARIFICATION TOOLS
+// =============================================================================
+
+/**
+ * Tool for supervisor to request clarification from user
+ */
+export const requestClarificationTool = new DynamicStructuredTool({
+  name: "request_clarification",
+  description:
+    "Request clarification from the user when their intent is ambiguous",
+  schema: z.object({
+    question: z
+      .string()
+      .min(1)
+      .describe("The clarification question to ask the user"),
+    options: z
+      .array(
+        z.object({
+          id: z.string().describe("Unique identifier for this option"),
+          label: z.string().describe("Short label for the option"),
+          description: z
+            .string()
+            .describe("Detailed description of what this option does"),
+          action: z.object({
+            agentType: z
+              .string()
+              .describe("Which agent would handle this action"),
+            toolName: z.string().describe("Which tool would be called"),
+            args: z.record(z.unknown()).describe("Arguments for the tool call"),
+          }),
+        }),
+      )
+      .min(2)
+      .describe("Available options for the user to choose from"),
+    context: z
+      .record(z.unknown())
+      .optional()
+      .describe("Additional context about the request"),
+  }),
+  func: async ({ question, options, context }) => {
+    // Create a clarification ID
+    const clarificationId = `clarification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Format the clarification response
+    let response = `${question}\n\nPlease choose one of the following options:\n\n`;
+
+    options.forEach((option, index) => {
+      response += `**${index + 1}. ${option.label}**\n`;
+      response += `   ${option.description}\n\n`;
+    });
+
+    response += `Please respond with the number of your choice (1-${options.length}).`;
+
+    // Store clarification in context (this would be handled by the state management)
+    const clarificationData = {
+      id: clarificationId,
+      question,
+      options,
+      context: context ?? {},
+      timestamp: Date.now(),
+    };
+
+    return JSON.stringify({
+      type: "clarification_request",
+      data: clarificationData,
+      response,
+    });
+  },
+});
+
+/**
+ * Tool for handling clarification responses
+ */
+export const respondToClarificationTool = new DynamicStructuredTool({
+  name: "respond_to_clarification",
+  description: "Process user's response to a clarification request",
+  schema: z.object({
+    clarificationId: z
+      .string()
+      .min(1)
+      .describe("ID of the clarification being responded to"),
+    selectedOptionId: z.string().min(1).describe("ID of the selected option"),
+  }),
+  func: async ({ clarificationId, selectedOptionId }) => {
+    // This would typically retrieve the clarification from state and execute the selected action
+    return `Processing clarification response: ${clarificationId} -> ${selectedOptionId}`;
+  },
+});
+
+// =============================================================================
 // TOOL COLLECTIONS
 // =============================================================================
 
@@ -604,8 +666,7 @@ export function getUserProfileTools(userId: string): DynamicStructuredTool[] {
  */
 export function getJobPostingTools(userId: string): DynamicStructuredTool[] {
   return [
-    parseJobPostingTool,
-    createStoreJobPostingTool(userId),
+    createParseAndStoreJobPostingTool(userId),
     createFindJobPostingsTool(userId),
     createSkillComparisonTool(userId),
     getUserProfileTool(userId),
@@ -616,7 +677,11 @@ export function getJobPostingTools(userId: string): DynamicStructuredTool[] {
  * Get supervisor routing tools
  */
 export function getSupervisorTools(): DynamicStructuredTool[] {
-  return [supervisorRoutingTool];
+  return [
+    supervisorRoutingTool,
+    requestClarificationTool,
+    respondToClarificationTool,
+  ];
 }
 
 /**

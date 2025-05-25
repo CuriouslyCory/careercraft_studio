@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { type PrismaClient } from "@prisma/client";
-import { parseJobPosting } from "~/server/langchain/jobPostingParser";
+import {
+  processJobPosting as processJobPostingService,
+  type JobPostingProcessingResult,
+} from "~/server/services/job-posting-processor";
 import { DocumentProcessingError } from "./types";
 
 export const jobPostingRouter = createTRPCRouter({
@@ -78,65 +81,26 @@ export const jobPostingRouter = createTRPCRouter({
 });
 
 // Helper function to process and store job posting data
+// Now uses the centralized JobPostingProcessor service
 export async function processJobPosting(
   content: string,
   userId: string,
   db: PrismaClient,
-): Promise<void> {
+): Promise<JobPostingProcessingResult> {
   console.log("Processing job posting content...");
 
   try {
-    // Parse the job posting using our parser
-    const parsedJobPosting = await parseJobPosting(content);
-    const { jobPosting } = parsedJobPosting;
+    // Use the centralized service with skill normalization
+    const result = await processJobPostingService(content, userId, db);
 
     console.log(
-      "Successfully parsed job posting:",
-      jobPosting.title,
+      "Successfully processed job posting:",
+      result.jobPosting.title,
       "at",
-      jobPosting.company,
+      result.jobPosting.company,
     );
 
-    // Create the job posting record
-    const createdJobPosting = await db.jobPosting.create({
-      data: {
-        title: jobPosting.title,
-        content, // Store the original document content
-        company: jobPosting.company,
-        location: jobPosting.location,
-        industry: jobPosting.industry ?? undefined,
-        user: { connect: { id: userId } },
-      },
-    });
-
-    // Create the job posting details with structured requirements
-    await db.jobPostingDetails.create({
-      data: {
-        // Required structured requirements
-        technicalSkills: jobPosting.details.requirements.technicalSkills,
-        softSkills: jobPosting.details.requirements.softSkills,
-        educationRequirements:
-          jobPosting.details.requirements.educationRequirements,
-        experienceRequirements:
-          jobPosting.details.requirements.experienceRequirements,
-        industryKnowledge: jobPosting.details.requirements.industryKnowledge,
-
-        // Bonus/preferred structured requirements
-        bonusTechnicalSkills:
-          jobPosting.details.bonusRequirements.technicalSkills,
-        bonusSoftSkills: jobPosting.details.bonusRequirements.softSkills,
-        bonusEducationRequirements:
-          jobPosting.details.bonusRequirements.educationRequirements,
-        bonusExperienceRequirements:
-          jobPosting.details.bonusRequirements.experienceRequirements,
-        bonusIndustryKnowledge:
-          jobPosting.details.bonusRequirements.industryKnowledge,
-
-        jobPosting: { connect: { id: createdJobPosting.id } },
-      },
-    });
-
-    console.log("Successfully stored job posting and details in database");
+    return result;
   } catch (error) {
     console.error("Error processing job posting:", error);
     throw new DocumentProcessingError(

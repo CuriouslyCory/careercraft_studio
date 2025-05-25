@@ -47,10 +47,8 @@ export const compatibilityRouter = createTRPCRouter({
         ];
 
         // Process required skills with normalization
-        const requiredSkillResults = await skillNormalizer.normalizeSkills(
-          allRequiredSkills,
-          "PROGRAMMING_LANGUAGE", // Default category for required skills
-        );
+        const requiredSkillResults =
+          await skillNormalizer.normalizeSkills(allRequiredSkills);
 
         for (const skillResult of requiredSkillResults) {
           try {
@@ -71,10 +69,8 @@ export const compatibilityRouter = createTRPCRouter({
         }
 
         // Process bonus skills with normalization
-        const bonusSkillResults = await skillNormalizer.normalizeSkills(
-          allBonusSkills,
-          "SOFT_SKILLS", // Default category for bonus skills
-        );
+        const bonusSkillResults =
+          await skillNormalizer.normalizeSkills(allBonusSkills);
 
         for (const skillResult of bonusSkillResults) {
           try {

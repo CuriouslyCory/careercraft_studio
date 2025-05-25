@@ -156,10 +156,8 @@ Each specialized agent is equipped with a set of tools (functions they can call)
     - **Purpose**: Parses, stores, analyzes job postings, and compares them to user skills.
     - **Key Responsibilities**: See [Job Posting Import & Analysis](./job-posting-import.md) for full details.
     - **Tools Used** (from `getJobPostingTools(userId)` via `agentTeam.ts` system message):
-      - `parse_job_posting`: Parses job posting text and extracts structured data.
+      - `parse_and_store_job_posting`: Parses job posting text and automatically stores it in the database.
         - **Arguments**: `content` (string). (Ref: `ParseJobPostingSchema`)
-      - `store_job_posting`: Stores parsed job posting data in the database.
-        - **Arguments**: `parsedJobPosting` (string - likely JSON from `parse_job_posting`). (Ref: `StoreJobPostingSchema`)
       - `find_job_postings`: Finds stored job postings by title, company, location, etc.
         - **Arguments**: Search criteria.
       - `compare_skills_to_job`: Compares user skills against job requirements.

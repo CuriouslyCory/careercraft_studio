@@ -31,6 +31,12 @@ const AGENT_CONFIG = {
     LLM_INVOKE: 30000,
     TOOL_EXECUTION: 15000,
   },
+  LOOP_LIMITS: {
+    MAX_AGENT_SWITCHES: 10,
+    MAX_TOOL_CALLS_PER_AGENT: 5,
+    MAX_CLARIFICATION_ROUNDS: 3,
+    MAX_DUPLICATE_CHECKS: 100, // Prevent excessive duplicate checking
+  },
 } as const;
 
 // Zod validation schemas
@@ -77,6 +83,52 @@ const ParseJobPostingSchema = z.object({
 const StoreJobPostingSchema = z.object({
   parsedJobPosting: z.string().min(1),
 });
+
+// NEW: Action tracking and clarification types
+const CompletedActionSchema = z.object({
+  id: z.string(),
+  agentType: z.string(),
+  toolName: z.string(),
+  args: z.record(z.unknown()),
+  result: z.string(),
+  timestamp: z.number(),
+  contentHash: z.string().optional(),
+});
+
+const ClarificationOptionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  description: z.string(),
+  action: z.object({
+    agentType: z.string(),
+    toolName: z.string(),
+    args: z.record(z.unknown()),
+  }),
+});
+
+const PendingClarificationSchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  options: z.array(ClarificationOptionSchema),
+  context: z.record(z.unknown()),
+  timestamp: z.number(),
+});
+
+const RequestClarificationSchema = z.object({
+  question: z.string().min(1),
+  options: z.array(ClarificationOptionSchema).min(2),
+  context: z.record(z.unknown()).optional(),
+});
+
+const RespondToClarificationSchema = z.object({
+  clarificationId: z.string().min(1),
+  selectedOptionId: z.string().min(1),
+});
+
+// TypeScript interfaces derived from schemas
+type CompletedAction = z.infer<typeof CompletedActionSchema>;
+type ClarificationOption = z.infer<typeof ClarificationOptionSchema>;
+type PendingClarification = z.infer<typeof PendingClarificationSchema>;
 
 // Custom error types for structured error handling
 class AgentError extends Error {
@@ -374,6 +426,213 @@ function contentToString(content: unknown): string {
   return "[Unknown Type]";
 }
 
+// NEW: Utility functions for duplicate detection and loop control
+
+/**
+ * Creates a hash of content for duplicate detection
+ * @param content - The content to hash
+ * @returns A hash string for comparison
+ */
+function createContentHash(content: string): string {
+  // Simple hash function for content comparison
+  // In production, consider using a more robust hashing algorithm
+  let hash = 0;
+  if (content.length === 0) return hash.toString();
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * Checks if an action is a duplicate of a previously completed action
+ * @param newAction - The action to check
+ * @param completedActions - Array of previously completed actions
+ * @returns The duplicate action if found, null otherwise
+ */
+function isDuplicateAction(
+  newAction: Omit<CompletedAction, "id" | "timestamp">,
+  completedActions: CompletedAction[],
+): CompletedAction | null {
+  if (completedActions.length === 0) return null;
+
+  // Check for exact tool name and args match
+  for (const completed of completedActions) {
+    if (
+      completed.agentType === newAction.agentType &&
+      completed.toolName === newAction.toolName
+    ) {
+      // For content-based tools, check content hash
+      if (newAction.contentHash && completed.contentHash) {
+        if (newAction.contentHash === completed.contentHash) {
+          return completed;
+        }
+      } else {
+        // For other tools, check args similarity
+        const argsMatch =
+          JSON.stringify(completed.args) === JSON.stringify(newAction.args);
+        if (argsMatch) {
+          return completed;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Determines if a tool call should be skipped due to duplication
+ * @param toolCall - The tool call to check
+ * @param agentType - The type of agent making the call
+ * @param completedActions - Array of previously completed actions
+ * @returns Object indicating whether to skip and why
+ */
+function shouldSkipToolCall(
+  toolCall: ValidatedToolCall,
+  agentType: string,
+  completedActions: CompletedAction[],
+): { skip: boolean; reason?: string; existingAction?: CompletedAction } {
+  if (completedActions.length === 0) {
+    return { skip: false };
+  }
+
+  // Create content hash for content-based tools
+  let contentHash: string | undefined;
+  if (
+    toolCall.name === "parse_job_posting" &&
+    typeof toolCall.args.content === "string"
+  ) {
+    contentHash = createContentHash(toolCall.args.content);
+  } else if (
+    toolCall.name === "parse_and_store_resume" &&
+    typeof toolCall.args.content === "string"
+  ) {
+    contentHash = createContentHash(toolCall.args.content);
+  }
+
+  const newAction: Omit<CompletedAction, "id" | "timestamp"> = {
+    agentType,
+    toolName: toolCall.name,
+    args: toolCall.args,
+    result: "", // Will be filled after execution
+    contentHash,
+  };
+
+  const duplicate = isDuplicateAction(newAction, completedActions);
+
+  if (duplicate) {
+    const timeDiff = Date.now() - duplicate.timestamp;
+    const isRecent = timeDiff < 5 * 60 * 1000; // 5 minutes
+
+    return {
+      skip: true,
+      reason: isRecent
+        ? `This ${toolCall.name} was already executed recently (${Math.round(timeDiff / 1000)}s ago)`
+        : `This ${toolCall.name} was already executed earlier in this conversation`,
+      existingAction: duplicate,
+    };
+  }
+
+  return { skip: false };
+}
+
+/**
+ * Checks if loop limits have been exceeded
+ * @param loopMetrics - Current loop metrics
+ * @param agentType - Current agent type
+ * @returns Object indicating if limits are exceeded
+ */
+function checkLoopLimits(
+  loopMetrics: {
+    agentSwitches: number;
+    toolCallsPerAgent: Record<string, number>;
+    clarificationRounds: number;
+    lastAgentType: string | null;
+  },
+  agentType: string,
+): { exceeded: boolean; reason?: string; suggestion?: string } {
+  const limits = AGENT_CONFIG.LOOP_LIMITS;
+
+  // Check agent switches
+  if (loopMetrics.agentSwitches >= limits.MAX_AGENT_SWITCHES) {
+    return {
+      exceeded: true,
+      reason: `Maximum agent switches (${limits.MAX_AGENT_SWITCHES}) exceeded`,
+      suggestion:
+        "Consider breaking down your request into smaller, more specific tasks.",
+    };
+  }
+
+  // Check tool calls per agent
+  const agentToolCalls = loopMetrics.toolCallsPerAgent[agentType] ?? 0;
+  if (agentToolCalls >= limits.MAX_TOOL_CALLS_PER_AGENT) {
+    return {
+      exceeded: true,
+      reason: `Maximum tool calls for ${agentType} (${limits.MAX_TOOL_CALLS_PER_AGENT}) exceeded`,
+      suggestion:
+        "The agent has made many attempts. Please try rephrasing your request or provide more specific information.",
+    };
+  }
+
+  // Check clarification rounds
+  if (loopMetrics.clarificationRounds >= limits.MAX_CLARIFICATION_ROUNDS) {
+    return {
+      exceeded: true,
+      reason: `Maximum clarification rounds (${limits.MAX_CLARIFICATION_ROUNDS}) exceeded`,
+      suggestion:
+        "Too many clarification attempts. Please provide a more direct request.",
+    };
+  }
+
+  return { exceeded: false };
+}
+
+/**
+ * Updates loop metrics for the current agent action
+ * @param currentMetrics - Current loop metrics
+ * @param agentType - Type of agent being executed
+ * @param toolCallCount - Number of tool calls made
+ * @returns Updated loop metrics
+ */
+function updateLoopMetrics(
+  currentMetrics: {
+    agentSwitches: number;
+    toolCallsPerAgent: Record<string, number>;
+    clarificationRounds: number;
+    lastAgentType: string | null;
+  },
+  agentType: string,
+  toolCallCount = 0,
+): {
+  agentSwitches: number;
+  toolCallsPerAgent: Record<string, number>;
+  clarificationRounds: number;
+  lastAgentType: string | null;
+} {
+  const agentSwitches =
+    currentMetrics.lastAgentType && currentMetrics.lastAgentType !== agentType
+      ? currentMetrics.agentSwitches + 1
+      : currentMetrics.agentSwitches;
+
+  const toolCallsPerAgent = {
+    ...currentMetrics.toolCallsPerAgent,
+    [agentType]:
+      (currentMetrics.toolCallsPerAgent[agentType] ?? 0) + toolCallCount,
+  };
+
+  return {
+    agentSwitches,
+    toolCallsPerAgent,
+    clarificationRounds: currentMetrics.clarificationRounds,
+    lastAgentType: agentType,
+  };
+}
+
 // Utility function to handle agent errors consistently
 function handleAgentError(
   error: unknown,
@@ -503,6 +762,37 @@ const AgentState = Annotation.Root({
     reducer: (x, y) => y ?? x ?? "",
     default: () => "",
   }),
+  // NEW: Track completed actions to prevent duplicates
+  completedActions: Annotation<CompletedAction[]>({
+    reducer: (x, y) => [...x, ...y],
+    default: () => [],
+  }),
+  // NEW: Track pending clarifications
+  pendingClarification: Annotation<PendingClarification | null>({
+    reducer: (x, y) => y ?? x,
+    default: () => null,
+  }),
+  // NEW: Track loop metrics for termination control
+  loopMetrics: Annotation<{
+    agentSwitches: number;
+    toolCallsPerAgent: Record<string, number>;
+    clarificationRounds: number;
+    lastAgentType: string | null;
+  }>({
+    reducer: (x, y) => ({
+      agentSwitches: y?.agentSwitches ?? x?.agentSwitches ?? 0,
+      toolCallsPerAgent: { ...x?.toolCallsPerAgent, ...y?.toolCallsPerAgent },
+      clarificationRounds:
+        y?.clarificationRounds ?? x?.clarificationRounds ?? 0,
+      lastAgentType: y?.lastAgentType ?? x?.lastAgentType ?? null,
+    }),
+    default: () => ({
+      agentSwitches: 0,
+      toolCallsPerAgent: {},
+      clarificationRounds: 0,
+      lastAgentType: null,
+    }),
+  }),
 });
 
 // Define the type for the agent state
@@ -510,6 +800,14 @@ export type AgentStateType = {
   messages: BaseMessage[];
   next: string;
   userId?: string;
+  completedActions?: CompletedAction[];
+  pendingClarification?: PendingClarification | null;
+  loopMetrics?: {
+    agentSwitches: number;
+    toolCallsPerAgent: Record<string, number>;
+    clarificationRounds: number;
+    lastAgentType: string | null;
+  };
 };
 
 // All tools have been moved to src/server/langchain/tools.ts for better organization
@@ -555,7 +853,17 @@ async function supervisorNode(
 
 Your primary job is to analyze messages and route them to the correct specialized agent. Your routing decisions are critical to system functioning.
 
-IMPORTANT ROUTING RULES:
+CLARIFICATION PATTERNS - Ask for clarification when:
+1. User provides job posting content without clear intent: "Job post: [content]" or "Here's a job posting: [content]"
+   - Ask: "I see you've shared a job posting. Would you like me to parse and store it, compare it to your skills, or analyze the requirements?"
+
+2. User provides resume content without clear intent: "My resume: [content]" or "Here's my resume: [content]"
+   - Ask: "I see you've shared resume content. Would you like me to parse and store this information in your profile, or are you looking for feedback on the resume?"
+
+3. Ambiguous requests about skills: "What about my skills?" or "Skills analysis"
+   - Ask: "I can help with skills in several ways. Would you like me to show your current skills, compare them to a job posting, or help you add new skills to your profile?"
+
+ROUTING RULES:
 1. For data storage or retrieval requests (work history, education, etc.) OR resume parsing: Route to 'data_manager'
    Example: "Can you store my work experience?", "Look up my skills", "Save my preferences", "Parse this resume", "I'm pasting my resume"
 
@@ -565,14 +873,17 @@ IMPORTANT ROUTING RULES:
 3. For cover letter creation, editing, or advice: Route to 'cover_letter_generator'
    Example: "Write a cover letter", "Tailor a cover letter for this job", "Cover letter tips"
 
-4. For job posting analysis, parsing, storage, OR skill comparison: Route to 'job_posting_manager'
-   Example: "Parse this job posting", "Analyze job requirements", "Store this job posting", "What does this job require?", "How do my skills match this job?", "Compare my skills to job requirements"
+4. For job posting analysis, parsing, OR skill comparison: Route to 'job_posting_manager'
+   Example: "Parse this job posting", "Analyze job requirements", "What does this job require?", "How do my skills match this job?", "Compare my skills to job requirements"
+   Note: Job posting parsing and storage now happen automatically in one action
 
 5. For general user profile questions: Route to 'user_profile'
    Example: "What information do you have about me?", "How is my data used?"
 
 6. For general questions or completed tasks: Call 'route_to_agent' with '${END}'
    Example: "Thank you", "That's all for now"
+
+IMPORTANT: When content is provided without clear intent, provide clarification options instead of assuming. Only route to agents when the user's intent is clear.
 
 ROUTING RESPONSE FORMAT:
 When you route to another agent, provide a brief acknowledgment in your response content, such as:
@@ -582,9 +893,9 @@ When you route to another agent, provide a brief acknowledgment in your response
 
 ALWAYS call the 'route_to_agent' tool with one of these exact destination values: 'data_manager', 'resume_generator', 'cover_letter_generator', 'job_posting_manager', 'user_profile', or '${END}'.
 
-If you're unsure which specialized agent to route to, prefer 'data_manager' as it can help collect needed information.
+If you're unsure which specialized agent to route to, ask for clarification rather than guessing.
 
-If you don't call 'route_to_agent', your response will be sent directly to the user, so only do this for simple informational responses.`;
+If you don't call 'route_to_agent', your response will be sent directly to the user, so only do this for clarification questions or simple informational responses.`;
 
     // Prepare messages using the utility function
     const messages = prepareAgentMessages(state.messages, systemMessage);
@@ -775,10 +1086,27 @@ async function processDataManagerToolCalls(
   toolCalls: ValidatedToolCall[],
   userId: string,
   response: { content?: unknown },
+  completedActions: CompletedAction[] = [],
 ): Promise<string> {
   let toolCallSummary = "I've processed your request:\n\n";
+  const agentType = "data_manager";
 
   for (const toolCall of toolCalls) {
+    // Check for duplicates before processing
+    const duplicateCheck = shouldSkipToolCall(
+      toolCall,
+      agentType,
+      completedActions,
+    );
+
+    if (duplicateCheck.skip) {
+      toolCallSummary += `• Skipped ${toolCall.name}: ${duplicateCheck.reason}\n`;
+      if (duplicateCheck.existingAction) {
+        toolCallSummary += `  Previous result: ${duplicateCheck.existingAction.result.substring(0, 200)}${duplicateCheck.existingAction.result.length > 200 ? "..." : ""}\n\n`;
+      }
+      continue;
+    }
+
     if (toolCall.name === "store_user_preference") {
       try {
         const args = validateToolArgs(
@@ -1076,10 +1404,27 @@ async function processUserProfileToolCalls(
   toolCalls: ValidatedToolCall[],
   userId: string,
   response: { content?: unknown },
+  completedActions: CompletedAction[] = [],
 ): Promise<string> {
   let toolCallSummary = "Here's the information from your profile:\n\n";
+  const agentType = "user_profile";
 
   for (const toolCall of toolCalls) {
+    // Check for duplicates before processing
+    const duplicateCheck = shouldSkipToolCall(
+      toolCall,
+      agentType,
+      completedActions,
+    );
+
+    if (duplicateCheck.skip) {
+      toolCallSummary += `• Skipped ${toolCall.name}: ${duplicateCheck.reason}\n`;
+      if (duplicateCheck.existingAction) {
+        toolCallSummary += `  Previous result: ${duplicateCheck.existingAction.result.substring(0, 200)}${duplicateCheck.existingAction.result.length > 200 ? "..." : ""}\n\n`;
+      }
+      continue;
+    }
+
     if (toolCall.name === "get_user_profile") {
       try {
         const args = validateToolArgs(
@@ -1129,7 +1474,7 @@ Your job is to:
 3. Explain how stored data is used in resume and cover letter generation
 
 You have access to these tools:
-- get_user_profile: For retrieving different types of user data (work history, education, skills, etc.)
+- get_user_profile: For retrieving different types of user data (work history, education, skills, achievements, preferences, or all)
 
 You can retrieve different types of profile data using the get_user_profile tool. Simply specify which data type you need: work_history, education, skills, achievements, preferences, or all.`,
   getTools: getUserProfileTools,
@@ -1141,75 +1486,47 @@ async function processJobPostingToolCalls(
   toolCalls: ValidatedToolCall[],
   userId: string,
   response: { content?: unknown },
+  completedActions: CompletedAction[] = [],
 ): Promise<string> {
   let toolCallSummary = "I've processed your job posting request:\n\n";
-  let parsedJobPostingData: string | null = null;
-  let hasExplicitStoreCall = false;
+  const agentType = "job_posting_manager";
 
   for (const toolCall of toolCalls) {
-    if (toolCall.name === "parse_job_posting") {
+    // Check for duplicates before processing
+    const duplicateCheck = shouldSkipToolCall(
+      toolCall,
+      agentType,
+      completedActions,
+    );
+
+    if (duplicateCheck.skip) {
+      toolCallSummary += `• Skipped ${toolCall.name}: ${duplicateCheck.reason}\n`;
+      if (duplicateCheck.existingAction) {
+        toolCallSummary += `  Previous result: ${duplicateCheck.existingAction.result.substring(0, 200)}${duplicateCheck.existingAction.result.length > 200 ? "..." : ""}\n\n`;
+      }
+      continue;
+    }
+
+    if (toolCall.name === "parse_and_store_job_posting") {
       try {
         const args = validateToolArgs(
           toolCall.args,
           ParseJobPostingSchema,
-          "parse_job_posting",
+          "parse_and_store_job_posting",
         );
         const tools = getJobPostingTools(userId);
-        const parseJobPostingTool = tools.find(
-          (t) => t.name === "parse_job_posting",
+        const parseAndStoreJobPostingTool = tools.find(
+          (t) => t.name === "parse_and_store_job_posting",
         );
 
-        if (parseJobPostingTool) {
-          const result = (await parseJobPostingTool.invoke({
+        if (parseAndStoreJobPostingTool) {
+          const result = (await parseAndStoreJobPostingTool.invoke({
             content: args.content,
           })) as string;
-          parsedJobPostingData = result;
-
-          // Parse the result to show summary info
-          try {
-            const parsed = JSON.parse(result) as {
-              jobPosting?: {
-                title?: string;
-                company?: string;
-                location?: string;
-                industry?: string;
-              };
-            };
-            if (parsed.jobPosting) {
-              toolCallSummary += `• Successfully parsed job posting:\n`;
-              toolCallSummary += `  - Title: ${parsed.jobPosting.title ?? "Unknown"}\n`;
-              toolCallSummary += `  - Company: ${parsed.jobPosting.company ?? "Unknown"}\n`;
-              toolCallSummary += `  - Location: ${parsed.jobPosting.location ?? "Unknown"}\n`;
-              toolCallSummary += `  - Industry: ${parsed.jobPosting.industry ?? "Not specified"}\n\n`;
-            }
-          } catch {
-            toolCallSummary += `• Parsed job posting (${args.content.length} characters)\n\n`;
-          }
+          toolCallSummary += `${result}\n\n`;
         }
       } catch (error) {
-        toolCallSummary += `• Error parsing job posting: ${error instanceof Error ? error.message : String(error)}\n`;
-      }
-    } else if (toolCall.name === "store_job_posting") {
-      hasExplicitStoreCall = true;
-      try {
-        const args = validateToolArgs(
-          toolCall.args,
-          StoreJobPostingSchema,
-          "store_job_posting",
-        );
-        const tools = getJobPostingTools(userId);
-        const storeJobPostingTool = tools.find(
-          (t) => t.name === "store_job_posting",
-        );
-
-        if (storeJobPostingTool) {
-          const result = (await storeJobPostingTool.invoke({
-            parsedJobPosting: args.parsedJobPosting,
-          })) as string;
-          toolCallSummary += `• ${result}\n`;
-        }
-      } catch (error) {
-        toolCallSummary += `• Error storing job posting: ${error instanceof Error ? error.message : String(error)}\n`;
+        toolCallSummary += `• Error parsing and storing job posting: ${error instanceof Error ? error.message : String(error)}\n`;
       }
     } else if (toolCall.name === "find_job_postings") {
       try {
@@ -1264,25 +1581,6 @@ async function processJobPostingToolCalls(
     }
   }
 
-  // If we parsed a job posting but didn't get an explicit store_job_posting call, automatically store it
-  if (parsedJobPostingData && !hasExplicitStoreCall) {
-    try {
-      const tools = getJobPostingTools(userId);
-      const storeJobPostingTool = tools.find(
-        (t) => t.name === "store_job_posting",
-      );
-
-      if (storeJobPostingTool) {
-        const result = (await storeJobPostingTool.invoke({
-          parsedJobPosting: parsedJobPostingData,
-        })) as string;
-        toolCallSummary += `• Auto-stored: ${result}\n`;
-      }
-    } catch (autoStoreError) {
-      toolCallSummary += `• Error auto-storing job posting: ${autoStoreError instanceof Error ? autoStoreError.message : String(autoStoreError)}\n`;
-    }
-  }
-
   // Add any content from the response
   const responseContent = contentToString(response.content);
   if (responseContent?.trim()) {
@@ -1298,22 +1596,22 @@ const jobPostingManagerNode = createAgentNode({
   systemMessage: `You are the Job Posting Manager Agent for Resume Master.
   
 Your job is to:
-1. Parse and analyze job posting content to extract structured information
-2. Store job posting data in the database for later reference
-3. Help users understand job requirements and qualifications
-4. Compare user skills against job posting requirements
-5. Find and retrieve previously stored job postings
+1. Parse and store job posting content automatically when users provide it
+2. Help users understand job requirements and qualifications
+3. Compare user skills against job posting requirements
+4. Find and retrieve previously stored job postings
 
 You have access to these tools:
-- parse_job_posting: For parsing job posting text and extracting structured data
-- store_job_posting: For storing parsed job posting data in the database  
+- parse_and_store_job_posting: For parsing job posting text and automatically storing it in the database
 - find_job_postings: For finding stored job postings by title, company, location, etc.
 - compare_skills_to_job: For comparing user skills against job requirements
 - get_user_profile: For retrieving user data including skills
 
-IMPORTANT: 
-- When a user provides job posting content, first parse it, then store it in the database
-- When a user asks about skill comparison, use compare_skills_to_job to analyze their fit
+IMPORTANT WORKFLOW:
+- When users provide job posting content, use parse_and_store_job_posting to automatically parse and store it
+- This tool combines parsing and storage into one seamless action
+- After successful parsing and storage, offer to compare their skills against the job posting
+- When comparing skills, use compare_skills_to_job to analyze their fit
 - If you need to find a specific job posting, use find_job_postings with relevant criteria
 - The tools automatically handle user authentication and identification
 
@@ -1427,6 +1725,14 @@ export function convertToAgentStateInput(
     messages: formattedMessages,
     next: "supervisor", // Always start with the supervisor
     userId, // Set userId directly in the state object
+    completedActions: [], // Initialize empty completed actions
+    pendingClarification: null, // No pending clarification initially
+    loopMetrics: {
+      agentSwitches: 0,
+      toolCallsPerAgent: {},
+      clarificationRounds: 0,
+      lastAgentType: null,
+    }, // Initialize loop metrics
   };
 }
 
@@ -1449,6 +1755,7 @@ interface AgentConfig {
         type?: string;
       }>;
     },
+    completedActions?: CompletedAction[],
   ) => Promise<string>;
   requiresUserId?: boolean;
 }
@@ -1459,6 +1766,33 @@ function createAgentNode(config: AgentConfig) {
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
     try {
+      // Check loop limits before processing
+      const loopCheck = checkLoopLimits(
+        state.loopMetrics ?? {
+          agentSwitches: 0,
+          toolCallsPerAgent: {},
+          clarificationRounds: 0,
+          lastAgentType: null,
+        },
+        config.agentType,
+      );
+
+      if (loopCheck.exceeded) {
+        logger.warn(`Loop limit exceeded for ${config.agentType}`, {
+          reason: loopCheck.reason,
+          agentType: config.agentType,
+        });
+
+        return {
+          messages: [
+            new AIMessage(
+              `${loopCheck.reason}. ${loopCheck.suggestion ?? "Please try a different approach or provide more specific information."}`,
+            ),
+          ],
+          next: END,
+        };
+      }
+
       // Create LLM with specialized configuration
       const model = await createSpecializedLLM("agent");
 
@@ -1480,6 +1814,7 @@ function createAgentNode(config: AgentConfig) {
           agentType: config.agentType,
           toolCount: tools.length,
           userId: userId ? "[PRESENT]" : "[MISSING]",
+          loopMetrics: state.loopMetrics,
         },
       );
 
@@ -1489,10 +1824,6 @@ function createAgentNode(config: AgentConfig) {
         config.systemMessage,
       );
 
-      logger.info(`Agent ${config.agentType} messages`, {
-        messages,
-      });
-
       logger.info(`${config.agentType} invoking LLM`, {
         messageCount: messages.length,
         userId: userId ? "[PRESENT]" : "[MISSING]",
@@ -1501,13 +1832,41 @@ function createAgentNode(config: AgentConfig) {
       // Invoke the LLM
       const response = await llm.invoke(messages);
 
+      // Count tool calls for loop metrics
+      const toolCallCount = response?.tool_calls?.length ?? 0;
+
+      // Update loop metrics
+      const updatedLoopMetrics = updateLoopMetrics(
+        state.loopMetrics ?? {
+          agentSwitches: 0,
+          toolCallsPerAgent: {},
+          clarificationRounds: 0,
+          lastAgentType: null,
+        },
+        config.agentType,
+        toolCallCount,
+      );
+
       // Handle tool calls properly using LangChain format
       if (response?.tool_calls && response.tool_calls.length > 0) {
-        return await handleAgentToolCalls(response, config, userId);
+        const result = await handleAgentToolCalls(
+          response,
+          config,
+          userId,
+          state,
+        );
+        return {
+          ...result,
+          loopMetrics: updatedLoopMetrics,
+        };
       }
 
       // Handle direct response
-      return handleDirectAgentResponse(response, config.agentType);
+      const result = handleDirectAgentResponse(response, config.agentType);
+      return {
+        ...result,
+        loopMetrics: updatedLoopMetrics,
+      };
     } catch (error) {
       return handleAgentError(error, config.agentType);
     }
@@ -1527,6 +1886,7 @@ async function handleAgentToolCalls(
   },
   config: AgentConfig,
   userId: string,
+  state: typeof AgentState.State,
 ): Promise<{ messages: BaseMessage[]; next: string }> {
   try {
     let toolCallsToProcess = response.tool_calls;
@@ -1604,6 +1964,7 @@ async function handleAgentToolCalls(
           userId,
           // Pass the original response structure, now AgentConfig.processToolCalls expects tool_calls
           { content: cleanContent, tool_calls: response.tool_calls },
+          state.completedActions,
         );
         const customResultMessage = new ToolMessage({
           content: customResult,

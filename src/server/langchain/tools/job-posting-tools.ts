@@ -1,232 +1,81 @@
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { db } from "~/server/db";
-import { parseJobPosting } from "../jobPostingParser";
-import { type ParsedJobPosting } from "../jobPostingSchemas";
+import { JobPostingProcessor } from "~/server/services/job-posting-processor";
 import {
   validateUserId,
   withErrorHandling,
   ResourceNotFoundError,
   ValidationError,
   DatabaseError,
-  createSuccessMessage,
 } from "./errors";
 import { TOOL_CONFIG, VALIDATION_LIMITS } from "./config";
-import { SkillNormalizationService } from "~/server/services/skill-normalization";
 
 // =============================================================================
 // JOB POSTING PARSING TOOLS
 // =============================================================================
 
 /**
- * Tool to parse job posting content and extract structured data
+ * Tool to parse AND store job posting content in one action
  */
-export const parseJobPostingTool = new DynamicStructuredTool({
-  name: "parse_job_posting",
-  description:
-    "Parse a job posting text and extract structured information including title, company, location, industry, responsibilities, qualifications, and bonus qualifications",
-  schema: z.object({
-    content: z
-      .string()
-      .min(
-        VALIDATION_LIMITS.JOB_POSTING_CONTENT.MIN,
-        "Job posting content is too short",
-      )
-      .max(
-        VALIDATION_LIMITS.JOB_POSTING_CONTENT.MAX,
-        "Job posting content is too long",
-      )
-      .describe("The raw job posting content/text to parse"),
-  }),
-  func: withErrorHandling(
-    async ({ content }: { content: string }): Promise<string> => {
-      console.log("Parsing job posting content using LLM...");
-
-      try {
-        const parsedData = await parseJobPosting(content);
-        console.log("Successfully parsed job posting data");
-        return JSON.stringify(parsedData);
-      } catch (error) {
-        throw new DatabaseError("parse job posting", error as Error);
-      }
-    },
-    "parse_job_posting",
-  ),
-});
-
-// =============================================================================
-// JOB POSTING STORAGE TOOLS
-// =============================================================================
-
-/**
- * Tool to store parsed job posting data in the database
- */
-export function createStoreJobPostingTool(
+export function createParseAndStoreJobPostingTool(
   userId: string,
 ): DynamicStructuredTool {
   return new DynamicStructuredTool({
-    name: "store_job_posting",
-    description: "Store a parsed job posting in the database with all details",
+    name: "parse_and_store_job_posting",
+    description:
+      "Parse job posting content and automatically store it in the database. This combines parsing and storage into a single action for better user experience.",
     schema: z.object({
-      parsedJobPosting: z
+      content: z
         .string()
-        .min(1, "Parsed job posting data is required")
-        .describe("JSON string of the parsed job posting data"),
+        .min(
+          VALIDATION_LIMITS.JOB_POSTING_CONTENT.MIN,
+          "Job posting content is too short",
+        )
+        .max(
+          VALIDATION_LIMITS.JOB_POSTING_CONTENT.MAX,
+          "Job posting content is too long",
+        )
+        .describe("The raw job posting content/text to parse and store"),
     }),
     func: withErrorHandling(
-      async ({
-        parsedJobPosting,
-      }: {
-        parsedJobPosting: string;
-      }): Promise<string> => {
-        console.log(`Storing job posting data for user ID: ${userId}`);
+      async ({ content }: { content: string }): Promise<string> => {
+        console.log(`Parsing and storing job posting for user ID: ${userId}`);
 
         validateUserId(userId);
 
-        // Parse the JSON string with proper type checking
-        let jobData: ParsedJobPosting;
         try {
-          jobData = JSON.parse(parsedJobPosting) as ParsedJobPosting;
-        } catch (parseError) {
-          throw new ValidationError("Invalid JSON format for job posting data");
-        }
+          // Use the centralized JobPostingProcessor service
+          const processor = new JobPostingProcessor(db);
+          const result = await processor.processAndStore(content, userId);
 
-        const { jobPosting } = jobData;
+          // Return a comprehensive success message
+          return `✅ Successfully parsed and stored job posting!
 
-        // Validate required fields
-        if (!jobPosting.title || !jobPosting.company) {
-          throw new ValidationError("Job posting must have title and company");
-        }
+**Job Details:**
+- **Title:** ${result.jobPosting.title}
+- **Company:** ${result.jobPosting.company}
+- **Location:** ${result.jobPosting.location ?? "Not specified"}
+- **Industry:** ${result.jobPosting.industry ?? "Not specified"}
 
-        try {
-          // Use a transaction with proper timeout for data consistency
-          const result = await db.$transaction(
-            async (tx) => {
-              // Create the job posting record
-              const createdJobPosting = await tx.jobPosting.create({
-                data: {
-                  title: jobPosting.title,
-                  content: parsedJobPosting,
-                  company: jobPosting.company,
-                  location: jobPosting.location,
-                  industry: jobPosting.industry ?? undefined,
-                  user: { connect: { id: userId } },
-                },
-              });
+**Requirements Extracted:**
+- **Required Skills:** ${result.skillCounts.requiredSkills} skills identified
+- **Bonus Skills:** ${result.skillCounts.bonusSkills} additional skills identified
+- **Education Requirements:** ${result.skillCounts.educationRequirements} requirements
+- **Experience Requirements:** ${result.skillCounts.experienceRequirements} requirements
 
-              // Create the job posting details
-              await tx.jobPostingDetails.create({
-                data: {
-                  // Required structured requirements
-                  technicalSkills:
-                    jobPosting.details.requirements.technicalSkills,
-                  softSkills: jobPosting.details.requirements.softSkills,
-                  educationRequirements:
-                    jobPosting.details.requirements.educationRequirements,
-                  experienceRequirements:
-                    jobPosting.details.requirements.experienceRequirements,
-                  industryKnowledge:
-                    jobPosting.details.requirements.industryKnowledge,
-
-                  // Bonus/preferred structured requirements
-                  bonusTechnicalSkills:
-                    jobPosting.details.bonusRequirements.technicalSkills,
-                  bonusSoftSkills:
-                    jobPosting.details.bonusRequirements.softSkills,
-                  bonusEducationRequirements:
-                    jobPosting.details.bonusRequirements.educationRequirements,
-                  bonusExperienceRequirements:
-                    jobPosting.details.bonusRequirements.experienceRequirements,
-                  bonusIndustryKnowledge:
-                    jobPosting.details.bonusRequirements.industryKnowledge,
-
-                  jobPosting: { connect: { id: createdJobPosting.id } },
-                },
-              });
-
-              // Create normalized skill requirements for compatibility analysis
-              const allRequiredSkills = [
-                ...jobPosting.details.requirements.technicalSkills,
-                ...jobPosting.details.requirements.softSkills,
-              ];
-
-              const allBonusSkills = [
-                ...jobPosting.details.bonusRequirements.technicalSkills,
-                ...jobPosting.details.bonusRequirements.softSkills,
-              ];
-
-              // Initialize skill normalization service for consistent skill handling
-              const skillNormalizer = new SkillNormalizationService(tx);
-
-              // Process required skills with normalization
-              const requiredSkillResults =
-                await skillNormalizer.normalizeSkills(
-                  allRequiredSkills,
-                  "PROGRAMMING_LANGUAGE", // Default category for required skills
-                );
-
-              for (const skillResult of requiredSkillResults) {
-                // Create the skill requirement using the normalized base skill
-                try {
-                  await tx.jobSkillRequirement.create({
-                    data: {
-                      skillId: skillResult.baseSkillId,
-                      jobPostingId: createdJobPosting.id,
-                      isRequired: true,
-                      priority: 1, // High priority for required skills
-                    },
-                  });
-                } catch (error) {
-                  // Skip if already exists (duplicate)
-                  console.log(
-                    `Skill requirement already exists for ${skillResult.baseSkillName}`,
-                  );
-                }
-              }
-
-              // Process bonus skills with normalization
-              const bonusSkillResults = await skillNormalizer.normalizeSkills(
-                allBonusSkills,
-                "SOFT_SKILLS", // Default category for bonus skills
-              );
-
-              for (const skillResult of bonusSkillResults) {
-                // Create the skill requirement using the normalized base skill
-                try {
-                  await tx.jobSkillRequirement.create({
-                    data: {
-                      skillId: skillResult.baseSkillId,
-                      jobPostingId: createdJobPosting.id,
-                      isRequired: false,
-                      priority: 2, // Medium priority for bonus skills
-                    },
-                  });
-                } catch (error) {
-                  // Skip if already exists (duplicate)
-                  console.log(
-                    `Skill requirement already exists for ${skillResult.baseSkillName}`,
-                  );
-                }
-              }
-
-              return createdJobPosting;
-            },
-            {
-              timeout: TOOL_CONFIG.TRANSACTION_TIMEOUT,
-              maxWait: TOOL_CONFIG.TRANSACTION_MAX_WAIT,
-            },
-          );
-
-          return createSuccessMessage(
-            "stored",
-            "job posting",
-            `"${result.title}" at ${result.company}`,
-          );
+The job posting has been saved to your profile and is ready for skill comparison analysis. You can now ask me to compare your skills against this job posting!`;
         } catch (error) {
-          throw new DatabaseError("store job posting", error as Error);
+          if (error instanceof Error) {
+            throw new DatabaseError("parse and store job posting", error);
+          }
+          throw new DatabaseError(
+            "parse and store job posting",
+            new Error(String(error)),
+          );
         }
       },
-      "store_job_posting",
+      "parse_and_store_job_posting",
     ),
   });
 }
