@@ -42,6 +42,7 @@
     "@t3-oss/env-nextjs": "^0.12.0",
     "@tanstack/react-form": "^1.11.2",
     "@tanstack/react-query": "^5.69.0",
+    "@tanstack/react-table": "^8.21.3",
     "@tanstack/zod-form-adapter": "^0.42.1",
     "@toast-ui/editor": "^3.2.2",
     "@toast-ui/react-editor": "^3.2.3",

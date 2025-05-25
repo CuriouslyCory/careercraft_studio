@@ -496,14 +496,19 @@ export function JobPostingsPanel() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Job Postings</h2>
-        <div className="flex gap-2">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">
+          Job{" "}
+          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Postings
+          </span>
+        </h2>
+        <div className="flex gap-3">
           <Button
             onClick={() => migrateMutation.mutate()}
             disabled={migrateMutation.isPending}
             variant="outline"
-            className="text-blue-600 hover:bg-blue-50"
+            className="border-blue-300 text-blue-600 hover:border-blue-400 hover:bg-blue-50"
           >
             {migrateMutation.isPending
               ? "Migrating..."
@@ -511,7 +516,7 @@ export function JobPostingsPanel() {
           </Button>
           <Button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg hover:from-blue-700 hover:to-indigo-700"
           >
             {showAddForm ? "Cancel" : "Add Job Posting"}
           </Button>
@@ -520,8 +525,10 @@ export function JobPostingsPanel() {
 
       {/* Add New Job Posting Form */}
       {showAddForm && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 className="mb-4 text-lg font-medium">Add New Job Posting</h3>
+        <div className="mb-6 rounded-md border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
+          <h3 className="mb-6 text-xl font-bold text-gray-900">
+            Add New Job Posting
+          </h3>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -770,26 +777,56 @@ export function JobPostingsPanel() {
 
       {/* Job Postings List */}
       {jobPostings.length === 0 ? (
-        <p className="text-center text-gray-500">
-          No job postings found. Add one to get started.
-        </p>
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+            <svg
+              className="h-8 w-8 text-blue-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m-8 0V6a2 2 0 00-2 2v6.341"
+              />
+            </svg>
+          </div>
+          <p className="font-medium text-gray-600">No job postings found</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Add a job posting to start tracking your applications.
+          </p>
+        </div>
       ) : (
-        <div className="overflow-y-auto">
-          <table className="w-full border-collapse">
-            <thead className="bg-gray-50">
+        <div className="overflow-hidden rounded-md border border-blue-200 bg-white shadow-sm">
+          <table className="w-full">
+            <thead className="border-b border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
               <tr>
-                <th className="p-2 text-left">Title</th>
-                <th className="p-2 text-left">Company</th>
-                <th className="p-2 text-left">Location</th>
-                <th className="p-2 text-left">Status</th>
-                <th className="p-2 text-left">Date Added</th>
-                <th className="p-2 text-left">Actions</th>
+                <th className="p-4 text-left font-semibold text-gray-900">
+                  Title
+                </th>
+                <th className="p-4 text-left font-semibold text-gray-900">
+                  Company
+                </th>
+                <th className="p-4 text-left font-semibold text-gray-900">
+                  Location
+                </th>
+                <th className="p-4 text-left font-semibold text-gray-900">
+                  Status
+                </th>
+                <th className="p-4 text-left font-semibold text-gray-900">
+                  Date Added
+                </th>
+                <th className="p-4 text-left font-semibold text-gray-900">
+                  Actions
+                </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {jobPostings.map((job) => (
                 <tr key={job.id} className="border-t hover:bg-gray-50">
-                  <td className="p-2">
+                  <td className="p-4">
                     {editId === job.id ? (
                       <editJobForm.Field name="title">
                         {(field) => (
@@ -805,7 +842,7 @@ export function JobPostingsPanel() {
                       <div className="font-medium">{job.title}</div>
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="p-4">
                     {editId === job.id ? (
                       <editJobForm.Field name="company">
                         {(field) => (
@@ -821,7 +858,7 @@ export function JobPostingsPanel() {
                       job.company
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="p-4">
                     {editId === job.id ? (
                       <editJobForm.Field name="location">
                         {(field) => (
@@ -837,7 +874,7 @@ export function JobPostingsPanel() {
                       job.location
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="p-4">
                     {editId === job.id ? (
                       <editJobForm.Field name="status">
                         {(field) => (
@@ -875,10 +912,10 @@ export function JobPostingsPanel() {
                       </span>
                     )}
                   </td>
-                  <td className="p-2 text-sm text-gray-600">
+                  <td className="p-4 text-sm text-gray-600">
                     {new Date(job.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="space-x-2 p-2">
+                  <td className="space-x-2 p-4">
                     {editId === job.id ? (
                       <>
                         <Button

@@ -40,18 +40,30 @@ export function BioSidebar() {
   }
 
   return (
-    <Sidebar collapsible="offcanvas">
-      <SidebarHeader>
-        <span className="text-lg font-semibold">CareerCraft Studio</span>
+    <Sidebar
+      collapsible="offcanvas"
+      className="border-r border-blue-200 bg-gradient-to-b from-slate-50 via-blue-50 to-indigo-100"
+    >
+      <SidebarHeader className="border-b border-blue-200 p-6">
+        <span className="text-xl font-bold text-gray-900">
+          CareerCraft{" "}
+          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Studio
+          </span>
+        </span>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="p-0">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1 p-4">
               {BIO_VIEWS.map((item) => (
                 <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
-                    className="cursor-pointer"
+                    className={`w-full cursor-pointer px-4 py-3 font-medium transition-all ${
+                      activeView === item.key
+                        ? "-mx-4 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700"
+                        : "text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                    }`}
                     isActive={activeView === item.key}
                     onClick={() => handleChange(item.key)}
                   >
@@ -63,10 +75,10 @@ export function BioSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t p-3">
+      <SidebarFooter className="border-t border-blue-200 p-4">
         <Link
           href={session ? "/api/auth/signout" : "/api/auth/signin"}
-          className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
+          className="border-blue-600 px-6 py-3 text-center font-semibold text-blue-600 transition-all hover:bg-blue-100"
         >
           {session ? "Sign out" : "Sign in"}
         </Link>

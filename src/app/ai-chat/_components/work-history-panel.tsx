@@ -373,25 +373,35 @@ export function WorkHistoryPanel() {
 
   return (
     <div className="h-full">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Work History</h2>
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">
+          Work{" "}
+          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            History
+          </span>
+        </h2>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="rounded bg-blue-500 px-3 py-1 text-sm text-white"
+          className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"
         >
           {showAddForm ? "Cancel" : "Add Work Experience"}
         </button>
       </div>
 
       {showAddForm && (
-        <WorkHistoryForm
-          values={newWorkHistory}
-          onChange={handleNewWorkHistoryChange}
-          onSubmit={validateAndAdd}
-          onCancel={() => setShowAddForm(false)}
-          isSubmitting={createMutation.isPending}
-          submitLabel="Add"
-        />
+        <div className="mb-6 rounded-md border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
+          <h3 className="mb-6 text-xl font-bold text-gray-900">
+            Add New Work Experience
+          </h3>
+          <WorkHistoryForm
+            values={newWorkHistory}
+            onChange={handleNewWorkHistoryChange}
+            onSubmit={validateAndAdd}
+            onCancel={() => setShowAddForm(false)}
+            isSubmitting={createMutation.isPending}
+            submitLabel="Add"
+          />
+        </div>
       )}
 
       {workHistories.length === 0 && !showAddForm ? (

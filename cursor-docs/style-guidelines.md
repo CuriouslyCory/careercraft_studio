@@ -442,6 +442,229 @@ const staggerContainer = {
 2. **Secondary Message**: Time-saving automation with professional results
 3. **Supporting Messages**: Comprehensive features, industry expertise, user success
 
+## AI Chat Interface Patterns
+
+### Chat Interface Design
+
+**Chat Container:**
+
+```tsx
+<div className="mb-6 flex-grow overflow-y-auto rounded-md border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-6 shadow-lg">
+  {/* Chat content */}
+</div>
+```
+
+**Message Bubbles:**
+
+```tsx
+// User message
+<div className="mb-4 max-w-[85%] rounded-md border p-6 shadow-sm ml-auto border-blue-300 bg-gradient-to-r from-blue-50 to-blue-100">
+  <div className="mb-3 flex items-center gap-3">
+    <div className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold bg-blue-600 text-white">
+      U
+    </div>
+    <span className="font-medium text-gray-700">You</span>
+  </div>
+  {/* Message content */}
+</div>
+
+// AI message
+<div className="mb-4 max-w-[85%] rounded-md border p-6 shadow-sm mr-auto border-indigo-300 bg-gradient-to-r from-indigo-50 to-purple-50">
+  <div className="mb-3 flex items-center gap-3">
+    <div className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+      AI
+    </div>
+    <span className="font-medium text-gray-700">CareerCraft Studio AI</span>
+  </div>
+  {/* Message content */}
+</div>
+```
+
+**Input Area:**
+
+```tsx
+<form className="flex items-end gap-3">
+  <Textarea
+    className="max-h-[30vh] min-h-[48px] flex-1 resize-none overflow-y-auto rounded-md border-2 border-blue-200 bg-white px-4 py-3 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+    placeholder="Ask about resume writing, job matching, or paste your resume or job description..."
+  />
+  <Button className="inline-flex h-12 w-12 items-center justify-center rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl">
+    <Send className="h-5 w-5" />
+  </Button>
+</form>
+```
+
+### Panel Components
+
+**Panel Headers:**
+
+```tsx
+<h2 className="text-2xl font-bold text-gray-900">
+  Your{" "}
+  <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+    Skills
+  </span>
+</h2>
+```
+
+**Data Tables:**
+
+```tsx
+<div className="overflow-hidden rounded-md border border-blue-200 bg-white shadow-sm">
+  <table className="w-full">
+    <thead className="border-b border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+      <tr>
+        <th className="p-4 text-left font-semibold text-gray-900">
+          Column Header
+        </th>
+      </tr>
+    </thead>
+    <tbody className="divide-y divide-gray-100">
+      <tr className="transition-colors hover:bg-blue-50">
+        <td className="p-4">Cell content</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+```
+
+**Empty States:**
+
+```tsx
+<div className="rounded-md border border-gray-200 bg-gray-50 p-8 text-center">
+  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+    <svg
+      className="h-8 w-8 text-blue-600"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      {/* Icon path */}
+    </svg>
+  </div>
+  <p className="font-medium text-gray-600">No items found</p>
+  <p className="mt-1 text-sm text-gray-500">
+    Helpful description of next steps.
+  </p>
+</div>
+```
+
+**Loading States:**
+
+```tsx
+<div className="flex h-64 items-center justify-center">
+  <div className="text-center">
+    <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+    <p className="text-gray-600">Loading your data...</p>
+  </div>
+</div>
+```
+
+**Error States:**
+
+```tsx
+<div className="rounded-md border border-red-200 bg-red-50 p-6 text-center text-red-600">
+  <p className="font-semibold">Error loading data</p>
+  <p className="text-sm">{error.message}</p>
+</div>
+```
+
+### Interactive Elements
+
+**Skill Cards:**
+
+```tsx
+<div className="group rounded-md border border-blue-200 bg-white p-6 shadow-sm transition-all hover:border-blue-300 hover:shadow-lg">
+  <div className="mb-4 flex items-start justify-between">
+    <h3 className="text-lg font-semibold text-gray-900">Skill Name</h3>
+    <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <button className="rounded-lg bg-blue-100 p-1.5 text-blue-600 hover:bg-blue-200">
+        {/* Edit icon */}
+      </button>
+      <button className="rounded-lg bg-red-100 p-1.5 text-red-600 hover:bg-red-200">
+        {/* Delete icon */}
+      </button>
+    </div>
+  </div>
+  {/* Card content */}
+</div>
+```
+
+**Status Badges:**
+
+```tsx
+// Proficiency levels
+<span className="rounded-full border px-3 py-1 text-xs font-medium bg-purple-100 text-purple-800 border-purple-200">
+  Expert
+</span>
+<span className="rounded-full border px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 border-blue-200">
+  Advanced
+</span>
+<span className="rounded-full border px-3 py-1 text-xs font-medium bg-green-100 text-green-800 border-green-200">
+  Intermediate
+</span>
+<span className="rounded-full border px-3 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 border-yellow-200">
+  Beginner
+</span>
+
+// Source types
+<span className="rounded-full px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-800">
+  Work Experience
+</span>
+<span className="rounded-full px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800">
+  Education
+</span>
+```
+
+**Form Containers:**
+
+```tsx
+<div className="rounded-md border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
+  <h3 className="mb-6 text-xl font-bold text-gray-900">Form Title</h3>
+  {/* Form content */}
+</div>
+```
+
+### Navigation & Layout
+
+**Sidebar Design:**
+
+```tsx
+<Sidebar className="bg-gradient-to-b from-indigo-900 via-blue-900 to-slate-900 text-white">
+  <SidebarHeader className="border-b border-blue-700 p-6">
+    <span className="text-xl font-bold text-white">
+      CareerCraft{" "}
+      <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+        Studio
+      </span>
+    </span>
+  </SidebarHeader>
+  <SidebarContent className="p-4">
+    <SidebarMenu className="space-y-2">
+      <SidebarMenuButton className="cursor-pointer rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 font-medium text-white shadow-lg transition-all hover:bg-blue-800/50">
+        Active Item
+      </SidebarMenuButton>
+      <SidebarMenuButton className="cursor-pointer rounded-lg px-4 py-3 font-medium text-blue-100 transition-all hover:bg-blue-800/50 hover:text-white">
+        Inactive Item
+      </SidebarMenuButton>
+    </SidebarMenu>
+  </SidebarContent>
+</Sidebar>
+```
+
+**Mobile Tabs:**
+
+```tsx
+<div className="sticky right-0 bottom-0 left-0 z-20 flex h-16 w-full border-t border-blue-200 bg-white shadow-lg">
+  <button className="flex-1 border-b-3 border-blue-600 bg-blue-50 py-3 text-center font-semibold text-blue-600 transition-all">
+    Active Tab
+  </button>
+  <button className="flex-1 py-3 text-center font-semibold text-gray-600 transition-all hover:bg-gray-50 hover:text-gray-900">
+    Inactive Tab
+  </button>
+</div>
+```
+
 ## Implementation Notes
 
 ### CSS Custom Properties
