@@ -179,7 +179,6 @@ export function WorkHistoryPanel() {
   // Modern UserSkill mutations
   const addUserSkillMutation = api.document.addUserSkillToWork.useMutation({
     onSuccess: () => {
-      //void queryClient.document.listWorkHistory.invalidate();
       void queryClient.document.listUserSkillsForWork.invalidate();
       setNewSkill("");
       // Don't reset skill level - keep user's selection

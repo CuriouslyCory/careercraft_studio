@@ -26,6 +26,8 @@ import {
   EditIcon,
 } from "lucide-react";
 import { DocumentEditor } from "./document-editor";
+import { JobPostingsDataTable } from "./job-postings-data-table";
+import { createJobPostingsColumns } from "./job-postings-table-columns";
 
 interface JobPostingFormData {
   title: string;
@@ -481,7 +483,7 @@ export function JobPostingsPanel() {
     <div className="h-full space-y-4">
       {/* Content View Modal */}
       {viewContent && (
-        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="text-lg font-semibold">{viewContent.title}</h3>
@@ -495,6 +497,232 @@ export function JobPostingsPanel() {
                   {viewContent.content}
                 </ReactMarkdown>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Job Posting Modal */}
+      {editId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
+            <div className="flex items-center justify-between border-b p-4">
+              <h3 className="text-lg font-semibold">Edit Job Posting</h3>
+              <Button variant="outline" onClick={() => setEditId(null)}>
+                Cancel
+              </Button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void editJobForm.handleSubmit();
+                }}
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <editJobForm.Field name="title">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Title
+                        </label>
+                        <input
+                          id={field.name}
+                          name={field.name}
+                          type="text"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border px-3 py-2 text-sm"
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                  <editJobForm.Field name="company">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Company
+                        </label>
+                        <input
+                          id={field.name}
+                          name={field.name}
+                          type="text"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border px-3 py-2 text-sm"
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                  <editJobForm.Field name="location">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Location
+                        </label>
+                        <input
+                          id={field.name}
+                          name={field.name}
+                          type="text"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border px-3 py-2 text-sm"
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                  <editJobForm.Field name="industry">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Industry
+                        </label>
+                        <input
+                          id={field.name}
+                          name={field.name}
+                          type="text"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border px-3 py-2 text-sm"
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                  <editJobForm.Field name="url">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          URL
+                        </label>
+                        <input
+                          id={field.name}
+                          name={field.name}
+                          type="url"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border px-3 py-2 text-sm"
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                  <editJobForm.Field name="status">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Status
+                        </label>
+                        <select
+                          id={field.name}
+                          name={field.name}
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border px-3 py-2 text-sm"
+                        >
+                          <option value="">Select status</option>
+                          <option value="Saved">Saved</option>
+                          <option value="Applied">Applied</option>
+                          <option value="Interview">Interview</option>
+                          <option value="Rejected">Rejected</option>
+                          <option value="Offer">Offer</option>
+                        </select>
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                </div>
+                <div className="mt-4">
+                  <editJobForm.Field name="content">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Content
+                        </label>
+                        <Textarea
+                          id={field.name}
+                          name={field.name}
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="min-h-[100px] w-full"
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                </div>
+                <div className="mt-4">
+                  <editJobForm.Field name="notes">
+                    {(field) => (
+                      <div>
+                        <label
+                          htmlFor={field.name}
+                          className="mb-1 block text-sm font-medium"
+                        >
+                          Notes
+                        </label>
+                        <Textarea
+                          id={field.name}
+                          name={field.name}
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="min-h-[60px] w-full"
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </editJobForm.Field>
+                </div>
+                <div className="mt-6 flex gap-2">
+                  <Button
+                    type="submit"
+                    disabled={updateMutation.isPending}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditId(null)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
@@ -804,290 +1032,26 @@ export function JobPostingsPanel() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-md border border-blue-200 bg-white shadow-sm">
-          <table className="w-full">
-            <thead className="border-b border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-              <tr>
-                <th className="p-4 text-left font-semibold text-gray-900">
-                  Title
-                </th>
-                <th className="p-4 text-left font-semibold text-gray-900">
-                  Company
-                </th>
-                <th className="p-4 text-left font-semibold text-gray-900">
-                  Location
-                </th>
-                <th className="p-4 text-left font-semibold text-gray-900">
-                  Status
-                </th>
-                <th className="p-4 text-left font-semibold text-gray-900">
-                  Date Added
-                </th>
-                <th className="p-4 text-left font-semibold text-gray-900">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {jobPostings.map((job) => (
-                <tr key={job.id} className="border-t hover:bg-gray-50">
-                  <td className="p-4">
-                    {editId === job.id ? (
-                      <editJobForm.Field name="title">
-                        {(field) => (
-                          <input
-                            value={field.state.value}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            onBlur={field.handleBlur}
-                            className="w-full rounded border px-2 py-1 text-sm"
-                          />
-                        )}
-                      </editJobForm.Field>
-                    ) : (
-                      <div className="font-medium">{job.title}</div>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    {editId === job.id ? (
-                      <editJobForm.Field name="company">
-                        {(field) => (
-                          <input
-                            value={field.state.value}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            onBlur={field.handleBlur}
-                            className="w-full rounded border px-2 py-1 text-sm"
-                          />
-                        )}
-                      </editJobForm.Field>
-                    ) : (
-                      job.company
-                    )}
-                  </td>
-                  <td className="p-4">
-                    {editId === job.id ? (
-                      <editJobForm.Field name="location">
-                        {(field) => (
-                          <input
-                            value={field.state.value}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            onBlur={field.handleBlur}
-                            className="w-full rounded border px-2 py-1 text-sm"
-                          />
-                        )}
-                      </editJobForm.Field>
-                    ) : (
-                      job.location
-                    )}
-                  </td>
-                  <td className="p-4">
-                    {editId === job.id ? (
-                      <editJobForm.Field name="status">
-                        {(field) => (
-                          <select
-                            value={field.state.value}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            onBlur={field.handleBlur}
-                            className="w-full rounded border px-2 py-1 text-sm"
-                          >
-                            <option value="">Select status</option>
-                            <option value="Saved">Saved</option>
-                            <option value="Applied">Applied</option>
-                            <option value="Interview">Interview</option>
-                            <option value="Rejected">Rejected</option>
-                            <option value="Offer">Offer</option>
-                          </select>
-                        )}
-                      </editJobForm.Field>
-                    ) : (
-                      <span
-                        className={cn(
-                          "rounded px-2 py-1 text-xs",
-                          job.status === "Applied" &&
-                            "bg-blue-100 text-blue-800",
-                          job.status === "Interview" &&
-                            "bg-yellow-100 text-yellow-800",
-                          job.status === "Offer" &&
-                            "bg-green-100 text-green-800",
-                          job.status === "Rejected" &&
-                            "bg-red-100 text-red-800",
-                          !job.status && "bg-gray-100 text-gray-800",
-                        )}
-                      >
-                        {job.status ?? "—"}
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-4 text-sm text-gray-600">
-                    {new Date(job.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="space-x-2 p-4">
-                    {editId === job.id ? (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() => void editJobForm.handleSubmit()}
-                          disabled={updateMutation.isPending}
-                          className="bg-green-500 hover:bg-green-600"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEdit(job)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            handleViewContent(
-                              String(job.id),
-                              String(job.content),
-                              String(job.title),
-                            )
-                          }
-                        >
-                          View
-                        </Button>
-                        {generateResumeMutation.isPending &&
-                        generateResumeMutation.variables?.jobPostingId ===
-                          job.id ? (
-                          <div className="flex items-center gap-2 rounded-md border px-3 py-1.25 text-sm font-semibold text-blue-600 shadow-sm">
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-                            Generating
-                          </div>
-                        ) : (
-                          <>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex items-center gap-1"
-                                >
-                                  Actions
-                                  <ChevronDownIcon className="size-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleViewCompatibility(job.id, job.title)
-                                  }
-                                  className="text-blue-600"
-                                >
-                                  <FileTextIcon className="size-4" />
-                                  Compatibility Report
-                                </DropdownMenuItem>
-
-                                <DropdownMenuSeparator />
-
-                                {job.document?.resumeContent ? (
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleEditDocument(
-                                        job.id,
-                                        job.title,
-                                        job.document?.resumeContent ?? "",
-                                        "resume",
-                                      )
-                                    }
-                                    className="text-green-600"
-                                  >
-                                    <FileTextIcon className="size-4" />
-                                    View Resume
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() => handleGenerateResume(job.id)}
-                                    disabled={
-                                      generateResumeMutation.isPending &&
-                                      generateResumeMutation.variables
-                                        ?.jobPostingId === job.id
-                                    }
-                                    className="text-green-600"
-                                  >
-                                    <FileTextIcon className="size-4" />
-                                    {generateResumeMutation.isPending &&
-                                    generateResumeMutation.variables
-                                      ?.jobPostingId === job.id
-                                      ? "Generating Resume..."
-                                      : "Generate Resume"}
-                                  </DropdownMenuItem>
-                                )}
-
-                                {job.document?.coverLetterContent ? (
-                                  <>
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        handleEditDocument(
-                                          job.id,
-                                          job.title,
-                                          job.document?.coverLetterContent ??
-                                            "",
-                                          "coverLetter",
-                                        )
-                                      }
-                                      className="text-purple-600"
-                                    >
-                                      <MailIcon className="size-4" />
-                                      View Cover Letter
-                                    </DropdownMenuItem>
-                                  </>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleGenerateCoverLetter(job.id)
-                                    }
-                                    disabled={
-                                      generateCoverLetterMutation.isPending &&
-                                      generateCoverLetterMutation.variables
-                                        ?.jobPostingId === job.id
-                                    }
-                                    className="text-purple-600"
-                                  >
-                                    <MailIcon className="size-4" />
-                                    {generateCoverLetterMutation.isPending &&
-                                    generateCoverLetterMutation.variables
-                                      ?.jobPostingId === job.id
-                                      ? "Generating Cover Letter..."
-                                      : "Generate Cover Letter"}
-                                  </DropdownMenuItem>
-                                )}
-
-                                <DropdownMenuSeparator />
-
-                                <DropdownMenuItem
-                                  onClick={() => handleDelete(job.id)}
-                                  disabled={deleteMutation.isPending}
-                                  variant="destructive"
-                                >
-                                  Delete Job Posting
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <JobPostingsDataTable
+          columns={createJobPostingsColumns(
+            handleEdit,
+            handleDelete,
+            handleViewContent,
+            handleViewCompatibility,
+            handleGenerateResume,
+            handleGenerateCoverLetter,
+            handleEditDocument,
+            (jobPostingId: string) =>
+              generateResumeMutation.isPending &&
+              generateResumeMutation.variables?.jobPostingId === jobPostingId,
+            (jobPostingId: string) =>
+              generateCoverLetterMutation.isPending &&
+              generateCoverLetterMutation.variables?.jobPostingId ===
+                jobPostingId,
+            deleteMutation.isPending,
+          )}
+          data={jobPostings}
+        />
       )}
     </div>
   );
