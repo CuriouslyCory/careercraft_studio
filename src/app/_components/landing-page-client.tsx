@@ -371,6 +371,242 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
         </div>
       </section>
 
+      {/* See It In Action Section */}
+      <section className="bg-white py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
+              See It In Action
+            </h2>
+            <p className="mt-4 text-lg text-gray-600">
+              Get a preview of CareerCraft Studio&apos;s powerful features
+            </p>
+          </div>
+
+          <div className="mt-20 space-y-24">
+            {/* AI Chat Example */}
+            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+              <div className="order-2 lg:order-1">
+                <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 p-2 shadow-2xl">
+                  <img
+                    src="/images/chat-example.png"
+                    alt="AI Chat Assistant Interface"
+                    className="w-full rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+              <div className="order-1 lg:order-2">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                    <MessageSquare className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    AI Chat Assistant
+                  </h3>
+                </div>
+                <p className="mb-6 text-lg text-gray-600">
+                  Have natural conversations with our AI to manage your profile,
+                  analyze job postings, and generate tailored documents. The AI
+                  understands context and provides personalized career guidance.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+                    Natural Language Processing
+                  </span>
+                  <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+                    Context Awareness
+                  </span>
+                  <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+                    Multi-Agent System
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Skills Management Example */}
+            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
+                    <Brain className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    Smart Skills Management
+                  </h3>
+                </div>
+                <p className="mb-6 text-lg text-gray-600">
+                  Organize and categorize your skills across 50+ industries. Our
+                  AI automatically deduplicates similar skills and maintains
+                  ATS-friendly variations for maximum compatibility.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+                    Auto-Categorization
+                  </span>
+                  <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+                    Skill Normalization
+                  </span>
+                  <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+                    Industry-Specific
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 p-2 shadow-2xl">
+                  <img
+                    src="/images/your-skills-example.png"
+                    alt="Skills Management Interface"
+                    className="w-full rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Work History Example */}
+            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+              <div className="order-2 lg:order-1">
+                <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-green-50 p-2 shadow-2xl">
+                  <img
+                    src="/images/work-history-example.png"
+                    alt="Work History Management Interface"
+                    className="w-full rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+              <div className="order-1 lg:order-2">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                    <TrendingUp className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    Achievement Optimization
+                  </h3>
+                </div>
+                <p className="mb-6 text-lg text-gray-600">
+                  Transform your work history into compelling achievements. Our
+                  AI intelligently merges similar accomplishments and optimizes
+                  them for maximum impact in your applications.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                    Achievement Merging
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                    Impact Optimization
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                    Deduplication
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Job Postings Analysis Example */}
+            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                    <BarChart3 className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    Job Posting Analysis
+                  </h3>
+                </div>
+                <p className="mb-6 text-lg text-gray-600">
+                  Paste any job posting to get instant compatibility analysis.
+                  See which of your skills match the requirements and identify
+                  gaps to address in your tailored applications.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700">
+                    Skill Matching
+                  </span>
+                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700">
+                    Gap Analysis
+                  </span>
+                  <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700">
+                    ATS Keywords
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 p-2 shadow-2xl">
+                  <img
+                    src="/images/job-postings-example.png"
+                    alt="Job Posting Analysis Interface"
+                    className="w-full rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Compatibility Analysis Example */}
+            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+              <div className="order-2 lg:order-1">
+                <div className="rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 p-2 shadow-2xl">
+                  <img
+                    src="/images/compatibility-analysis-example.png"
+                    alt="Compatibility Analysis Interface"
+                    className="w-full rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+              <div className="order-1 lg:order-2">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+                    <Target className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    Detailed Compatibility Analysis
+                  </h3>
+                </div>
+                <p className="mb-6 text-lg text-gray-600">
+                  Get comprehensive compatibility scores with detailed
+                  breakdowns. See exactly which skills match, what&apos;s
+                  missing, and receive actionable recommendations to improve
+                  your application success rate.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700">
+                    Percentage Scoring
+                  </span>
+                  <span className="rounded-full bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700">
+                    Skill Breakdown
+                  </span>
+                  <span className="rounded-full bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700">
+                    Actionable Insights
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Call to Action */}
+          <div className="mt-16 text-center">
+            <p className="mb-8 text-lg text-gray-600">
+              Ready to experience these powerful features yourself?
+            </p>
+            {session?.user ? (
+              <Link
+                href="/ai-chat"
+                className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"
+              >
+                Try It Now
+                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </Link>
+            ) : (
+              <Link
+                href="/api/auth/signin"
+                className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"
+              >
+                Get Started Free
+                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Benefits Section */}
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
