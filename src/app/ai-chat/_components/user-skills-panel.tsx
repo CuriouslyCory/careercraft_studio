@@ -6,10 +6,11 @@ import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { ProficiencyLevel, SkillSource } from "@prisma/client";
+import { SkillModal, type UserSkillData } from "./skill-modal";
 
 export function UserSkillsPanel() {
   const [isAddingSkill, setIsAddingSkill] = useState(false);
-  const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
+  const [editingSkill, setEditingSkill] = useState<UserSkillData | null>(null);
   const [skillSearch, setSkillSearch] = useState("");
 
   const userSkillsQuery = api.userSkills.list.useQuery();
@@ -27,17 +28,6 @@ export function UserSkillsPanel() {
     },
     onError: (error) => {
       toast.error(`Failed to add skill: ${error.message}`);
-    },
-  });
-
-  const updateSkillMutation = api.userSkills.update.useMutation({
-    onSuccess: () => {
-      void userSkillsQuery.refetch();
-      setEditingSkillId(null);
-      toast.success("Skill updated successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to update skill: ${error.message}`);
     },
   });
 
@@ -59,22 +49,14 @@ export function UserSkillsPanel() {
     });
   };
 
-  const handleUpdateSkill = (
-    userSkillId: string,
-    proficiency: ProficiencyLevel,
-    yearsExperience?: number,
-  ) => {
-    updateSkillMutation.mutate({
-      userSkillId,
-      proficiency,
-      yearsExperience,
-    });
-  };
-
   const handleRemoveSkill = (userSkillId: string) => {
     if (confirm("Are you sure you want to remove this skill?")) {
       removeSkillMutation.mutate({ userSkillId });
     }
+  };
+
+  const handleSkillSuccess = () => {
+    void userSkillsQuery.refetch();
   };
 
   const proficiencyColors = {
@@ -235,52 +217,22 @@ export function UserSkillsPanel() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {editingSkillId === userSkill.id ? (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={userSkill.proficiency}
-                        onChange={(e) =>
-                          handleUpdateSkill(
-                            userSkill.id,
-                            e.target.value as ProficiencyLevel,
-                            userSkill.yearsExperience ?? undefined,
-                          )
-                        }
-                        className="rounded border px-2 py-1 text-xs"
-                      >
-                        <option value="BEGINNER">Beginner</option>
-                        <option value="INTERMEDIATE">Intermediate</option>
-                        <option value="ADVANCED">Advanced</option>
-                        <option value="EXPERT">Expert</option>
-                      </select>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingSkillId(null)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingSkillId(userSkill.id)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleRemoveSkill(userSkill.id)}
-                        disabled={removeSkillMutation.isPending}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        Remove
-                      </Button>
-                    </>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditingSkill(userSkill)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRemoveSkill(userSkill.id)}
+                    disabled={removeSkillMutation.isPending}
+                    className="text-red-600 hover:bg-red-50"
+                  >
+                    Remove
+                  </Button>
                 </div>
               </div>
             </div>
@@ -317,6 +269,16 @@ export function UserSkillsPanel() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Skill Modal */}
+      {editingSkill && (
+        <SkillModal
+          mode="edit"
+          existingSkill={editingSkill}
+          onClose={() => setEditingSkill(null)}
+          onSuccess={handleSkillSuccess}
+        />
       )}
     </div>
   );

@@ -10,7 +10,6 @@ import { userLinksRouter } from "./user-links";
 export const documentRouter = createTRPCRouter({
   // Document operations (upload, list, update, delete, truncate)
   upload: documentOpsRouter.upload,
-  truncateAllUserData: documentOpsRouter.truncateAllUserData,
   listDocuments: documentOpsRouter.list,
   updateDocument: documentOpsRouter.update,
   deleteDocument: documentOpsRouter.delete,

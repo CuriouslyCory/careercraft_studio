@@ -32,30 +32,6 @@ export function BioSidebar() {
   const router = useRouter();
   const session = useSession();
   const activeView = searchParams.get("bio") ?? "documents";
-  const [truncateStatus, setTruncateStatus] = useState<
-    null | "success" | "error"
-  >(null);
-  const [truncateLoading, setTruncateLoading] = useState(false);
-  const truncateMutation = api.document.truncateAllUserData.useMutation();
-
-  const handleTruncate = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete all your resume data? This cannot be undone.",
-      )
-    )
-      return;
-    setTruncateLoading(true);
-    setTruncateStatus(null);
-    try {
-      await truncateMutation.mutateAsync();
-      setTruncateStatus("success");
-    } catch (e) {
-      setTruncateStatus("error");
-    } finally {
-      setTruncateLoading(false);
-    }
-  };
 
   function handleChange(key: string) {
     const params = new URLSearchParams(Array.from(searchParams.entries()));

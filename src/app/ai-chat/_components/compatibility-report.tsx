@@ -5,7 +5,7 @@ import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import type { CompatibilityReport } from "~/server/services/compatibility-analyzer";
-import { AddSkillModal } from "./add-skill-modal";
+import { SkillModal } from "./skill-modal";
 
 interface CompatibilityReportModalProps {
   jobPostingId: string;
@@ -229,9 +229,10 @@ export function CompatibilityReportContent({
 
       {/* Add Skill Modal */}
       {showAddSkillModal && (
-        <AddSkillModal
+        <SkillModal
+          mode="add"
           onClose={() => setShowAddSkillModal(false)}
-          onSkillAdded={handleSkillAdded}
+          onSuccess={handleSkillAdded}
           missingSkillName={suggestedSkillName}
         />
       )}
