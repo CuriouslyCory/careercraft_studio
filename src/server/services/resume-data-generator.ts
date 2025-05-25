@@ -423,17 +423,70 @@ export class ResumeDataGenerator {
 
   private groupSkillsByCategory(userSkills: UserResumeData["userSkills"]) {
     const grouped: Record<SkillCategory, typeof userSkills> = {
+      // Technology & Engineering
       PROGRAMMING_LANGUAGE: [],
       FRAMEWORK_LIBRARY: [],
       DATABASE: [],
       CLOUD_PLATFORM: [],
       DEVOPS_TOOLS: [],
       DESIGN_TOOLS: [],
+
+      // Healthcare & Medical
+      MEDICAL_PROCEDURE: [],
+      MEDICAL_EQUIPMENT: [],
+      DIAGNOSTIC_SKILLS: [],
+      PATIENT_CARE: [],
+      MEDICAL_SOFTWARE: [],
+
+      // Finance & Business
+      FINANCIAL_ANALYSIS: [],
+      ACCOUNTING_SOFTWARE: [],
+      TRADING_PLATFORMS: [],
+      REGULATORY_COMPLIANCE: [],
+      RISK_MANAGEMENT: [],
+
+      // Legal
+      LEGAL_RESEARCH: [],
+      LEGAL_SOFTWARE: [],
+      CASE_MANAGEMENT: [],
+      LITIGATION_SKILLS: [],
+      CONTRACT_LAW: [],
+
+      // Manufacturing & Operations
+      MANUFACTURING_EQUIPMENT: [],
+      QUALITY_CONTROL: [],
+      SUPPLY_CHAIN: [],
+      LEAN_METHODOLOGY: [],
+      SAFETY_PROTOCOLS: [],
+
+      // Sales & Marketing
+      CRM_SYSTEMS: [],
+      DIGITAL_MARKETING: [],
+      SALES_TECHNIQUES: [],
+      MARKET_RESEARCH: [],
+      CONTENT_CREATION: [],
+
+      // Education & Training
+      CURRICULUM_DEVELOPMENT: [],
+      EDUCATIONAL_TECHNOLOGY: [],
+      ASSESSMENT_METHODS: [],
+      CLASSROOM_MANAGEMENT: [],
+      LEARNING_MANAGEMENT_SYSTEMS: [],
+
+      // Creative & Media
+      GRAPHIC_DESIGN_SOFTWARE: [],
+      VIDEO_EDITING: [],
+      AUDIO_PRODUCTION: [],
+      CREATIVE_WRITING: [],
+      PHOTOGRAPHY_EQUIPMENT: [],
+
+      // Universal Categories
       PROJECT_MANAGEMENT: [],
       SOFT_SKILLS: [],
       INDUSTRY_KNOWLEDGE: [],
       CERTIFICATION: [],
       METHODOLOGY: [],
+      LANGUAGES: [],
       OTHER: [],
     };
 
@@ -509,11 +562,47 @@ export class ResumeDataGenerator {
       CLOUD_PLATFORM: "Cloud Platforms",
       DEVOPS_TOOLS: "DevOps Tools",
       DESIGN_TOOLS: "Design Tools",
+      MEDICAL_PROCEDURE: "Medical Procedures",
+      MEDICAL_EQUIPMENT: "Medical Equipment",
+      DIAGNOSTIC_SKILLS: "Diagnostic Skills",
+      PATIENT_CARE: "Patient Care",
+      MEDICAL_SOFTWARE: "Medical Software",
+      FINANCIAL_ANALYSIS: "Financial Analysis",
+      ACCOUNTING_SOFTWARE: "Accounting Software",
+      TRADING_PLATFORMS: "Trading Platforms",
+      REGULATORY_COMPLIANCE: "Regulatory Compliance",
+      RISK_MANAGEMENT: "Risk Management",
+      LEGAL_RESEARCH: "Legal Research",
+      LEGAL_SOFTWARE: "Legal Software",
+      CASE_MANAGEMENT: "Case Management",
+      LITIGATION_SKILLS: "Litigation Skills",
+      CONTRACT_LAW: "Contract Law",
+      MANUFACTURING_EQUIPMENT: "Manufacturing Equipment",
+      QUALITY_CONTROL: "Quality Control",
+      SUPPLY_CHAIN: "Supply Chain",
+      LEAN_METHODOLOGY: "Lean Methodology",
+      SAFETY_PROTOCOLS: "Safety Protocols",
+      CRM_SYSTEMS: "CRM Systems",
+      DIGITAL_MARKETING: "Digital Marketing",
+      SALES_TECHNIQUES: "Sales Techniques",
+      MARKET_RESEARCH: "Market Research",
+      CONTENT_CREATION: "Content Creation",
+      CURRICULUM_DEVELOPMENT: "Curriculum Development",
+      EDUCATIONAL_TECHNOLOGY: "Educational Technology",
+      ASSESSMENT_METHODS: "Assessment Methods",
+      CLASSROOM_MANAGEMENT: "Classroom Management",
+      LEARNING_MANAGEMENT_SYSTEMS: "Learning Management Systems",
+      GRAPHIC_DESIGN_SOFTWARE: "Graphic Design Software",
+      VIDEO_EDITING: "Video Editing",
+      AUDIO_PRODUCTION: "Audio Production",
+      CREATIVE_WRITING: "Creative Writing",
+      PHOTOGRAPHY_EQUIPMENT: "Photography Equipment",
       PROJECT_MANAGEMENT: "Project Management",
       SOFT_SKILLS: "Soft Skills",
       INDUSTRY_KNOWLEDGE: "Industry Knowledge",
       CERTIFICATION: "Certifications",
       METHODOLOGY: "Methodologies",
+      LANGUAGES: "Languages",
       OTHER: "Other Skills",
     };
     return mapping[category];
