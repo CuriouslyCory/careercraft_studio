@@ -351,6 +351,11 @@ export function JobPostingsPanel() {
     void jobPostingsQuery.refetch(); // Refresh the data after editing
   };
 
+  const handleSaveDocument = () => {
+    // Refresh the data but keep the editor open
+    void jobPostingsQuery.refetch();
+  };
+
   const handleDownloadDocument = () => {
     if (!viewingDocument) return;
 
@@ -424,7 +429,7 @@ export function JobPostingsPanel() {
         jobTitle={editingDocument.jobTitle}
         initialContent={editingDocument.content}
         documentType={editingDocument.type}
-        onSave={handleCloseEdit}
+        onSave={handleSaveDocument}
         onCancel={handleCloseEdit}
       />
     );

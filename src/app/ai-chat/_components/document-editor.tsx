@@ -5,6 +5,18 @@ import dynamic from "next/dynamic";
 import { Button } from "~/components/ui/button";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
+import {
+  SaveIcon,
+  DownloadIcon,
+  TrashIcon,
+  XIcon,
+  LoaderIcon,
+} from "lucide-react";
 
 // Dynamically import the ToastUI Editor to prevent SSR issues
 const Editor = dynamic(
@@ -74,6 +86,8 @@ export function DocumentEditor({
   onCancel,
 }: DocumentEditorProps) {
   const editorRef = useRef<EditorElement | null>(null);
+  // Track the last saved content for better change detection
+  const [lastSavedContent, setLastSavedContent] = useState(initialContent);
 
   // Memoize toolbar configuration for performance
   const toolbarItems = useMemo(
@@ -93,6 +107,30 @@ export function DocumentEditor({
         toast.success(
           `${documentType === "resume" ? "Resume" : "Cover letter"} saved successfully!`,
         );
+        // Update the last saved content to track changes properly
+        if (editorRef.current) {
+          try {
+            const editor = editorRef.current;
+            if (
+              editor &&
+              "getInstance" in editor &&
+              typeof editor.getInstance === "function"
+            ) {
+              const editorInstance = editor.getInstance() as {
+                getMarkdown(): string;
+              };
+              if (
+                editorInstance &&
+                typeof editorInstance.getMarkdown === "function"
+              ) {
+                setLastSavedContent(editorInstance.getMarkdown());
+              }
+            }
+          } catch (error) {
+            console.error("Error updating last saved content:", error);
+          }
+        }
+        // Call onSave to refresh data but don't close the editor
         onSave();
       },
       onError: (error) => {
@@ -193,8 +231,8 @@ export function DocumentEditor({
     }
   }, [jobPostingId, documentType, updateDocumentMutation]);
 
-  // Memoized cancel handler with improved change detection
-  const handleCancel = useCallback(() => {
+  // Memoized close handler with improved change detection
+  const handleClose = useCallback(() => {
     if (!editorRef.current) {
       onCancel();
       return;
@@ -219,9 +257,9 @@ export function DocumentEditor({
       }
 
       const currentContent = editorInstance.getMarkdown();
-      if (currentContent !== initialContent) {
+      if (currentContent !== lastSavedContent) {
         if (
-          confirm("You have unsaved changes. Are you sure you want to cancel?")
+          confirm("You have unsaved changes. Are you sure you want to close?")
         ) {
           onCancel();
         }
@@ -232,7 +270,7 @@ export function DocumentEditor({
       console.error("Error checking for changes:", error);
       onCancel();
     }
-  }, [initialContent, onCancel]);
+  }, [lastSavedContent, onCancel]);
 
   // Memoized delete handler
   const handleDelete = useCallback(() => {
@@ -296,10 +334,10 @@ export function DocumentEditor({
         void handleSave();
       }
       if (event.key === "Escape") {
-        handleCancel();
+        handleClose();
       }
     },
-    [handleSave, handleCancel],
+    [handleSave, handleClose],
   );
 
   // Add keyboard event listeners
@@ -320,42 +358,97 @@ export function DocumentEditor({
           {jobTitle}
         </h2>
         <div className="flex gap-2">
-          <Button
-            onClick={() => void handleSave()}
-            disabled={isLoading}
-            className="bg-green-600 hover:bg-green-700"
-            aria-label={`Save ${documentType === "resume" ? "resume" : "cover letter"}`}
-            title="Save (Ctrl+S)"
-          >
-            {updateDocumentMutation.isPending ? "Saving..." : "Save"}
-          </Button>
-          <Button
-            onClick={() => void handleExportToPDF()}
-            disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700"
-            aria-label={`Export ${documentType === "resume" ? "resume" : "cover letter"} to PDF`}
-          >
-            {exportToPDFMutation.isPending ? "Exporting..." : "Export PDF"}
-          </Button>
-          <Button
-            onClick={handleDelete}
-            disabled={isLoading}
-            variant="destructive"
-            aria-label={`Delete ${documentType === "resume" ? "resume" : "cover letter"}`}
-          >
-            {deleteDocumentMutation.isPending
-              ? "Deleting..."
-              : `Delete ${documentType === "resume" ? "Resume" : "Cover Letter"}`}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            disabled={isLoading}
-            aria-label="Cancel editing"
-            title="Cancel (Esc)"
-          >
-            Cancel
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => void handleSave()}
+                disabled={isLoading}
+                size="icon"
+                className="bg-green-600 hover:bg-green-700"
+                aria-label={`Save ${documentType === "resume" ? "resume" : "cover letter"}`}
+              >
+                {updateDocumentMutation.isPending ? (
+                  <LoaderIcon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <SaveIcon className="h-4 w-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {updateDocumentMutation.isPending
+                  ? "Saving..."
+                  : "Save (Ctrl+S)"}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => void handleExportToPDF()}
+                disabled={isLoading}
+                size="icon"
+                className="bg-blue-600 hover:bg-blue-700"
+                aria-label={`Export ${documentType === "resume" ? "resume" : "cover letter"} to PDF`}
+              >
+                {exportToPDFMutation.isPending ? (
+                  <LoaderIcon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <DownloadIcon className="h-4 w-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {exportToPDFMutation.isPending
+                  ? "Exporting..."
+                  : "Export to PDF"}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={handleDelete}
+                disabled={isLoading}
+                size="icon"
+                variant="destructive"
+                aria-label={`Delete ${documentType === "resume" ? "resume" : "cover letter"}`}
+              >
+                {deleteDocumentMutation.isPending ? (
+                  <LoaderIcon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <TrashIcon className="h-4 w-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {deleteDocumentMutation.isPending
+                  ? "Deleting..."
+                  : `Delete ${documentType === "resume" ? "Resume" : "Cover Letter"}`}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                onClick={handleClose}
+                disabled={isLoading}
+                size="icon"
+                aria-label="Close editor"
+              >
+                <XIcon className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Close (Esc)</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
