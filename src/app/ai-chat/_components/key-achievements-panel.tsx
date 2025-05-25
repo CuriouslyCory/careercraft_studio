@@ -11,10 +11,6 @@ const achievementSchema = z.object({
   content: z.string().min(1, "Achievement content is required"),
 });
 
-type AchievementFormValues = {
-  content: string;
-};
-
 export function KeyAchievementsPanel() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");

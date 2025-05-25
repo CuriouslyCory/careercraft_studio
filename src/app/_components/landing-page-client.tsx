@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useEffect } from "react";
 import { animate, stagger } from "motion";
 import {
   Brain,
@@ -25,11 +26,7 @@ interface LandingPageClientProps {
 }
 
 export function LandingPageClient({ session }: LandingPageClientProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-
   useEffect(() => {
-    setIsLoaded(true);
-
     // Animate hero elements on load
     animate(
       ".hero-title",
@@ -388,10 +385,12 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="order-2 lg:order-1">
                 <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 p-2 shadow-2xl">
-                  <img
+                  <Image
                     src="/images/chat-example.png"
                     alt="AI Chat Assistant Interface"
                     className="w-full rounded-xl shadow-lg"
+                    width={500}
+                    height={300}
                   />
                 </div>
               </div>
@@ -453,10 +452,12 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
               </div>
               <div>
                 <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 p-2 shadow-2xl">
-                  <img
+                  <Image
                     src="/images/your-skills-example.png"
                     alt="Skills Management Interface"
                     className="w-full rounded-xl shadow-lg"
+                    width={500}
+                    height={300}
                   />
                 </div>
               </div>
@@ -466,10 +467,12 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="order-2 lg:order-1">
                 <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-green-50 p-2 shadow-2xl">
-                  <img
+                  <Image
                     src="/images/work-history-example.png"
                     alt="Work History Management Interface"
                     className="w-full rounded-xl shadow-lg"
+                    width={500}
+                    height={300}
                   />
                 </div>
               </div>
@@ -531,10 +534,12 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
               </div>
               <div>
                 <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 p-2 shadow-2xl">
-                  <img
+                  <Image
                     src="/images/job-postings-example.png"
                     alt="Job Posting Analysis Interface"
                     className="w-full rounded-xl shadow-lg"
+                    width={500}
+                    height={300}
                   />
                 </div>
               </div>
@@ -544,10 +549,12 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="order-2 lg:order-1">
                 <div className="rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 p-2 shadow-2xl">
-                  <img
+                  <Image
                     src="/images/compatibility-analysis-example.png"
                     alt="Compatibility Analysis Interface"
                     className="w-full rounded-xl shadow-lg"
+                    width={500}
+                    height={300}
                   />
                 </div>
               </div>

@@ -117,7 +117,7 @@ export function LinksPanel() {
     return typeMap[type] ?? type;
   };
 
-  const getLinkTypeIcon = (type: string) => {
+  const getLinkTypeIcon = (_type: string) => {
     // You could add specific icons for different link types here
     return <ExternalLink className="h-4 w-4" />;
   };

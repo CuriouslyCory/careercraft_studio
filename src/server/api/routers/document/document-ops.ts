@@ -525,7 +525,7 @@ export const documentOpsRouter = createTRPCRouter({
         jobTitle: z.string(),
       }),
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx: _ctx, input }) => {
       const { content, documentType, jobTitle } = input;
 
       try {

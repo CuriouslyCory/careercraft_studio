@@ -66,7 +66,7 @@ export function ConversationsPanel() {
   });
 
   const createConversationMutation = api.ai.createConversation.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       void conversationsQuery.refetch();
       // Navigate to chat with new conversation
       const params = new URLSearchParams(searchParams);

@@ -80,12 +80,8 @@ const ParseJobPostingSchema = z.object({
   content: z.string().min(1),
 });
 
-const StoreJobPostingSchema = z.object({
-  parsedJobPosting: z.string().min(1),
-});
-
 // NEW: Action tracking and clarification types
-const CompletedActionSchema = z.object({
+const _CompletedActionSchema = z.object({
   id: z.string(),
   agentType: z.string(),
   toolName: z.string(),
@@ -106,7 +102,7 @@ const ClarificationOptionSchema = z.object({
   }),
 });
 
-const PendingClarificationSchema = z.object({
+const _PendingClarificationSchema = z.object({
   id: z.string(),
   question: z.string(),
   options: z.array(ClarificationOptionSchema),
@@ -114,21 +110,9 @@ const PendingClarificationSchema = z.object({
   timestamp: z.number(),
 });
 
-const RequestClarificationSchema = z.object({
-  question: z.string().min(1),
-  options: z.array(ClarificationOptionSchema).min(2),
-  context: z.record(z.unknown()).optional(),
-});
-
-const RespondToClarificationSchema = z.object({
-  clarificationId: z.string().min(1),
-  selectedOptionId: z.string().min(1),
-});
-
 // TypeScript interfaces derived from schemas
-type CompletedAction = z.infer<typeof CompletedActionSchema>;
-type ClarificationOption = z.infer<typeof ClarificationOptionSchema>;
-type PendingClarification = z.infer<typeof PendingClarificationSchema>;
+type CompletedAction = z.infer<typeof _CompletedActionSchema>;
+type PendingClarification = z.infer<typeof _PendingClarificationSchema>;
 
 // Custom error types for structured error handling
 class AgentError extends Error {
@@ -211,7 +195,7 @@ function validateToolArgs<T>(
     if (typeof args === "string") {
       try {
         parsedArgs = JSON.parse(args) as unknown;
-      } catch (parseError) {
+      } catch {
         throw new ValidationError(
           `Failed to parse JSON arguments for tool ${toolName}`,
           new z.ZodError([]),
@@ -781,7 +765,7 @@ function getCleanContentForAiMessage(
           .map((part) => ({ type: "text" as const, text: part.text }));
         if (textParts.length === 1 && textParts[0]) return textParts[0].text;
         return textParts.length > 0 ? textParts : "";
-      } catch (e) {
+      } catch {
         if (rawLLMContent.includes('"functionCall"')) return "";
         return rawLLMContent;
       }
@@ -1285,7 +1269,7 @@ async function processDataManagerToolCalls(
 
               toolCallSummary += `\n_Total: ${skillsData.length} skills in your profile_\n\n`;
             }
-          } catch (parseError) {
+          } catch {
             // Fallback to raw JSON if parsing fails
             toolCallSummary += `• Retrieved ${args.dataType} data:\n\n\`\`\`json\n${result}\n\`\`\`\n\n`;
           }

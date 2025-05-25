@@ -29,19 +29,14 @@ const ChatInputSchema = z.object({
 });
 
 // Add metadata schema for tracking processed documents
-const ProcessingMetadataSchema = z.object({
+const _ProcessingMetadataSchema = z.object({
   jobPostingsCreated: z.number().default(0),
   resumesProcessed: z.number().default(0),
   documentsProcessed: z.array(z.string()).default([]),
 });
 
 export type AIChatInput = z.infer<typeof ChatInputSchema>;
-export type ProcessingMetadata = z.infer<typeof ProcessingMetadataSchema>;
-
-// Type for chunks with content
-type ContentChunk = {
-  content: string;
-};
+export type ProcessingMetadata = z.infer<typeof _ProcessingMetadataSchema>;
 
 // Type for agent messages
 type AgentMessage = {
@@ -61,12 +56,6 @@ type AgentOutput = {
 type StreamChunk = {
   __end__?: boolean;
   [agentType: string]: AgentOutput | boolean | undefined;
-};
-
-// Define the agent state type
-type AgentState = {
-  messages: BaseMessage[];
-  next: string;
 };
 
 // Helper function to save a chat message to the database

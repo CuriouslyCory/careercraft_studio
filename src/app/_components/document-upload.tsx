@@ -53,7 +53,7 @@ export default function DocumentUpload() {
         title: file.name,
         type: "resume", // Default type, could be made dynamic
       });
-    } catch (e) {
+    } catch {
       setError("Failed to read file");
       setUploading(false);
     }

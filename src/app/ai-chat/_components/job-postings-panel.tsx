@@ -8,24 +8,10 @@ import { markdownComponents } from "./markdown-components";
 import { CompatibilityReportContent } from "./compatibility-report";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
-import { cn } from "~/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
 import type { Prisma } from "@prisma/client";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "~/components/ui/dropdown-menu";
-import {
-  ChevronDownIcon,
-  FileTextIcon,
-  MailIcon,
-  EditIcon,
-  Plus,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { DocumentEditor } from "./document-editor";
 import { JobPostingsDataTable } from "./job-postings-data-table";
 import { createJobPostingsColumns } from "./job-postings-table-columns";
@@ -93,16 +79,6 @@ export function JobPostingsPanel() {
 
   const queryClient = api.useUtils();
   const jobPostingsQuery = api.document.listJobPostings.useQuery();
-
-  const migrateMutation = api.compatibility.migrateJobPostings.useMutation({
-    onSuccess: (result) => {
-      void jobPostingsQuery.refetch();
-      toast.success(result.message);
-    },
-    onError: (error) => {
-      toast.error(`Migration failed: ${error.message}`);
-    },
-  });
 
   const generateResumeMutation =
     api.document.generateTailoredResume.useMutation({
@@ -314,20 +290,6 @@ export function JobPostingsPanel() {
   const handleGenerateResume = (jobPostingId: string) => {
     generateResumeMutation.mutate({
       jobPostingId,
-    });
-  };
-
-  const handleViewDocument = (
-    jobPostingId: string,
-    jobTitle: string,
-    content: string,
-    type: "resume" | "coverLetter",
-  ) => {
-    setViewingDocument({
-      jobPostingId,
-      jobTitle,
-      content,
-      type,
     });
   };
 

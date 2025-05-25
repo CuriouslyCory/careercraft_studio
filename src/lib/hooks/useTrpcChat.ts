@@ -239,12 +239,7 @@ export function useTrpcChat() {
         },
       });
     }
-  }, [
-    session,
-    sessionLoadedRef.current,
-    conversationId,
-    createConversationMutation,
-  ]);
+  }, [session, conversationId, createConversationMutation]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

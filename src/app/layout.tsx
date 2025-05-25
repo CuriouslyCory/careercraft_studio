@@ -6,8 +6,6 @@ import { auth } from "~/server/auth";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import { Toaster } from "~/components/ui/sonner";
-import { SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar";
-import { BioSidebar } from "./_components/bio-sidebar";
 
 export const metadata: Metadata = {
   title: "CareerCraft Studio",

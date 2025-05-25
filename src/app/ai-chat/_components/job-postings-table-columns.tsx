@@ -11,7 +11,6 @@ import {
 } from "~/components/ui/dropdown-menu";
 import {
   ArrowUpDown,
-  ChevronDownIcon,
   FileTextIcon,
   MailIcon,
   EditIcon,
@@ -19,7 +18,6 @@ import {
   Trash2,
   ExternalLink,
 } from "lucide-react";
-import { cn } from "~/lib/utils";
 import type { Prisma } from "@prisma/client";
 
 // Use Prisma generated type with includes
