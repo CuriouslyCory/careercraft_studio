@@ -608,6 +608,81 @@ export const respondToClarificationTool = new DynamicStructuredTool({
 });
 
 // =============================================================================
+// KEY ACHIEVEMENTS DEDUPLICATION TOOL
+// =============================================================================
+
+/**
+ * Creates a tool for deduplicating and merging similar key achievements using AI
+ */
+function createDeduplicateKeyAchievementsTool(
+  userId: string,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
+    name: "deduplicate_and_merge_key_achievements",
+    description:
+      "Remove exact duplicate key achievements and intelligently merge similar ones using AI while preserving all important details. This helps clean up your achievements list by combining related accomplishments without losing any information.",
+    schema: z.object({
+      dryRun: z
+        .boolean()
+        .default(false)
+        .describe(
+          "If true, shows a preview of changes without actually applying them",
+        ),
+    }),
+    func: async ({ dryRun = false }: { dryRun?: boolean }): Promise<string> => {
+      try {
+        console.log(
+          `Deduplicating key achievements for user ${userId}, dryRun: ${dryRun}`,
+        );
+
+        // Use the centralized service function
+        const { deduplicateAndMergeKeyAchievements } = await import(
+          "~/server/api/routers/document/key-achievements"
+        );
+
+        const result = await deduplicateAndMergeKeyAchievements(
+          db,
+          userId,
+          dryRun,
+        );
+
+        // Format the response for the agent
+        let response = `## Key Achievements Deduplication ${dryRun ? "(Preview)" : "Complete"}\n\n`;
+        response += `${result.message}\n\n`;
+        response += `**Summary:**\n`;
+        response += `- Original count: ${result.originalCount}\n`;
+        response += `- Final count: ${result.finalCount}\n`;
+        response += `- Exact duplicates removed: ${result.exactDuplicatesRemoved}\n`;
+        response += `- Similar groups merged: ${result.similarGroupsMerged}\n\n`;
+
+        if (result.preview && result.preview.length > 0) {
+          response += `**${dryRun ? "Preview of" : "Final"} Achievements:**\n\n`;
+          result.preview.forEach(
+            (item: { content: string; action: string }, index: number) => {
+              response += `${index + 1}. ${item.content}\n`;
+            },
+          );
+        }
+
+        if (dryRun && result.originalCount > result.finalCount) {
+          response += `\n*To apply these changes, ask me to "deduplicate my achievements" without the preview.*`;
+        }
+
+        return response;
+      } catch (error) {
+        console.error(
+          "Error in deduplicate_and_merge_key_achievements:",
+          error,
+        );
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return `Error deduplicating achievements: ${errorMessage}. Please try again or contact support if the issue persists.`;
+      }
+    },
+  });
+}
+
+// =============================================================================
 // TOOL COLLECTIONS
 // =============================================================================
 
@@ -629,6 +704,8 @@ export function getDataManagerTools(userId: string): DynamicStructuredTool[] {
     createDeleteWorkAchievementTool(userId),
     // Include the standalone merge tool for manual merging
     mergeWorkAchievementsTool,
+    // Key achievements deduplication tool
+    createDeduplicateKeyAchievementsTool(userId),
   ];
 }
 

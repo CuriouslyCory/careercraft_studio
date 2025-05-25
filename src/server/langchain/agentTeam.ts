@@ -1365,6 +1365,23 @@ async function processDataManagerToolCalls(
       } catch (error) {
         toolCallSummary += `• Error with ${toolCall.name}: ${error instanceof Error ? error.message : String(error)}\n`;
       }
+    } else if (toolCall.name === "deduplicate_and_merge_key_achievements") {
+      try {
+        // The deduplication tool handles its own processing and returns a formatted summary
+        const deduplicationTool = getDataManagerTools(userId).find(
+          (t) => t.name === "deduplicate_and_merge_key_achievements",
+        );
+        if (deduplicationTool) {
+          const result = (await deduplicationTool.invoke(
+            toolCall.args,
+          )) as string;
+          toolCallSummary += `${result}\n\n`;
+        } else {
+          toolCallSummary += `• Error: Key achievements deduplication tool not found\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error deduplicating key achievements: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
     } else {
       toolCallSummary += `• ${toolCall.name}: Processed successfully\n`;
     }
@@ -1407,6 +1424,9 @@ You have access to these tools:
 - merge_and_replace_work_achievements: Merge existing achievements with new ones using AI, then replace
 - merge_work_achievements: Standalone tool to merge two sets of achievements using AI
 
+**Key Achievements Management:**
+- deduplicate_and_merge_key_achievements: Remove exact duplicate key achievements and intelligently merge similar ones using AI while preserving all important details. Use dryRun=true to preview changes first.
+
 **IMPORTANT**: When a user provides resume text (either by pasting it directly or asking you to parse a resume), use the parse_and_store_resume tool to process it. This will:
 - Extract structured information using AI
 - Store work history, education, skills, and achievements in their profile
@@ -1418,6 +1438,12 @@ You have access to these tools:
 - To edit individual achievements: Use get_work_achievements to see current ones, then update_work_achievement or delete_work_achievement as needed
 - To completely replace achievements: Use replace_work_achievements with the new list
 - To add achievements without affecting existing ones: Use add_work_achievement
+
+**Key Achievements Deduplication:**
+- When users ask to clean up, deduplicate, or merge their key achievements, use deduplicate_and_merge_key_achievements
+- Always offer to show a preview first by using dryRun=true
+- This tool removes exact duplicates and uses AI to merge similar achievements while preserving all details
+- No information is made up or lost during the merging process
 
 When retrieving skills data, present it in a well-organized markdown format grouped by proficiency level.
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.

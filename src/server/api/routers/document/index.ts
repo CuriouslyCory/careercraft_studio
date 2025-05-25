@@ -49,6 +49,7 @@ export const documentRouter = createTRPCRouter({
   createKeyAchievement: keyAchievementsRouter.create,
   updateKeyAchievement: keyAchievementsRouter.update,
   deleteKeyAchievement: keyAchievementsRouter.delete,
+  deduplicateAndMergeKeyAchievements: keyAchievementsRouter.deduplicateAndMerge,
 
   // Job Posting operations
   listJobPostings: jobPostingRouter.list,
@@ -91,3 +92,10 @@ export {
 export { detectDocumentType } from "./utils/type-detection";
 
 export { mergeWorkAchievements } from "./utils/llm-merger";
+
+// Export the centralized key achievements deduplication service
+export {
+  deduplicateAndMergeKeyAchievements,
+  type DeduplicationResult,
+  type KeyAchievementRecord,
+} from "./key-achievements";
