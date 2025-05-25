@@ -1,6 +1,6 @@
 # Resume Master
 
-Resume Master is a tool that helps you create resumes and cover letters tailored to your job applications.
+Resume Master is a tool that helps you create resumes and cover letters tailored to your job applications. Finally get human eyeballs on your resume and cover letter.
 
 ## Features
 
