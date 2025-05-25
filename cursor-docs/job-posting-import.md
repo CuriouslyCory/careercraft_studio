@@ -1,157 +1,126 @@
 # Job Posting Import & Analysis
 
-This document describes the Job Posting Import and Analysis capabilities within CareerCraft Studio, primarily managed by the `Job Posting Manager` agent. This agent and its tools are defined in `src/server/langchain/agentTeam.ts`.
+This document outlines the job posting import and analysis functionality in CareerCraft Studio.
 
 ## Overview
 
-The system allows users to import job postings, which are then automatically parsed, stored, and analyzed in a single action. A key analysis function is comparing the requirements listed in the job posting against the user's stored skills and profile information. This helps users identify skill gaps and tailor their application materials.
+The job posting import system allows users to paste job posting content into the AI chat, which then parses, normalizes, and stores the job posting data for later analysis and comparison against user skills.
 
-Reference: This feature is primarily handled by the `Job Posting Manager` agent, as outlined in the [AI Chat](./ai-chat.md) documentation.
+## Architecture
 
-## Core Functionality & Tools
+### Job Posting Processing Pipeline
 
-The `Job Posting Manager` agent is equipped with the following tools (from `getJobPostingTools(userId)` via `agentTeam.ts` system message):
+1. **Content Parsing** (`src/server/langchain/jobPostingParser.ts`)
 
-1.  **`parse_and_store_job_posting`** ✨ **NEW COMBINED TOOL**
+   - Uses LangChain with Google Gemini to extract structured data from job posting text
+   - Identifies required vs. bonus skills, experience requirements, education requirements
+   - Normalizes skill names using the skill normalization service
 
-    - **Purpose**: Parses job posting text AND automatically stores it in the database in one seamless action.
-    - **Arguments**: `content` (string - the job posting text). (Ref: `ParseJobPostingSchema` in `agentTeam.ts`)
-    - **Output**: A comprehensive success message with job details, extracted requirements count, and confirmation of storage.
-    - **Benefits**:
-      - Eliminates the need for separate parse/store actions
-      - Provides better user experience with immediate feedback
-      - Prevents workflow confusion and supervisor routing errors
-      - **Stores normalized, clean skill data** instead of raw extracted skills
+2. **Skill Normalization** (`src/server/services/skill-normalization.ts`)
 
-2.  **`find_job_postings`**
+   - Maps variant skill names to canonical forms (e.g., "ReactJS" → "React")
+   - Creates skill aliases for tracking different naming conventions
+   - Ensures consistent skill representation across the system
 
-    - **Purpose**: Retrieves previously stored job postings based on search criteria.
-    - **Arguments**: Search criteria such as `title`, `company`, `location`, keywords, etc.
-    - **Output**: A list of matching job postings from the database.
+3. **Database Storage** (`src/server/services/job-posting-processor.ts`)
+   - Stores job posting metadata and content
+   - Creates normalized skill requirements with proper priority handling
+   - **Duplicate Skill Handling**: Prevents unique constraint violations when the same skill appears in both required and bonus categories
 
-3.  **`compare_skills_to_job`**
+### Duplicate Skill Handling
 
-    - **Purpose**: Compares the user's skills (from their profile) against the requirements of a specific job posting.
-    - **Arguments**: Likely `job_posting_id` (to identify the target job) and `user_id` (implicitly handled by the agent context).
-    - **Output**: An analysis detailing matching skills, missing skills (gaps), and potentially suggestions for how the user can better align their profile or application.
+**Problem**: When a skill appears in both required and bonus skill lists (e.g., "React" as both required and nice-to-have), the system would attempt to create duplicate `JobSkillRequirement` records, violating the unique constraint on `(skillId, jobPostingId)`.
 
-4.  **`get_user_profile`**
-    - **Purpose**: Retrieves user data, particularly skills, needed for comparison against job postings (used by `compare_skills_to_job` or directly by the agent for context).
-    - **Arguments**: `dataType` (enum: "work_history", "education", "skills", "achievements", "preferences", "all"). (Ref: `GetUserProfileSchema` in `agentTeam.ts`)
+**Solution**:
 
-## Workflow Example: Importing and Analyzing a Job Posting
+- Collect all skills into a `Map` keyed by `skillId` to ensure uniqueness
+- Prioritize required skills over bonus skills (required skills take precedence)
+- Use `createMany` with `skipDuplicates: true` for batch insertion
+- This prevents transaction failures and ensures data integrity
 
-1.  **User Input**: User pastes a job description into the chat: "Parse this job posting: [job description text]"
-2.  **AI Chat**: The `Supervisor Agent` routes the request to the `Job Posting Manager` agent.
-3.  **`Job Posting Manager` Agent Actions**:
-    - Calls `parse_and_store_job_posting` with the provided text.
-    - The tool automatically:
-      - Parses the job posting using LLM to extract structured data
-      - **Normalizes all extracted skills using the SkillNormalizationService**
-      - Stores the original content and **normalized** parsed data in the database
-      - Creates normalized skill requirements for compatibility analysis
-      - Returns a comprehensive success message with job details
-4.  **Response Generation**: The agent provides immediate feedback about the successful parsing and storage, and offers to compare skills.
-5.  **Optional Follow-up**: User can then ask for skill comparison, and the agent will call `compare_skills_to_job`.
+```typescript
+// Collect unique skill requirements to avoid duplicates
+const skillRequirements = new Map<
+  string,
+  {
+    skillId: string;
+    isRequired: boolean;
+    priority: number;
+  }
+>();
 
-## Key Improvements
+// Process required skills first (higher priority)
+for (const skillResult of requiredSkills) {
+  skillRequirements.set(skillResult.baseSkillId, {
+    skillId: skillResult.baseSkillId,
+    isRequired: true,
+    priority: 1,
+  });
+}
 
-### ✅ Streamlined Workflow
+// Process bonus skills (only add if not already required)
+for (const skillResult of bonusSkills) {
+  if (!skillRequirements.has(skillResult.baseSkillId)) {
+    skillRequirements.set(skillResult.baseSkillId, {
+      skillId: skillResult.baseSkillId,
+      isRequired: false,
+      priority: 2,
+    });
+  }
+}
 
-- **Before**: Parse → Ask user what to do → Store (if requested) → Potential confusion
-- **After**: Parse and Store automatically → Immediate confirmation → Offer skill comparison
+// Create all unique skill requirements in a single batch
+await tx.jobSkillRequirement.createMany({
+  data: skillRequirementData,
+  skipDuplicates: true,
+});
+```
 
-### ✅ Better User Experience
+## Database Schema
 
-- No more "What would you like me to do next?" interruptions
-- Clear, comprehensive feedback about what was extracted and stored
-- Immediate readiness for skill comparison analysis
+### Core Tables
 
-### ✅ Eliminated Edge Cases
+- `JobPosting`: Main job posting record with title, company, content
+- `JobPostingDetails`: Structured requirements extracted from the posting
+- `JobSkillRequirement`: Individual skill requirements with priority and requirement status
+- `Skill`: Normalized skill definitions with aliases
 
-- No more supervisor trying to re-parse extracted summaries
-- No workflow confusion between parsing and storing
-- Consistent behavior regardless of user phrasing
+### Unique Constraints
 
-### ✅ **Clean Data Storage** 🆕
+- `JobSkillRequirement` has a unique constraint on `(skillId, jobPostingId)` to prevent duplicate skill requirements for the same job posting
 
-- **Skills are normalized BEFORE storage** in `jobPostingDetails`
-- **No data duplication** between raw and normalized skills
-- **Consistent skill names** across all stored job postings
-- **Better compatibility analysis** due to clean, standardized data
+## Usage Examples
 
-## Technical Implementation
+### Via AI Chat
 
-The new `parse_and_store_job_posting` tool:
+1. User pastes job posting content in chat
+2. AI routes to Job Posting Manager Agent
+3. Agent calls `parse_and_store_job_posting` tool
+4. System parses, normalizes, and stores the job posting
+5. User can then ask for skill comparison analysis
 
-- **Uses centralized `JobPostingProcessor` service** for consistent processing logic
-- **Eliminates code duplication** between AI tools and tRPC routers
-- Uses the same LLM parsing logic as before
-- **Normalizes skills immediately after parsing** using `SkillNormalizationService`
-- Stores the original content (not parsed JSON) in the `content` field
-- **Creates structured `JobPostingDetails` records with normalized skill names**
-- **Intelligently normalizes skills** using the multi-industry `SkillNormalizationService`
-- **Automatically categorizes skills** across technology, healthcare, finance, legal, and other industries
-- Creates `JobSkillRequirement` records for compatibility analysis using the same normalized skills
-- Returns a formatted success message with extracted data counts
+### Direct API Usage
 
-### Centralized Processing Architecture
+```typescript
+const processor = new JobPostingProcessor(db);
+const result = await processor.processAndStore(jobPostingContent, userId);
+```
 
-**Shared Service (`JobPostingProcessor`):**
+## Error Handling
 
-- Located in `src/server/services/job-posting-processor.ts`
-- Handles parsing, skill normalization, and storage in one transaction
-- Used by both AI tools and tRPC routers for consistency
-- Provides structured result with job details and skill counts
-- Includes comprehensive error handling and validation
+- **Parsing Errors**: LLM parsing failures are caught and reported with user-friendly messages
+- **Skill Normalization Errors**: Unknown skills are created as new entries in the skill database
+- **Database Errors**: Transaction failures are handled gracefully with rollback
+- **Duplicate Skills**: Handled automatically without user intervention
 
-**Usage Points:**
+## Performance Considerations
 
-1. **AI Tool**: `parse_and_store_job_posting` tool uses `JobPostingProcessor`
-2. **tRPC Router**: `processJobPosting` function uses `JobPostingProcessor`
-3. **Future Integrations**: Any new job posting processing can use the same service
+- Skill normalization is done in parallel for different skill categories
+- Batch insertion is used for skill requirements to minimize database round trips
+- Transaction timeouts are configurable (default: 30 seconds)
 
-### Data Flow Improvements
+## Related Features
 
-**Previous Flow (with data duplication):**
-
-1. Parse job posting → Extract raw skills
-2. Store raw skills in `jobPostingDetails`
-3. Separately normalize skills and store in `jobSkillRequirement`
-4. Result: Raw skills in details table, normalized skills in requirements table
-
-**New Flow (clean data):**
-
-1. Parse job posting → Extract raw skills
-2. **Normalize skills immediately**
-3. Store **normalized skills** in `jobPostingDetails`
-4. Store **same normalized skills** in `jobSkillRequirement`
-5. Result: Consistent normalized skills across all tables
-
-**Centralized Flow (eliminates duplication):**
-
-1. **Single `JobPostingProcessor.processAndStore()` method**
-2. Used by both AI tools and tRPC routers
-3. Consistent skill normalization and storage logic
-4. **No code duplication** between different entry points
-5. Easier maintenance and testing
-
-### Skill Normalization Benefits
-
-The integration with the [Skill Normalization System](./skill-normalization.md) provides:
-
-- **Multi-Industry Support**: Automatically detects and categorizes skills from technology, healthcare, finance, legal, sales, manufacturing, and other industries
-- **Intelligent Pattern Matching**: Recognizes detailed skill variants like "React (hooks, context)" and normalizes to "React"
-- **Alias Creation**: Automatically creates aliases for common skill variations (e.g., "ReactJS", "React.js" → "React")
-- **Consistent Categorization**: Uses keyword detection and pattern matching to assign appropriate categories
-- **Deduplication**: Prevents duplicate skills while maintaining granularity for ATS matching
-- **Data Consistency**: Same normalized skills stored in both `jobPostingDetails` and `jobSkillRequirement` tables
-
-## Key Considerations
-
-- **Skill Matching Logic**: The effectiveness of `compare_skills_to_job` relies on robust [Skill Normalization](./skill-normalization.md) for both the user's profile and the parsed job posting skills.
-- **Data Extraction Accuracy**: The quality of analysis depends heavily on the LLM's ability to accurately extract relevant details from diverse job posting formats.
-- **Data Consistency**: All skill data is now normalized before storage, ensuring consistent analysis and comparison results.
-- **User Interface**: The frontend might offer a dedicated interface for managing imported job postings, allowing users to view, delete, or initiate analysis on them.
-
-This feature empowers users to seamlessly import job postings and gain valuable insights into how their qualifications stack up against job requirements, aiding in a more targeted job application process.
+- [Skill Normalization](./skill-normalization.md)
+- [Compatibility Analysis](./compatibility-analysis.md)
+- [AI Chat System](./ai-chat.md)

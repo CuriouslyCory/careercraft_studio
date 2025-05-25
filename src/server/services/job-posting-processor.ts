@@ -155,80 +155,79 @@ export class JobPostingProcessor {
             },
           });
 
-          // Create skill requirements using the already normalized skills
-          // Required skills
-          for (const skillResult of normalizedRequiredTechnical) {
-            try {
-              await tx.jobSkillRequirement.create({
-                data: {
-                  skillId: skillResult.baseSkillId,
-                  jobPostingId: createdJobPosting.id,
-                  isRequired: true,
-                  priority: 1, // High priority for required skills
-                },
-              });
-            } catch (error) {
-              // Skip if already exists (duplicate)
-              console.log(
-                `Skill requirement already exists for ${skillResult.baseSkillName}`,
-              );
+          // Create skill requirements - handle duplicates by collecting unique skills first
+          const skillRequirements = new Map<
+            string,
+            {
+              skillId: string;
+              skillName: string;
+              isRequired: boolean;
+              priority: number;
             }
+          >();
+
+          // Process required skills first (higher priority)
+          for (const skillResult of normalizedRequiredTechnical) {
+            skillRequirements.set(skillResult.baseSkillId, {
+              skillId: skillResult.baseSkillId,
+              skillName: skillResult.baseSkillName,
+              isRequired: true,
+              priority: 1, // High priority for required skills
+            });
           }
 
           for (const skillResult of normalizedRequiredSoft) {
-            try {
-              await tx.jobSkillRequirement.create({
-                data: {
-                  skillId: skillResult.baseSkillId,
-                  jobPostingId: createdJobPosting.id,
-                  isRequired: true,
-                  priority: 1, // High priority for required skills
-                },
-              });
-            } catch (error) {
-              // Skip if already exists (duplicate)
-              console.log(
-                `Skill requirement already exists for ${skillResult.baseSkillName}`,
-              );
-            }
+            skillRequirements.set(skillResult.baseSkillId, {
+              skillId: skillResult.baseSkillId,
+              skillName: skillResult.baseSkillName,
+              isRequired: true,
+              priority: 1, // High priority for required skills
+            });
           }
 
-          // Bonus skills
+          // Process bonus skills (only add if not already required)
           for (const skillResult of normalizedBonusTechnical) {
-            try {
-              await tx.jobSkillRequirement.create({
-                data: {
-                  skillId: skillResult.baseSkillId,
-                  jobPostingId: createdJobPosting.id,
-                  isRequired: false,
-                  priority: 2, // Medium priority for bonus skills
-                },
+            if (!skillRequirements.has(skillResult.baseSkillId)) {
+              skillRequirements.set(skillResult.baseSkillId, {
+                skillId: skillResult.baseSkillId,
+                skillName: skillResult.baseSkillName,
+                isRequired: false,
+                priority: 2, // Medium priority for bonus skills
               });
-            } catch (error) {
-              // Skip if already exists (duplicate)
-              console.log(
-                `Skill requirement already exists for ${skillResult.baseSkillName}`,
-              );
             }
           }
 
           for (const skillResult of normalizedBonusSoft) {
-            try {
-              await tx.jobSkillRequirement.create({
-                data: {
-                  skillId: skillResult.baseSkillId,
-                  jobPostingId: createdJobPosting.id,
-                  isRequired: false,
-                  priority: 2, // Medium priority for bonus skills
-                },
+            if (!skillRequirements.has(skillResult.baseSkillId)) {
+              skillRequirements.set(skillResult.baseSkillId, {
+                skillId: skillResult.baseSkillId,
+                skillName: skillResult.baseSkillName,
+                isRequired: false,
+                priority: 2, // Medium priority for bonus skills
               });
-            } catch (error) {
-              // Skip if already exists (duplicate)
-              console.log(
-                `Skill requirement already exists for ${skillResult.baseSkillName}`,
-              );
             }
           }
+
+          // Create all unique skill requirements in a single batch
+          const skillRequirementData = Array.from(
+            skillRequirements.values(),
+          ).map((req) => ({
+            skillId: req.skillId,
+            jobPostingId: createdJobPosting.id,
+            isRequired: req.isRequired,
+            priority: req.priority,
+          }));
+
+          if (skillRequirementData.length > 0) {
+            await tx.jobSkillRequirement.createMany({
+              data: skillRequirementData,
+              skipDuplicates: true, // This will skip any duplicates instead of failing
+            });
+          }
+
+          console.log(
+            `Created ${skillRequirementData.length} unique skill requirements`,
+          );
 
           return createdJobPosting;
         },

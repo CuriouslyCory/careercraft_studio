@@ -158,6 +158,7 @@ Each specialized agent is equipped with a set of tools (functions they can call)
     - **Tools Used** (from `getJobPostingTools(userId)` via `agentTeam.ts` system message):
       - `parse_and_store_job_posting`: Parses job posting text and automatically stores it in the database.
         - **Arguments**: `content` (string). (Ref: `ParseJobPostingSchema`)
+        - **Note**: Handles duplicate skills by prioritizing required skills over bonus skills and using batch creation with `skipDuplicates` to prevent unique constraint violations.
       - `find_job_postings`: Finds stored job postings by title, company, location, etc.
         - **Arguments**: Search criteria.
       - `compare_skills_to_job`: Compares user skills against job requirements.

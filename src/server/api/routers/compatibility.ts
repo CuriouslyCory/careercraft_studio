@@ -50,44 +50,55 @@ export const compatibilityRouter = createTRPCRouter({
         const requiredSkillResults =
           await skillNormalizer.normalizeSkills(allRequiredSkills);
 
-        for (const skillResult of requiredSkillResults) {
-          try {
-            await tx.jobSkillRequirement.create({
-              data: {
-                skillId: skillResult.baseSkillId,
-                jobPostingId: jobPosting.id,
-                isRequired: true,
-                priority: 1,
-              },
-            });
-          } catch (error) {
-            // Skip if already exists
-            console.log(
-              `Skill requirement already exists for ${skillResult.baseSkillName}`,
-            );
-          }
-        }
-
         // Process bonus skills with normalization
         const bonusSkillResults =
           await skillNormalizer.normalizeSkills(allBonusSkills);
 
-        for (const skillResult of bonusSkillResults) {
-          try {
-            await tx.jobSkillRequirement.create({
-              data: {
-                skillId: skillResult.baseSkillId,
-                jobPostingId: jobPosting.id,
-                isRequired: false,
-                priority: 2,
-              },
-            });
-          } catch (error) {
-            // Skip if already exists
-            console.log(
-              `Skill requirement already exists for ${skillResult.baseSkillName}`,
-            );
+        // Collect unique skill requirements to avoid duplicates
+        const skillRequirements = new Map<
+          string,
+          {
+            skillId: string;
+            isRequired: boolean;
+            priority: number;
           }
+        >();
+
+        // Process required skills first (higher priority)
+        for (const skillResult of requiredSkillResults) {
+          skillRequirements.set(skillResult.baseSkillId, {
+            skillId: skillResult.baseSkillId,
+            isRequired: true,
+            priority: 1,
+          });
+        }
+
+        // Process bonus skills (only add if not already required)
+        for (const skillResult of bonusSkillResults) {
+          if (!skillRequirements.has(skillResult.baseSkillId)) {
+            skillRequirements.set(skillResult.baseSkillId, {
+              skillId: skillResult.baseSkillId,
+              isRequired: false,
+              priority: 2,
+            });
+          }
+        }
+
+        // Create all unique skill requirements in a single batch
+        const skillRequirementData = Array.from(skillRequirements.values()).map(
+          (req) => ({
+            skillId: req.skillId,
+            jobPostingId: jobPosting.id,
+            isRequired: req.isRequired,
+            priority: req.priority,
+          }),
+        );
+
+        if (skillRequirementData.length > 0) {
+          await tx.jobSkillRequirement.createMany({
+            data: skillRequirementData,
+            skipDuplicates: true, // This will skip any duplicates instead of failing
+          });
         }
       });
 
