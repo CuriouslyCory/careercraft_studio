@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send } from "lucide-react";
+import { Send, Plus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useTrpcChat, type UISimpleMessage } from "~/lib/hooks/useTrpcChat";
 import { Textarea } from "~/components/ui/textarea";
@@ -18,6 +18,7 @@ export function ChatInterface() {
     isLoading,
     error,
     conversationId,
+    startNewChat,
   } = useTrpcChat();
   const [showIntro, setShowIntro] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -69,13 +70,24 @@ export function ChatInterface() {
     <div className="flex h-full flex-col">
       <div className="mb-6 flex items-center gap-4">
         <div className="flex-grow border-b border-blue-200 pb-3 text-center">
-          <h2 className="text-2xl font-bold text-gray-900">
-            CareerCraft{" "}
-            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Studio
-            </span>{" "}
-            AI
-          </h2>
+          <div className="flex items-center justify-center gap-4">
+            <h2 className="text-2xl font-bold text-gray-900">
+              CareerCraft{" "}
+              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Studio
+              </span>{" "}
+              AI
+            </h2>
+            <Button
+              onClick={startNewChat}
+              disabled={isLoading}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 p-0 text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+              title="Start new chat"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="sr-only">Start new chat</span>
+            </Button>
+          </div>
           {conversationId && (
             <p className="mt-1 text-xs text-gray-500">
               Conversation ID: {conversationId.slice(0, 8)}...

@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 import { v4 as uuidv4 } from "uuid";
 import { api } from "~/trpc/react";
 import { type ChatMessage } from "@prisma/client";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 // Type for processing metadata
 type ProcessingMetadata = {
@@ -21,6 +21,7 @@ export type UISimpleMessage = {
 
 export function useTrpcChat() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [messages, setMessages] = useState<UISimpleMessage[]>([]);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export function useTrpcChat() {
   const initializationRef = useRef(false);
   const sessionLoadedRef = useRef(false);
   const assistantMessageIdRef = useRef<string | null>(null);
+  const isStartingNewChatRef = useRef(false);
 
   // Get query utils for invalidating queries
   const queryUtils = api.useUtils();
@@ -58,10 +60,58 @@ export function useTrpcChat() {
     initializationRef.current = true; // Mark as initialized to prevent auto-creation
   }, []);
 
+  // Function to start a new chat
+  const startNewChat = useCallback(() => {
+    // Set flag to prevent conversation loading during new chat creation
+    isStartingNewChatRef.current = true;
+
+    // Clear the conversation parameter from URL first
+    const params = new URLSearchParams(searchParams);
+    params.delete("conversation");
+    router.replace(`/ai-chat?${params.toString()}`);
+
+    // Reset all state after URL is cleared
+    setMessages([]);
+    setInput("");
+    setConversationId(null);
+    setError(null);
+    setIsLoading(false);
+    setSubscriptionInput(null);
+    assistantMessageIdRef.current = null;
+
+    // Reset initialization flags to allow new conversation creation
+    initializationRef.current = false;
+
+    // Create a new conversation
+    if (session?.user && sessionLoadedRef.current) {
+      createConversationMutation.mutate(undefined, {
+        onSuccess: (data: { conversationId: string }) => {
+          console.log("New conversation created:", data.conversationId);
+          setConversationId(data.conversationId);
+          initializationRef.current = true;
+          // Clear the flag after successful creation
+          isStartingNewChatRef.current = false;
+        },
+        onError: (err: { message: string }) => {
+          console.error("Failed to create new conversation:", err.message);
+          setError(
+            new Error(`Failed to create new conversation: ${err.message}`),
+          );
+          // Clear the flag on error too
+          isStartingNewChatRef.current = false;
+        },
+      });
+    }
+  }, [session, createConversationMutation, searchParams, router]);
+
   // Check for conversation parameter in URL
   useEffect(() => {
     const conversationParam = searchParams.get("conversation");
-    if (conversationParam && conversationParam !== conversationId) {
+    if (
+      conversationParam &&
+      conversationParam !== conversationId &&
+      !isStartingNewChatRef.current
+    ) {
       loadConversation(conversationParam);
     }
   }, [searchParams, conversationId, loadConversation]);
@@ -281,5 +331,6 @@ export function useTrpcChat() {
     error,
     conversationId,
     loadConversation,
+    startNewChat,
   };
 }
