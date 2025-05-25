@@ -460,17 +460,22 @@ function isDuplicateAction(
 ): CompletedAction | null {
   if (completedActions.length === 0) return null;
 
-  // Check for exact tool name and args match
+  // Check for exact tool name and agent type match
   for (const completed of completedActions) {
     if (
       completed.agentType === newAction.agentType &&
       completed.toolName === newAction.toolName
     ) {
-      // For content-based tools, check content hash
+      // For content-based tools, only consider it a duplicate if content hashes match
       if (newAction.contentHash && completed.contentHash) {
         if (newAction.contentHash === completed.contentHash) {
           return completed;
         }
+        // Different content hashes mean different content, not a duplicate
+        continue;
+      } else if (newAction.contentHash || completed.contentHash) {
+        // One has content hash, the other doesn't - not a duplicate
+        continue;
       } else {
         // For other tools, check args similarity
         const argsMatch =
@@ -504,15 +509,27 @@ function shouldSkipToolCall(
   // Create content hash for content-based tools
   let contentHash: string | undefined;
   if (
-    toolCall.name === "parse_job_posting" &&
+    toolCall.name === "parse_and_store_job_posting" &&
     typeof toolCall.args.content === "string"
   ) {
     contentHash = createContentHash(toolCall.args.content);
+    logger.info("Created content hash for job posting", {
+      toolName: toolCall.name,
+      contentLength: toolCall.args.content.length,
+      contentHash,
+      agentType,
+    });
   } else if (
     toolCall.name === "parse_and_store_resume" &&
     typeof toolCall.args.content === "string"
   ) {
     contentHash = createContentHash(toolCall.args.content);
+    logger.info("Created content hash for resume", {
+      toolName: toolCall.name,
+      contentLength: toolCall.args.content.length,
+      contentHash,
+      agentType,
+    });
   }
 
   const newAction: Omit<CompletedAction, "id" | "timestamp"> = {
@@ -529,6 +546,48 @@ function shouldSkipToolCall(
     const timeDiff = Date.now() - duplicate.timestamp;
     const isRecent = timeDiff < 5 * 60 * 1000; // 5 minutes
 
+    logger.info("Duplicate action detected", {
+      toolName: toolCall.name,
+      agentType,
+      timeDiff,
+      isRecent,
+      hasContentHash: !!contentHash,
+      duplicateContentHash: duplicate.contentHash,
+      contentHashMatch: contentHash === duplicate.contentHash,
+    });
+
+    // For content-based tools, only skip if it's the exact same content AND recent
+    if (contentHash && duplicate.contentHash) {
+      if (contentHash === duplicate.contentHash && isRecent) {
+        logger.warn("Skipping duplicate content-based tool call", {
+          toolName: toolCall.name,
+          agentType,
+          contentHash,
+          timeDiff,
+        });
+        return {
+          skip: true,
+          reason: `This exact ${toolCall.name.replace(/_/g, " ")} content was already processed recently (${Math.round(timeDiff / 1000)}s ago)`,
+          existingAction: duplicate,
+        };
+      }
+      // Different content, allow processing
+      logger.info("Allowing different content for content-based tool", {
+        toolName: toolCall.name,
+        agentType,
+        newContentHash: contentHash,
+        existingContentHash: duplicate.contentHash,
+      });
+      return { skip: false };
+    }
+
+    // For non-content-based tools, use the original logic
+    logger.warn("Skipping duplicate non-content-based tool call", {
+      toolName: toolCall.name,
+      agentType,
+      timeDiff,
+      isRecent,
+    });
     return {
       skip: true,
       reason: isRecent
@@ -537,6 +596,13 @@ function shouldSkipToolCall(
       existingAction: duplicate,
     };
   }
+
+  logger.info("No duplicate detected, allowing tool call", {
+    toolName: toolCall.name,
+    agentType,
+    hasContentHash: !!contentHash,
+    completedActionsCount: completedActions.length,
+  });
 
   return { skip: false };
 }
