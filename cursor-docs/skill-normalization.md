@@ -39,8 +39,29 @@ The challenge is maintaining granularity for ATS matching while preventing users
 
 3. **API Integration**
    - Job posting imports automatically normalize skills
+   - **Resume imports now use skill normalization for proper categorization**
    - User skill addition uses normalization
    - Compatibility analysis leverages normalized data
+
+## Recent Fixes
+
+### Resume Import Skill Categorization (Fixed)
+
+**Issue**: Skills imported from resumes were being categorized as "OTHER" instead of using intelligent categorization.
+
+**Root Cause**: The `ResumeParsingService.processWorkExperienceBatched` method was creating skills directly with hardcoded `category: "OTHER"` instead of using the `SkillNormalizationService`.
+
+**Solution**: Updated the resume parser to use the `SkillNormalizationService` for all skill processing, ensuring:
+
+- Skills are properly categorized using pattern matching and keyword detection
+- Skill aliases are created automatically
+- Duplicate skills are handled correctly
+- Detailed skill variants are preserved as aliases
+
+**Files Modified**:
+
+- `src/server/services/resume-parser.ts` - Updated to use skill normalization service
+- Skills now get proper categories like `PROGRAMMING_LANGUAGE`, `FRAMEWORK_LIBRARY`, `DATABASE`, etc.
 
 ## Multi-Industry Support
 
@@ -245,176 +266,5 @@ const normalizedSkills = await skillNormalizer.normalizeSkills([
   "Quality Control (ISO 9001, inspection procedures, root cause analysis)",
 ]);
 ```
-
-## Continuous Improvement Strategy
-
-### 1. Data-Driven Pattern Discovery
-
-**Monitoring New Skills:**
-
-```typescript
-// Track frequently imported skills that don't match patterns
-const unmatchedSkills = await db.skill.findMany({
-  where: {
-    category: "OTHER",
-    userSkills: { some: {} }, // Has been used by users
-  },
-  orderBy: { userSkills: { _count: "desc" } },
-});
-```
-
-**Pattern Analysis:**
-
-- Monitor skill imports from job postings
-- Identify common formats not covered by current patterns
-- Track user-added skills that need better categorization
-
-### 2. Industry-Specific Expansion
-
-**Adding New Industries:**
-
-1. **Research**: Identify common skills and tools in the target industry
-2. **Pattern Development**: Create regex patterns for industry-specific skills
-3. **Alias Mapping**: Define common variations and abbreviations
-4. **Category Expansion**: Add new categories if needed
-5. **Testing**: Validate with real job postings from the industry
-
-**Example: Adding Retail Industry:**
-
-```typescript
-// New categories
-RETAIL_SOFTWARE, INVENTORY_MANAGEMENT, POINT_OF_SALE, MERCHANDISING, CUSTOMER_SERVICE
-
-// New patterns
-{
-  pattern: /^POS\s*\(.*\)$/i,
-  baseSkill: "Point of Sale",
-  category: "POINT_OF_SALE",
-}
-```
-
-### 3. Machine Learning Enhancement
-
-**Future Improvements:**
-
-- **Skill Embedding Models**: Use semantic similarity for better skill matching
-- **Industry Classification**: ML models to automatically detect industry context
-- **Similarity Learning**: Automatically discover skill relationships from job data
-
-### 4. Feedback Loop Integration
-
-**User Feedback Collection:**
-
-```typescript
-// Track skill normalization accuracy
-interface SkillFeedback {
-  originalSkill: string;
-  suggestedBase: string;
-  suggestedCategory: SkillCategory;
-  userAccepted: boolean;
-  userCorrectedBase?: string;
-  userCorrectedCategory?: SkillCategory;
-}
-```
-
-**Automated Improvements:**
-
-- Monitor skill merge/split requests from users
-- Track job matching success rates by skill category
-- Analyze compatibility report feedback to identify missing skills
-
-### 5. API Integration Points
-
-**External Skill Databases:**
-
-- Integrate with O\*NET skill taxonomy
-- Import from job board skill classifications
-- Sync with industry certification bodies
-
-**Real-time Learning:**
-
-```typescript
-// Auto-improve patterns based on usage
-async function improvePatterns() {
-  const frequentSkills = await analyzeSkillUsagePatterns();
-  const newPatterns = await generatePatternsFromUsage(frequentSkills);
-  await validateAndDeployPatterns(newPatterns);
-}
-```
-
-## Performance Considerations
-
-### Scaling Strategy
-
-**Horizontal Scaling Benefits:**
-
-- Categories can be added without breaking existing data
-- New industries don't require structural changes
-- Pattern matching is fast and cacheable
-
-**Optimization Techniques:**
-
-- Cache frequently accessed patterns
-- Batch process skill normalization during imports
-- Index skills by category for faster searches
-
-### Alternative Architectures
-
-**Hierarchical Taxonomy (Future Option):**
-
-```typescript
-interface SkillHierarchy {
-  industry: string; // "Healthcare", "Technology"
-  domain: string; // "Software", "Procedures"
-  category: string; // "EMR", "Patient Care"
-  skill: string; // "Epic", "IV Therapy"
-}
-```
-
-**Benefits of Current Flat Structure:**
-
-- ✅ Simple to understand and maintain
-- ✅ Fast queries and compatibility analysis
-- ✅ Easy to extend with new categories
-- ✅ No complex hierarchy management
-
-**When to Consider Hierarchical:**
-
-- When supporting 50+ industries
-- When skill relationships become complex
-- When requiring industry-specific skill trees
-
-## Migration and Deployment
-
-### Database Migration
-
-```sql
--- New categories are automatically handled by Prisma enum
--- Existing skills remain categorized as before
--- New skills get intelligent categorization
-```
-
-### Rollout Strategy
-
-1. **Phase 1**: Deploy expanded categories and patterns
-2. **Phase 2**: Run migration to recategorize existing skills
-3. **Phase 3**: Monitor and tune categorization accuracy
-4. **Phase 4**: Add ML-powered improvements
-
-## Monitoring and Analytics
-
-### Key Metrics
-
-- **Categorization Accuracy**: % of skills correctly categorized
-- **Pattern Coverage**: % of skills matched by patterns vs. keyword detection
-- **Industry Distribution**: Skill usage across different industries
-- **Alias Effectiveness**: How often aliases are used in job matching
-
-### Success Indicators
-
-- Reduced duplicate skills in user profiles
-- Improved job compatibility scoring accuracy
-- Higher user satisfaction with skill suggestions
-- Better ATS keyword matching rates
 
 This multi-industry approach maintains the system's simplicity while dramatically expanding its applicability across diverse career fields.

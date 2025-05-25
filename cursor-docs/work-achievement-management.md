@@ -74,6 +74,7 @@ The following tools are available to the `Data Manager` agent for managing work 
 ### Advanced Deduplication and Optimization
 
 8.  **`deduplicateAndMergeWorkAchievements`** (tRPC Route)
+
     - **Purpose**: AI-powered deduplication and optimization of all achievements for a specific work history record. This function removes exact duplicates and intelligently merges similar achievements while optimizing all achievements for resume best practices.
     - **Input**: `work_history_id`, `dry_run` (boolean for preview mode).
     - **Output**: Comprehensive result including original count, final count, duplicates removed, groups merged, and preview of final achievements.
@@ -82,12 +83,39 @@ The following tools are available to the `Data Manager` agent for managing work 
       - **Resume Optimization**: All achievements are enhanced with strong action verbs, quantifiable results, and ATS-friendly language
       - **Comprehensive Output**: Returns ALL final achievements that should appear in the work history, including both merged entries and individually optimized standalone entries
       - **Preview Mode**: Supports dry-run mode to preview changes before applying them
-      - **Database Transactions**: Ensures atomicity of all changes
+      - **Optimized Architecture**: AI processing occurs outside of database transactions to prevent timeout issues, with only the final database operations wrapped in a transaction for atomicity
+      - **Database Transactions**: Uses minimal, focused transactions only for the actual database operations to ensure atomicity while avoiding timeout issues
     - **Usage Example**: User clicks "Clean Up" button in the work history panel to deduplicate and optimize their achievements.
+
+9.  **`applyApprovedWorkAchievements`** (tRPC Route)
+    - **Purpose**: Applies the exact approved achievements from the frontend preview, ensuring consistency by using the exact achievements the user approved rather than re-running AI which could produce different results.
+    - **Input**: `work_history_id`, `approved_achievements` (array of exact achievement descriptions from the preview).
+    - **Output**: Success confirmation with count of applied achievements.
+    - **Key Features**:
+      - **Consistency Guarantee**: Uses the exact achievement text that was previewed and approved by the user
+      - **No AI Re-processing**: Bypasses AI processing entirely to prevent different results on application
+      - **Fast Execution**: Only performs database operations (delete existing, create new) without any AI processing
+      - **Atomic Transaction**: Ensures all changes are applied or none are, maintaining data integrity
+    - **Usage Example**: User previews deduplication results, approves them, and clicks "Apply Changes" to implement the exact previewed achievements.
+
+### Improved Preview-and-Apply Workflow
+
+The system now implements a two-step workflow for achievement deduplication:
+
+1. **Preview Phase**: `deduplicateAndMergeWorkAchievements` with `dryRun: true` generates and returns the proposed changes without modifying the database
+2. **Apply Phase**: `applyApprovedWorkAchievements` takes the exact approved achievements from the preview and applies them to the database
+
+This workflow ensures that:
+
+- Users see exactly what changes will be made before they're applied
+- The applied changes match exactly what was previewed (no AI variability)
+- Users have full control over what gets applied to their profile
+- The system is more predictable and trustworthy for users
 
 ## Key Features of the System
 
-- **Database Transactions**: Batch operations like `replace_work_achievements`, `merge_and_replace_work_achievements`, and `deduplicateAndMergeWorkAchievements` use database transactions. This ensures data consistency: either all changes are applied, or none are, preventing partial updates.
+- **Optimized Transaction Handling**: The system uses a two-phase approach where AI processing occurs outside of database transactions to prevent timeout issues. Only the final database operations (delete and create) are wrapped in minimal, focused transactions to ensure data consistency.
+- **Database Transactions**: Batch operations like `replace_work_achievements`, `merge_and_replace_work_achievements`, and `deduplicateAndMergeWorkAchievements` use database transactions strategically. This ensures data consistency: either all changes are applied, or none are, preventing partial updates while avoiding timeout issues from long-running AI operations.
 - **User Authentication/Authorization**: All operations implicitly (or explicitly via the agent context) verify that the work history records being modified belong to the authenticated user.
 - **AI-Powered Merging and Optimization**: The use of an LLM for achievement processing allows for:
   - Intelligent combination and deduplication of achievement lists

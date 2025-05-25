@@ -69,7 +69,14 @@ export const workHistoryRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     return ctx.db.workHistory.findMany({
       where: { userId: ctx.session.user.id },
-      include: { achievements: true },
+      include: {
+        achievements: true,
+        userSkills: {
+          include: {
+            skill: true,
+          },
+        },
+      },
       orderBy: { startDate: "desc" },
     });
   }),
@@ -198,29 +205,78 @@ export const workHistoryRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Find or create the skill using normalization
-      const skillNormalizer = new SkillNormalizationService(ctx.db);
-      const normalizedSkill = await skillNormalizer.normalizeSkill(
-        input.skillName,
-        "OTHER", // Default category, can be categorized later
-      );
+      try {
+        // Find or create the skill using normalization
+        const skillNormalizer = new SkillNormalizationService(ctx.db);
+        const normalizedSkill = await skillNormalizer.normalizeSkill(
+          input.skillName,
+          "OTHER", // Default category, will be properly categorized by normalization service
+        );
 
-      // Check if user already has this skill
-      const existingUserSkill = await ctx.db.userSkill.findFirst({
-        where: {
-          userId: ctx.session.user.id,
-          skillId: normalizedSkill.baseSkillId,
-        },
-      });
+        const proficiency = input.proficiency ?? "INTERMEDIATE";
 
-      if (existingUserSkill) {
-        // Update existing skill to reference this work history if not already linked
-        if (!existingUserSkill.workHistoryId) {
+        console.log(
+          `Adding skill "${input.skillName}" (normalized to ID: ${normalizedSkill.baseSkillId}) to work history ${input.workHistoryId} for user ${ctx.session.user.id}`,
+        );
+
+        // Check if user already has this skill (regardless of work history)
+        const existingUserSkill = await ctx.db.userSkill.findUnique({
+          where: {
+            userId_skillId: {
+              userId: ctx.session.user.id,
+              skillId: normalizedSkill.baseSkillId,
+            },
+          },
+          include: {
+            skill: true,
+            workHistory: true,
+          },
+        });
+
+        if (existingUserSkill) {
+          console.log(
+            `User already has skill ${normalizedSkill.baseSkillId}, updating existing record ${existingUserSkill.id}`,
+          );
+
+          // User already has this skill - update it to associate with this work history
+          // and update proficiency if the new level is higher
+          const proficiencyLevels = {
+            BEGINNER: 1,
+            INTERMEDIATE: 2,
+            ADVANCED: 3,
+            EXPERT: 4,
+          };
+
+          const currentLevel = proficiencyLevels[existingUserSkill.proficiency];
+          const newLevel = proficiencyLevels[proficiency];
+
+          // Update the existing UserSkill record
           return await ctx.db.userSkill.update({
             where: { id: existingUserSkill.id },
             data: {
+              // Update proficiency only if new level is higher
+              proficiency:
+                newLevel > currentLevel
+                  ? proficiency
+                  : existingUserSkill.proficiency,
+              // Update years experience if provided and higher
+              yearsExperience:
+                input.yearsExperience !== undefined
+                  ? Math.max(
+                      input.yearsExperience,
+                      existingUserSkill.yearsExperience ?? 0,
+                    )
+                  : existingUserSkill.yearsExperience,
+              // Update work history association to this work history
               workHistoryId: input.workHistoryId,
-              notes: input.notes ?? existingUserSkill.notes,
+              // Append notes if provided
+              notes: input.notes
+                ? existingUserSkill.notes
+                  ? `${existingUserSkill.notes}; ${input.notes}`
+                  : input.notes
+                : existingUserSkill.notes,
+              // Update source to work experience if it wasn't already
+              source: "WORK_EXPERIENCE",
             },
             include: {
               skill: true,
@@ -228,37 +284,198 @@ export const workHistoryRouter = createTRPCRouter({
             },
           });
         }
-        throw new Error("You already have this skill linked to your profile");
-      }
 
-      // Create new UserSkill linked to this work history
-      return await ctx.db.userSkill.create({
-        data: {
-          userId: ctx.session.user.id,
-          skillId: normalizedSkill.baseSkillId,
-          proficiency: input.proficiency ?? "INTERMEDIATE",
-          yearsExperience: input.yearsExperience,
-          source: "WORK_EXPERIENCE",
-          notes: input.notes,
-          workHistoryId: input.workHistoryId,
-        },
-        include: {
-          skill: true,
-          workHistory: true,
-        },
-      });
+        console.log(
+          `User doesn't have skill ${normalizedSkill.baseSkillId}, creating new UserSkill record`,
+        );
+
+        // User doesn't have this skill yet - create new UserSkill record linked to this work history
+        return await ctx.db.userSkill.create({
+          data: {
+            userId: ctx.session.user.id,
+            skillId: normalizedSkill.baseSkillId,
+            proficiency,
+            yearsExperience: input.yearsExperience,
+            source: "WORK_EXPERIENCE",
+            notes: input.notes,
+            workHistoryId: input.workHistoryId,
+          },
+          include: {
+            skill: true,
+            workHistory: true,
+          },
+        });
+      } catch (error) {
+        console.error("Error in addUserSkillToWork:", error);
+
+        // If it's a unique constraint error, it means there's a race condition
+        // or the findUnique didn't find the record for some reason
+        if (
+          error instanceof Error &&
+          error.message.includes("Unique constraint failed")
+        ) {
+          // Try to find the existing record and update it
+          const existingUserSkill = await ctx.db.userSkill.findFirst({
+            where: {
+              userId: ctx.session.user.id,
+              skill: {
+                OR: [
+                  { name: input.skillName },
+                  { aliases: { some: { alias: input.skillName } } },
+                ],
+              },
+            },
+            include: {
+              skill: true,
+              workHistory: true,
+            },
+          });
+
+          if (existingUserSkill) {
+            console.log(
+              `Found existing skill via fallback search, updating record ${existingUserSkill.id}`,
+            );
+
+            const proficiency = input.proficiency ?? "INTERMEDIATE";
+            const proficiencyLevels = {
+              BEGINNER: 1,
+              INTERMEDIATE: 2,
+              ADVANCED: 3,
+              EXPERT: 4,
+            };
+
+            const currentLevel =
+              proficiencyLevels[existingUserSkill.proficiency];
+            const newLevel = proficiencyLevels[proficiency];
+
+            return await ctx.db.userSkill.update({
+              where: { id: existingUserSkill.id },
+              data: {
+                proficiency:
+                  newLevel > currentLevel
+                    ? proficiency
+                    : existingUserSkill.proficiency,
+                yearsExperience:
+                  input.yearsExperience !== undefined
+                    ? Math.max(
+                        input.yearsExperience,
+                        existingUserSkill.yearsExperience ?? 0,
+                      )
+                    : existingUserSkill.yearsExperience,
+                workHistoryId: input.workHistoryId,
+                notes: input.notes
+                  ? existingUserSkill.notes
+                    ? `${existingUserSkill.notes}; ${input.notes}`
+                    : input.notes
+                  : existingUserSkill.notes,
+                source: "WORK_EXPERIENCE",
+              },
+              include: {
+                skill: true,
+                workHistory: true,
+              },
+            });
+          }
+        }
+
+        // Re-throw the error if we couldn't handle it
+        throw error;
+      }
     }),
 
   removeUserSkillFromWork: protectedProcedure
-    .input(z.object({ userSkillId: z.string() }))
+    .input(
+      z.object({
+        userSkillId: z.string(),
+        workHistoryId: z.string(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      // Verify the user skill belongs to this user and delete it
-      return await ctx.db.userSkill.delete({
-        where: {
-          id: input.userSkillId,
-          userId: ctx.session.user.id,
-        },
-      });
+      try {
+        // First, get the UserSkill record to understand its current state
+        const userSkill = await ctx.db.userSkill.findFirst({
+          where: {
+            id: input.userSkillId,
+            userId: ctx.session.user.id,
+          },
+          include: {
+            skill: true,
+            workHistory: true,
+          },
+        });
+
+        if (!userSkill) {
+          throw new Error("Skill not found or doesn't belong to you");
+        }
+
+        // Verify that this UserSkill is actually associated with the specified work history
+        if (userSkill.workHistoryId !== input.workHistoryId) {
+          throw new Error(
+            "This skill is not associated with the specified work history",
+          );
+        }
+
+        console.log(
+          `Removing skill "${userSkill.skill.name}" (UserSkill ID: ${userSkill.id}) from work history ${input.workHistoryId}`,
+        );
+
+        // Check if the user wants to keep this skill in their general profile
+        // We'll keep it if it was added from a non-work source or has additional context
+        const isFromNonWorkSource = userSkill.source !== "WORK_EXPERIENCE";
+        const hasCustomNotes = Boolean(
+          userSkill.notes && !userSkill.notes.includes("Used at"),
+        );
+        const hasYearsExperience = userSkill.yearsExperience !== null;
+
+        const shouldKeepSkill =
+          isFromNonWorkSource || hasCustomNotes || hasYearsExperience;
+
+        if (shouldKeepSkill) {
+          console.log(
+            `Keeping skill "${userSkill.skill.name}" in user profile but unlinking from work history`,
+          );
+
+          // Keep the skill but remove work history association
+          const updatedUserSkill = await ctx.db.userSkill.update({
+            where: { id: userSkill.id },
+            data: {
+              workHistoryId: null,
+              notes: userSkill.notes
+                ? `${userSkill.notes} (previously linked to work experience)`
+                : "Previously linked to work experience",
+            },
+            include: {
+              skill: true,
+              workHistory: true,
+            },
+          });
+
+          return {
+            success: true,
+            deleted: false,
+            skillName: userSkill.skill.name,
+            userSkill: updatedUserSkill,
+          };
+        } else {
+          console.log(
+            `Deleting skill "${userSkill.skill.name}" from user profile entirely`,
+          );
+
+          // Delete the UserSkill record entirely
+          await ctx.db.userSkill.delete({
+            where: { id: userSkill.id },
+          });
+
+          return {
+            success: true,
+            deleted: true,
+            skillName: userSkill.skill.name,
+          };
+        }
+      } catch (error) {
+        console.error("Error in removeUserSkillFromWork:", error);
+        throw error;
+      }
     }),
 
   /**
@@ -286,7 +503,218 @@ export const workHistoryRouter = createTRPCRouter({
         input.dryRun,
       );
     }),
+
+  /**
+   * Applies the exact approved achievements from the frontend preview.
+   * This ensures consistency by using the exact achievements the user approved
+   * rather than re-running AI which could produce different results.
+   */
+  applyApprovedWorkAchievements: protectedProcedure
+    .input(
+      z.object({
+        workHistoryId: z
+          .string()
+          .describe("The work history ID to apply achievements to"),
+        approvedAchievements: z
+          .array(z.string())
+          .describe("The exact achievement descriptions approved by the user"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return await applyApprovedWorkAchievements(
+        ctx.db,
+        ctx.session.user.id,
+        input.workHistoryId,
+        input.approvedAchievements,
+      );
+    }),
+
+  /**
+   * Merges multiple work history records into a single record
+   * Consolidates all skills and achievements while avoiding duplicates
+   */
+  mergeWorkHistory: protectedProcedure
+    .input(
+      z.object({
+        primaryRecordId: z
+          .string()
+          .describe("The ID of the primary record to merge into"),
+        secondaryRecordIds: z
+          .array(z.string())
+          .min(1)
+          .describe("Array of secondary record IDs to merge from"),
+        mergedDetails: z.object({
+          companyName: z.string(),
+          jobTitle: z.string(),
+          startDate: z.string(),
+          endDate: z.string().optional(),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      return await mergeWorkHistoryRecords(
+        ctx.db,
+        ctx.session.user.id,
+        input.primaryRecordId,
+        input.secondaryRecordIds,
+        input.mergedDetails,
+      );
+    }),
 });
+
+/**
+ * Merges multiple work history records into a single record
+ * Consolidates all skills and achievements while avoiding duplicates
+ */
+export async function mergeWorkHistoryRecords(
+  db: PrismaClient,
+  userId: string,
+  primaryRecordId: string,
+  secondaryRecordIds: string[],
+  mergedDetails: {
+    companyName: string;
+    jobTitle: string;
+    startDate: string;
+    endDate?: string;
+  },
+): Promise<{
+  success: boolean;
+  message: string;
+  mergedRecord: {
+    id: string;
+    companyName: string;
+    jobTitle: string;
+    startDate: Date;
+    endDate: Date | null;
+  };
+}> {
+  try {
+    // Verify all records belong to the user
+    const allRecordIds = [primaryRecordId, ...secondaryRecordIds];
+    const workHistories = await db.workHistory.findMany({
+      where: {
+        id: { in: allRecordIds },
+        userId,
+      },
+      include: {
+        achievements: true,
+        userSkills: {
+          include: {
+            skill: true,
+          },
+        },
+      },
+    });
+
+    if (workHistories.length !== allRecordIds.length) {
+      throw new Error(
+        "One or more work history records not found or don't belong to user",
+      );
+    }
+
+    const primaryRecord = workHistories.find((wh) => wh.id === primaryRecordId);
+    const secondaryRecords = workHistories.filter((wh) =>
+      secondaryRecordIds.includes(wh.id),
+    );
+
+    if (!primaryRecord) {
+      throw new Error("Primary record not found");
+    }
+
+    // Perform merge in a transaction
+    const result = await db.$transaction(async (tx) => {
+      // 1. Update primary record with merged details
+      const updatedPrimary = await tx.workHistory.update({
+        where: { id: primaryRecordId },
+        data: {
+          companyName: mergedDetails.companyName,
+          jobTitle: mergedDetails.jobTitle,
+          startDate: new Date(mergedDetails.startDate),
+          endDate: mergedDetails.endDate
+            ? new Date(mergedDetails.endDate)
+            : null,
+        },
+      });
+
+      // 2. Collect all achievements from secondary records
+      const allAchievements = secondaryRecords.flatMap((record) =>
+        record.achievements.map((achievement) => achievement.description),
+      );
+
+      // Get existing achievements from primary record
+      const existingAchievements = primaryRecord.achievements.map(
+        (a) => a.description,
+      );
+
+      // Remove duplicates and add new achievements
+      const uniqueNewAchievements = allAchievements.filter(
+        (achievement) => !existingAchievements.includes(achievement),
+      );
+
+      // Add unique achievements to primary record
+      if (uniqueNewAchievements.length > 0) {
+        await tx.workAchievement.createMany({
+          data: uniqueNewAchievements.map((description) => ({
+            description,
+            workHistoryId: primaryRecordId,
+          })),
+        });
+      }
+
+      // 3. Collect and merge skills
+      const allSecondarySkills = secondaryRecords.flatMap(
+        (record) => record.userSkills,
+      );
+      const existingPrimarySkillIds = new Set(
+        primaryRecord.userSkills.map((us) => us.skillId),
+      );
+
+      // Update secondary skills to point to primary record (avoiding duplicates)
+      for (const userSkill of allSecondarySkills) {
+        if (!existingPrimarySkillIds.has(userSkill.skillId)) {
+          await tx.userSkill.update({
+            where: { id: userSkill.id },
+            data: { workHistoryId: primaryRecordId },
+          });
+        } else {
+          // Delete duplicate skill since primary already has it
+          await tx.userSkill.delete({
+            where: { id: userSkill.id },
+          });
+        }
+      }
+
+      // 4. Delete secondary work history records
+      await tx.workHistory.deleteMany({
+        where: {
+          id: { in: secondaryRecordIds },
+          userId,
+        },
+      });
+
+      return updatedPrimary;
+    });
+
+    return {
+      success: true,
+      message: `Successfully merged ${secondaryRecordIds.length} work history records`,
+      mergedRecord: result,
+    };
+  } catch (error) {
+    console.error("Error merging work history records:", error);
+    return {
+      success: false,
+      message: `Failed to merge work history records: ${error instanceof Error ? error.message : String(error)}`,
+      mergedRecord: {
+        id: primaryRecordId,
+        companyName: mergedDetails.companyName,
+        jobTitle: mergedDetails.jobTitle,
+        startDate: new Date(mergedDetails.startDate),
+        endDate: mergedDetails.endDate ? new Date(mergedDetails.endDate) : null,
+      },
+    };
+  }
+}
 
 // Helper function for processing work experience from parsed resumes
 export async function processWorkExperience(
@@ -505,42 +933,42 @@ export async function deduplicateAndMergeWorkAchievements(
   workHistoryId: string,
   dryRun = false,
 ): Promise<WorkAchievementDeduplicationResult> {
-  return await db.$transaction(async (tx) => {
-    // Verify the work history belongs to the user
-    const workHistory = await tx.workHistory.findFirst({
-      where: { id: workHistoryId, userId },
-    });
+  // Step 1: Verify access and get achievements (outside transaction)
+  const workHistory = await db.workHistory.findFirst({
+    where: { id: workHistoryId, userId },
+  });
 
-    if (!workHistory) {
-      throw new Error("Work history not found or access denied");
-    }
+  if (!workHistory) {
+    throw new Error("Work history not found or access denied");
+  }
 
-    // Get all work achievements for this work history
-    const achievements = await tx.workAchievement.findMany({
-      where: { workHistoryId },
-      orderBy: { createdAt: "asc" }, // Preserve chronological order
-    });
+  // Get all work achievements for this work history
+  const achievements = await db.workAchievement.findMany({
+    where: { workHistoryId },
+    orderBy: { createdAt: "asc" }, // Preserve chronological order
+  });
 
-    if (achievements.length <= 1) {
-      return {
-        success: true,
-        message:
-          "No deduplication needed - this work history has 1 or fewer achievements.",
-        originalCount: achievements.length,
-        finalCount: achievements.length,
-        exactDuplicatesRemoved: 0,
-        similarGroupsMerged: 0,
-        preview: [],
-      };
-    }
+  if (achievements.length <= 1) {
+    return {
+      success: true,
+      message:
+        "No deduplication needed - this work history has 1 or fewer achievements.",
+      originalCount: achievements.length,
+      finalCount: achievements.length,
+      exactDuplicatesRemoved: 0,
+      similarGroupsMerged: 0,
+      preview: [],
+    };
+  }
 
-    // Step 1: Remove exact duplicates
-    const { uniqueAchievements, exactDuplicatesRemoved } =
-      removeExactDuplicateWorkAchievements(achievements);
+  // Step 2: Remove exact duplicates (outside transaction)
+  const { uniqueAchievements, exactDuplicatesRemoved } =
+    removeExactDuplicateWorkAchievements(achievements);
 
-    if (uniqueAchievements.length <= 1) {
-      if (!dryRun && exactDuplicatesRemoved > 0) {
-        // Delete the duplicate records
+  if (uniqueAchievements.length <= 1) {
+    if (!dryRun && exactDuplicatesRemoved > 0) {
+      // Use a quick transaction just for deleting duplicates
+      await db.$transaction(async (tx) => {
         const duplicateIds = achievements
           .filter((a) => !uniqueAchievements.some((u) => u.id === a.id))
           .map((a) => a.id);
@@ -551,41 +979,43 @@ export async function deduplicateAndMergeWorkAchievements(
             workHistoryId,
           },
         });
-      }
-
-      return {
-        success: true,
-        message: `Removed ${exactDuplicatesRemoved} exact duplicates. No similar achievements to merge.`,
-        originalCount: achievements.length,
-        finalCount: uniqueAchievements.length,
-        exactDuplicatesRemoved,
-        similarGroupsMerged: 0,
-        preview: uniqueAchievements.map((a) => ({
-          description: a.description,
-          action: "kept" as const,
-        })),
-      };
+      });
     }
 
-    // Step 2: Use AI to identify and merge similar achievements
-    const mergeResult = await mergeWorkAchievementsWithAI(uniqueAchievements);
+    return {
+      success: true,
+      message: `Removed ${exactDuplicatesRemoved} exact duplicates. No similar achievements to merge.`,
+      originalCount: achievements.length,
+      finalCount: uniqueAchievements.length,
+      exactDuplicatesRemoved,
+      similarGroupsMerged: 0,
+      preview: uniqueAchievements.map((a) => ({
+        description: a.description,
+        action: "kept" as const,
+      })),
+    };
+  }
 
-    if (dryRun) {
-      return {
-        success: true,
-        message: "Preview of work achievement deduplication and merge process",
-        originalCount: achievements.length,
-        finalCount: mergeResult.finalAchievements.length,
-        exactDuplicatesRemoved,
-        similarGroupsMerged: mergeResult.groupsMerged,
-        preview: mergeResult.finalAchievements.map((a) => ({
-          description: a.description,
-          action: "merged" as const,
-        })),
-      };
-    }
+  // Step 3: Use AI to identify and merge similar achievements (outside transaction)
+  const mergeResult = await mergeWorkAchievementsWithAI(uniqueAchievements);
 
-    // Step 3: Apply changes to database
+  if (dryRun) {
+    return {
+      success: true,
+      message: "Preview of work achievement deduplication and merge process",
+      originalCount: achievements.length,
+      finalCount: mergeResult.finalAchievements.length,
+      exactDuplicatesRemoved,
+      similarGroupsMerged: mergeResult.groupsMerged,
+      preview: mergeResult.finalAchievements.map((a) => ({
+        description: a.description,
+        action: "merged" as const,
+      })),
+    };
+  }
+
+  // Step 4: Apply changes to database (quick transaction for DB operations only)
+  await db.$transaction(async (tx) => {
     // Delete all existing achievements for this work history
     await tx.workAchievement.deleteMany({
       where: { workHistoryId },
@@ -598,20 +1028,67 @@ export async function deduplicateAndMergeWorkAchievements(
         workHistoryId,
       })),
     });
-
-    return {
-      success: true,
-      message: `Successfully deduplicated and merged work achievements. Removed ${exactDuplicatesRemoved} exact duplicates and merged ${mergeResult.groupsMerged} groups of similar achievements.`,
-      originalCount: achievements.length,
-      finalCount: mergeResult.finalAchievements.length,
-      exactDuplicatesRemoved,
-      similarGroupsMerged: mergeResult.groupsMerged,
-      preview: mergeResult.finalAchievements.map((a) => ({
-        description: a.description,
-        action: "final" as const,
-      })),
-    };
   });
+
+  return {
+    success: true,
+    message: `Successfully deduplicated and merged work achievements. Removed ${exactDuplicatesRemoved} exact duplicates and merged ${mergeResult.groupsMerged} groups of similar achievements.`,
+    originalCount: achievements.length,
+    finalCount: mergeResult.finalAchievements.length,
+    exactDuplicatesRemoved,
+    similarGroupsMerged: mergeResult.groupsMerged,
+    preview: mergeResult.finalAchievements.map((a) => ({
+      description: a.description,
+      action: "final" as const,
+    })),
+  };
+}
+
+/**
+ * Applies the exact approved achievements from the frontend preview.
+ * This ensures consistency by using the exact achievements the user approved
+ * rather than re-running AI which could produce different results.
+ */
+export async function applyApprovedWorkAchievements(
+  db: PrismaClient,
+  userId: string,
+  workHistoryId: string,
+  approvedAchievements: string[],
+): Promise<{
+  success: boolean;
+  message: string;
+  appliedCount: number;
+}> {
+  // Verify the work history belongs to the user
+  const workHistory = await db.workHistory.findFirst({
+    where: { id: workHistoryId, userId },
+  });
+
+  if (!workHistory) {
+    throw new Error("Work history not found or access denied");
+  }
+
+  // Apply the approved achievements in a transaction
+  await db.$transaction(async (tx) => {
+    // Delete all existing achievements for this work history
+    await tx.workAchievement.deleteMany({
+      where: { workHistoryId },
+    });
+
+    // Create the approved achievements
+    await tx.workAchievement.createMany({
+      data: approvedAchievements.map((description) => ({
+        description,
+        workHistoryId,
+      })),
+    });
+  });
+
+  return {
+    success: true,
+    message: `Successfully applied ${approvedAchievements.length} approved achievements.`,
+    appliedCount: approvedAchievements.length,
+  };
 }
 
 /**

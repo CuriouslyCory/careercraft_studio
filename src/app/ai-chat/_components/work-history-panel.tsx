@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import { WorkHistoryForm } from "./work-history-form";
@@ -12,6 +12,10 @@ import {
 import { z } from "zod";
 import { UserSkillsForWork } from "./user-skills-for-work";
 import { type WorkAchievementDeduplicationResult } from "~/server/api/routers/document/work-history";
+import { WorkHistoryDropdown } from "./work-history-dropdown";
+import { MergeUtilityModal } from "./merge-utility-modal";
+import { SkillLevelDropdown } from "./skill-level-dropdown";
+import { type SkillLevel } from "./skill-level-utils";
 
 export function WorkHistoryPanel() {
   const [editId, setEditId] = useState<string | null>(null);
@@ -31,6 +35,8 @@ export function WorkHistoryPanel() {
     isCurrent: false,
   });
   const [newSkill, setNewSkill] = useState("");
+  const [newSkillLevel, setNewSkillLevel] =
+    useState<SkillLevel>("INTERMEDIATE");
   const [activeWorkHistoryId, setActiveWorkHistoryId] = useState<string | null>(
     null,
   );
@@ -39,6 +45,12 @@ export function WorkHistoryPanel() {
   ); // workHistoryId for which preview is shown
   const [dedupePreview, setDedupePreview] =
     useState<WorkAchievementDeduplicationResult | null>(null);
+
+  // Merge modal state
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeInitialRecordId, setMergeInitialRecordId] = useState<
+    string | null
+  >(null);
 
   const queryClient = api.useUtils();
   const workHistoryQuery = api.document.listWorkHistory.useQuery();
@@ -119,6 +131,7 @@ export function WorkHistoryPanel() {
         createdAt: new Date(),
         updatedAt: new Date(),
         achievements: [],
+        userSkills: [],
       };
 
       // Optimistically update the UI with the new entry
@@ -166,8 +179,10 @@ export function WorkHistoryPanel() {
   // Modern UserSkill mutations
   const addUserSkillMutation = api.document.addUserSkillToWork.useMutation({
     onSuccess: () => {
-      void queryClient.document.listWorkHistory.invalidate();
+      //void queryClient.document.listWorkHistory.invalidate();
+      void queryClient.document.listUserSkillsForWork.invalidate();
       setNewSkill("");
+      // Don't reset skill level - keep user's selection
       toast.success("Skill added");
     },
     onError: (error) => {
@@ -177,9 +192,17 @@ export function WorkHistoryPanel() {
 
   const removeUserSkillMutation =
     api.document.removeUserSkillFromWork.useMutation({
-      onSuccess: () => {
+      onSuccess: (result) => {
         void queryClient.document.listWorkHistory.invalidate();
-        toast.success("Skill removed");
+        void queryClient.document.listUserSkillsForWork.invalidate();
+
+        if (result?.skillName) {
+          toast.success(
+            `Removed "${result.skillName}" from this work experience`,
+          );
+        } else {
+          toast.success("Skill removed");
+        }
       },
       onError: (error) => {
         toast.error(`Failed to remove skill: ${error.message}`);
@@ -203,6 +226,24 @@ export function WorkHistoryPanel() {
         toast.error(
           `Failed to deduplicate work achievements: ${error.message}`,
         );
+      },
+    });
+
+  // Apply approved achievements mutation
+  const applyApprovedAchievementsMutation =
+    api.document.applyApprovedWorkAchievements.useMutation({
+      onSuccess: (result) => {
+        if (result.success) {
+          void workHistoryQuery.refetch();
+          setShowDedupePreview(null);
+          setDedupePreview(null);
+          toast.success(result.message);
+        } else {
+          toast.error("Failed to apply approved achievements");
+        }
+      },
+      onError: (error) => {
+        toast.error(`Failed to apply approved achievements: ${error.message}`);
       },
     });
 
@@ -359,11 +400,12 @@ export function WorkHistoryPanel() {
     addUserSkillMutation.mutate({
       workHistoryId,
       skillName: newSkill.trim(),
+      proficiency: newSkillLevel,
     });
   };
 
-  const handleDeleteSkill = (userSkillId: string) => {
-    removeUserSkillMutation.mutate({ userSkillId });
+  const handleDeleteSkill = (userSkillId: string, workHistoryId: string) => {
+    removeUserSkillMutation.mutate({ userSkillId, workHistoryId });
   };
 
   const handleSkillInputKeyDown = (
@@ -390,16 +432,34 @@ export function WorkHistoryPanel() {
   };
 
   const handleDeduplicateApply = (workHistoryId: string) => {
-    deduplicateWorkAchievementsMutation.mutate(
-      { workHistoryId, dryRun: false },
-      {
-        onSuccess: () => {
-          setShowDedupePreview(null);
-          setDedupePreview(null);
-        },
-      },
+    // Use the approved achievements from the preview instead of re-running AI
+    if (!dedupePreview?.preview) {
+      toast.error("No preview data available. Please try again.");
+      return;
+    }
+
+    const approvedAchievements = dedupePreview.preview.map(
+      (item) => item.description,
     );
+
+    applyApprovedAchievementsMutation.mutate({
+      workHistoryId,
+      approvedAchievements,
+    });
   };
+
+  const handleMerge = (workHistoryId: string) => {
+    setMergeInitialRecordId(workHistoryId);
+    setShowMergeModal(true);
+  };
+
+  const handleMergeComplete = () => {
+    void workHistoryQuery.refetch();
+  };
+
+  const workHistories = useMemo(() => {
+    return workHistoryQuery.data ?? [];
+  }, [workHistoryQuery.data]);
 
   if (workHistoryQuery.isLoading) {
     return <div className="p-4 text-center">Loading your work history...</div>;
@@ -412,8 +472,6 @@ export function WorkHistoryPanel() {
       </div>
     );
   }
-
-  const workHistories = workHistoryQuery.data ?? [];
 
   // Helper function to format dates for display
   const formatDate = (date: Date | null | undefined) => {
@@ -486,19 +544,21 @@ export function WorkHistoryPanel() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(work)}
-                        className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-700"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(work.id)}
-                        disabled={deleteMutation.isPending}
-                        className="rounded bg-red-100 px-2 py-1 text-xs text-red-700"
-                      >
-                        Delete
-                      </button>
+                      <WorkHistoryDropdown
+                        onEdit={() => handleEdit(work)}
+                        onDelete={() => handleDelete(work.id)}
+                        onCleanUp={
+                          work.achievements.length > 1
+                            ? () => handleDeduplicatePreview(work.id)
+                            : undefined
+                        }
+                        onMerge={() => handleMerge(work.id)}
+                        isDeleting={deleteMutation.isPending}
+                        isCleaningUp={
+                          deduplicateWorkAchievementsMutation.isPending
+                        }
+                        hasAchievements={work.achievements.length > 1}
+                      />
                     </div>
                   </div>
 
@@ -507,29 +567,7 @@ export function WorkHistoryPanel() {
                     <div className="mt-2">
                       <div className="mb-2 flex items-center justify-between">
                         <h4 className="text-sm font-medium">Achievements:</h4>
-                        {work.achievements.length > 1 && (
-                          <button
-                            onClick={() => handleDeduplicatePreview(work.id)}
-                            disabled={
-                              deduplicateWorkAchievementsMutation.isPending
-                            }
-                            className="rounded bg-orange-500 px-2 py-1 text-xs text-white hover:bg-orange-600 disabled:bg-orange-300"
-                            title="Remove duplicates and merge similar achievements"
-                          >
-                            {deduplicateWorkAchievementsMutation.isPending
-                              ? "Processing..."
-                              : "Clean Up"}
-                          </button>
-                        )}
                       </div>
-                      <ul className="ml-4 list-disc text-sm">
-                        {work.achievements.map((achievement) => (
-                          <li key={achievement.id}>
-                            {achievement.description}
-                          </li>
-                        ))}
-                      </ul>
-
                       {/* Work Achievements Deduplication Preview Modal for this specific work history */}
                       {showDedupePreview === work.id && dedupePreview && (
                         <div className="mt-3 rounded border border-orange-200 bg-orange-50 p-3">
@@ -586,11 +624,11 @@ export function WorkHistoryPanel() {
                             <button
                               onClick={() => handleDeduplicateApply(work.id)}
                               disabled={
-                                deduplicateWorkAchievementsMutation.isPending
+                                applyApprovedAchievementsMutation.isPending
                               }
                               className="rounded bg-orange-500 px-2 py-1 text-xs text-white hover:bg-orange-600 disabled:bg-orange-300"
                             >
-                              {deduplicateWorkAchievementsMutation.isPending
+                              {applyApprovedAchievementsMutation.isPending
                                 ? "Applying..."
                                 : "Apply Changes"}
                             </button>
@@ -599,6 +637,11 @@ export function WorkHistoryPanel() {
                       )}
                     </div>
                   )}
+                  <ul className="ml-4 list-disc text-sm">
+                    {work.achievements.map((achievement) => (
+                      <li key={achievement.id}>{achievement.description}</li>
+                    ))}
+                  </ul>
 
                   {/* Skills section with modern UserSkill system */}
                   <div className="mt-3">
@@ -607,11 +650,13 @@ export function WorkHistoryPanel() {
                       {/* Display modern UserSkills */}
                       <UserSkillsForWork
                         workHistoryId={work.id}
-                        onDeleteSkill={handleDeleteSkill}
+                        onDeleteSkill={(userSkillId) =>
+                          handleDeleteSkill(userSkillId, work.id)
+                        }
                       />
 
                       {/* Input field for adding new skills */}
-                      <div className="flex items-center">
+                      <div className="flex items-center gap-1">
                         <input
                           type="text"
                           value={
@@ -626,12 +671,24 @@ export function WorkHistoryPanel() {
                           placeholder="Add skill..."
                           className="w-32 rounded border border-gray-200 px-2 py-1 text-xs"
                         />
+                        <SkillLevelDropdown
+                          value={
+                            activeWorkHistoryId === work.id
+                              ? newSkillLevel
+                              : "INTERMEDIATE"
+                          }
+                          onChange={(level) => {
+                            setNewSkillLevel(level);
+                            setActiveWorkHistoryId(work.id);
+                          }}
+                          disabled={addUserSkillMutation.isPending}
+                        />
                         <button
                           onClick={() => handleAddSkill(work.id)}
                           disabled={
                             !newSkill.trim() || addUserSkillMutation.isPending
                           }
-                          className="ml-1 rounded bg-blue-500 px-2 py-1 text-xs text-white disabled:bg-blue-300"
+                          className="rounded bg-blue-500 px-2 py-1 text-xs text-white disabled:bg-blue-300"
                         >
                           Add
                         </button>
@@ -643,6 +700,17 @@ export function WorkHistoryPanel() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Merge Utility Modal */}
+      {showMergeModal && mergeInitialRecordId && (
+        <MergeUtilityModal
+          isOpen={showMergeModal}
+          onClose={() => setShowMergeModal(false)}
+          initialRecordId={mergeInitialRecordId}
+          workHistories={workHistories}
+          onMergeComplete={handleMergeComplete}
+        />
       )}
     </div>
   );

@@ -13,6 +13,7 @@ Below is an index of the documented features. Each link will take you to a more 
 - **[AI Chat](./ai-chat.md)**: Describes the architecture and capabilities of the AI-powered chat interface, including its agent team and available tools.
 - **[Job Posting Import & Analysis](./job-posting-import.md)**: Explains how job postings are imported, parsed, stored, and analyzed against user profiles.
 - **[Profile Management](./profile-management.md)**: Details the CRUD (Create, Read, Update, Delete) operations for user profile information such as work history, skills, and personal links.
+- **[Work History Merge](./work-history-merge.md)**: Describes the utility for merging multiple work history records into a single consolidated record, including skills and achievements consolidation.
 - **[Resume Import & Parsing](./resume-import.md)**: Outlines the process of importing resumes (via file upload or text pasting) and the AI-driven parsing into structured data.
 - **[Resume Generation](./resume-generation.md)**: Describes the functionality for generating resumes based on user profile data, managed by the `Resume Generator` agent.
 - **[Cover Letter Generation](./cover-letter-generation.md)**: Details the process of creating tailored cover letters, managed by the `Cover Letter Generator` agent.

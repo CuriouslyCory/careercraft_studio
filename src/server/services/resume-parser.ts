@@ -11,6 +11,8 @@ import { processEducation } from "~/server/api/routers/document/education";
 import { processKeyAchievements } from "~/server/api/routers/document/key-achievements";
 import { processUserLinks } from "~/server/api/routers/document/user-links";
 import { type EducationType } from "@prisma/client";
+import { SkillNormalizationService } from "./skill-normalization";
+import { mergeWorkAchievements } from "~/server/api/routers/document/utils/llm-merger";
 
 export interface ResumeParsingResult {
   success: boolean;
@@ -317,131 +319,162 @@ export class ResumeParsingService {
     >,
   ): Promise<number> {
     // Get all existing work history and skills for the user
-    const [existingWorkHistory, existingSkills] = await Promise.all([
-      tx.workHistory.findMany({
-        where: { userId },
-        include: { achievements: true },
-      }),
-      tx.skill.findMany({
-        select: { id: true, name: true },
-      }),
-    ]);
+    const existingWorkHistory = await tx.workHistory.findMany({
+      where: { userId },
+      include: {
+        achievements: true,
+      },
+    });
 
-    const skillMap = new Map(
-      existingSkills.map((skill) => [skill.name.toLowerCase(), skill.id]),
-    );
+    // Get all existing skills to build a map
+    const existingSkills = await tx.skill.findMany({
+      select: { id: true, name: true },
+    });
+
+    const skillMap = new Map<string, string>();
+    for (const skill of existingSkills) {
+      skillMap.set(skill.name.toLowerCase(), skill.id);
+    }
+
     let processedCount = 0;
 
-    for (const exp of workExperience) {
-      if (!exp.company && !exp.jobTitle) continue;
+    // Initialize skill normalization service
+    const skillNormalizer = new SkillNormalizationService(tx);
 
-      // Check for existing work history using the matching function
-      const existingEntry = existingWorkHistory.find((existing) =>
+    for (const expRaw of workExperience) {
+      const exp = expRaw;
+
+      // Check if this work experience matches an existing record
+      const matchingRecord = existingWorkHistory.find((existing) =>
         doWorkHistoryRecordsMatch(existing, exp),
       );
 
       let workHistoryId: string;
 
-      if (existingEntry) {
-        // Update existing entry
+      if (matchingRecord) {
+        // Update existing record
+        console.log(
+          `Found matching work history: ${matchingRecord.companyName} - ${matchingRecord.jobTitle}`,
+        );
+
+        // Get existing achievements as strings
+        const existingAchievements = matchingRecord.achievements.map(
+          (a) => a.description,
+        );
+
+        // Get new achievements
+        const newAchievements = Array.isArray(exp.achievements)
+          ? exp.achievements.filter((a): a is string => typeof a === "string")
+          : [];
+
+        // Merge achievements using LLM
+        const mergedAchievements = await mergeWorkAchievements(
+          existingAchievements,
+          newAchievements,
+        );
+
+        // Update the work history record
         await tx.workHistory.update({
-          where: { id: existingEntry.id },
+          where: { id: matchingRecord.id },
           data: {
-            jobTitle: exp.jobTitle ?? existingEntry.jobTitle,
-            startDate: exp.startDate ?? existingEntry.startDate,
-            endDate: exp.endDate ?? existingEntry.endDate,
+            jobTitle: exp.jobTitle ?? matchingRecord.jobTitle,
+            startDate: exp.startDate ?? matchingRecord.startDate,
+            endDate: exp.endDate ?? matchingRecord.endDate,
           },
         });
-        workHistoryId = existingEntry.id;
+
+        // Clear existing achievements and add merged ones
+        await tx.workAchievement.deleteMany({
+          where: { workHistoryId: matchingRecord.id },
+        });
+
+        if (mergedAchievements.length > 0) {
+          await tx.workAchievement.createMany({
+            data: mergedAchievements.map((desc) => ({
+              description: desc,
+              workHistoryId: matchingRecord.id,
+            })),
+          });
+        }
+
+        workHistoryId = matchingRecord.id;
       } else {
-        // Create new work history entry
-        const newEntry = await tx.workHistory.create({
+        // Create new work history record
+        const wh = await tx.workHistory.create({
           data: {
             companyName: exp.company ?? "",
             jobTitle: exp.jobTitle ?? "",
             startDate: exp.startDate ?? new Date(),
             endDate: exp.endDate,
-            userId,
+            user: { connect: { id: userId } },
           },
         });
-        workHistoryId = newEntry.id;
-      }
 
-      // Batch create achievements
-      const achievements = Array.isArray(exp.achievements)
-        ? exp.achievements
-        : [];
-      if (achievements.length > 0) {
-        await tx.workAchievement.createMany({
-          data: achievements
-            .filter((desc): desc is string => typeof desc === "string")
-            .map((description) => ({
-              description,
-              workHistoryId,
-            })),
-        });
-      }
-
-      // Process skills with batched operations
-      const skills = Array.isArray(exp.skills) ? exp.skills : [];
-      if (skills.length > 0) {
-        // Create any new skills that don't exist yet
-        const newSkills = skills.filter(
-          (skillName) => !skillMap.has(skillName.toLowerCase()),
-        );
-
-        if (newSkills.length > 0) {
-          const createdSkills = await Promise.all(
-            newSkills.map(async (skillName) => {
-              const skill = await tx.skill.create({
-                data: {
-                  name: skillName,
-                  category: "OTHER",
-                },
-              });
-              skillMap.set(skillName.toLowerCase(), skill.id);
-              return skill;
-            }),
-          );
+        // Add achievements for new record
+        const achievements = Array.isArray(exp.achievements)
+          ? exp.achievements
+          : [];
+        if (achievements.length > 0) {
+          await tx.workAchievement.createMany({
+            data: achievements
+              .filter((desc): desc is string => typeof desc === "string")
+              .map((desc) => ({
+                description: desc,
+                workHistoryId: wh.id,
+              })),
+          });
         }
 
-        // Get existing user skills to avoid duplicates
-        const skillIds = skills
-          .map((name) => skillMap.get(name.toLowerCase()))
-          .filter((id): id is string => id !== undefined);
+        workHistoryId = wh.id;
+      }
 
-        const existingUserSkills = await tx.userSkill.findMany({
-          where: {
-            userId,
-            skillId: { in: skillIds },
-          },
-        });
-
-        const existingUserSkillIds = new Set(
-          existingUserSkills.map((us) => us.skillId),
+      // Process skills using skill normalization service
+      const skills = Array.isArray(exp.skills) ? exp.skills : [];
+      if (skills.length > 0) {
+        // Filter and normalize skills
+        const validSkills = skills.filter(
+          (s): s is string => typeof s === "string" && s.trim() !== "",
         );
 
-        // Create user skills for new skills only
-        const userSkillsToCreate = skills
-          .map((skillName) => skillMap.get(skillName.toLowerCase()))
-          .filter(
-            (skillId): skillId is string =>
-              skillId !== undefined && !existingUserSkillIds.has(skillId),
-          )
-          .map((skillId) => ({
-            userId,
-            skillId,
-            proficiency: "INTERMEDIATE" as const,
-            source: "WORK_EXPERIENCE" as const,
-            notes: `Used at ${exp.company} - ${exp.jobTitle}`,
-            workHistoryId,
-          }));
+        if (validSkills.length > 0) {
+          // Use skill normalization service for proper categorization
+          const normalizedSkills =
+            await skillNormalizer.normalizeSkills(validSkills);
 
-        if (userSkillsToCreate.length > 0) {
-          await tx.userSkill.createMany({
-            data: userSkillsToCreate,
-            skipDuplicates: true,
+          // Get existing user skills to avoid duplicates
+          const normalizedSkillIds = normalizedSkills.map((s) => s.baseSkillId);
+          const existingUserSkills = await tx.userSkill.findMany({
+            where: {
+              userId,
+              skillId: { in: normalizedSkillIds },
+            },
           });
+
+          const existingUserSkillIds = new Set(
+            existingUserSkills.map((us) => us.skillId),
+          );
+
+          // Create user skills for new skills only
+          const userSkillsToCreate = normalizedSkills
+            .filter(
+              (normalizedSkill) =>
+                !existingUserSkillIds.has(normalizedSkill.baseSkillId),
+            )
+            .map((normalizedSkill) => ({
+              userId,
+              skillId: normalizedSkill.baseSkillId,
+              proficiency: "INTERMEDIATE" as const,
+              source: "WORK_EXPERIENCE" as const,
+              notes: `Used at ${exp.company} - ${exp.jobTitle}${normalizedSkill.detailedVariant ? ` (${normalizedSkill.detailedVariant})` : ""}`,
+              workHistoryId,
+            }));
+
+          if (userSkillsToCreate.length > 0) {
+            await tx.userSkill.createMany({
+              data: userSkillsToCreate,
+              skipDuplicates: true,
+            });
+          }
         }
       }
 
