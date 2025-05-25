@@ -24,6 +24,7 @@ import {
   FileTextIcon,
   MailIcon,
   EditIcon,
+  Plus,
 } from "lucide-react";
 import { DocumentEditor } from "./document-editor";
 import { JobPostingsDataTable } from "./job-postings-data-table";
@@ -483,7 +484,7 @@ export function JobPostingsPanel() {
     <div className="h-full space-y-4">
       {/* Content View Modal */}
       {viewContent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
           <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="text-lg font-semibold">{viewContent.title}</h3>
@@ -504,7 +505,7 @@ export function JobPostingsPanel() {
 
       {/* Edit Job Posting Modal */}
       {editId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
           <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="text-lg font-semibold">Edit Job Posting</h3>
@@ -738,20 +739,10 @@ export function JobPostingsPanel() {
         </h2>
         <div className="flex gap-3">
           <Button
-            onClick={() => migrateMutation.mutate()}
-            disabled={migrateMutation.isPending}
-            variant="outline"
-            className="border-blue-300 text-blue-600 hover:border-blue-400 hover:bg-blue-50"
-          >
-            {migrateMutation.isPending
-              ? "Migrating..."
-              : "Fix Compatibility Analysis"}
-          </Button>
-          <Button
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg hover:from-blue-700 hover:to-indigo-700"
           >
-            {showAddForm ? "Cancel" : "Add Job Posting"}
+            {showAddForm ? "Cancel" : <Plus />}
           </Button>
         </div>
       </div>
