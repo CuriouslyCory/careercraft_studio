@@ -1,6 +1,6 @@
 # Job Posting Import & Analysis
 
-This document describes the Job Posting Import and Analysis capabilities within Resume Master, primarily managed by the `Job Posting Manager` agent. This agent and its tools are defined in `src/server/langchain/agentTeam.ts`.
+This document describes the Job Posting Import and Analysis capabilities within CareerCraft Studio, primarily managed by the `Job Posting Manager` agent. This agent and its tools are defined in `src/server/langchain/agentTeam.ts`.
 
 ## Overview
 

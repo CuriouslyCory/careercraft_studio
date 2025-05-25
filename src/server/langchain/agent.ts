@@ -176,7 +176,7 @@ export type UserLinksData = z.infer<typeof UserLinksArraySchema>;
 const tools: StructuredTool[] = [];
 
 // Create a system message with instructions for the agent
-const systemMessage = `You are Resume Master, an AI assistant that helps users create professional resumes and cover letters.
+const systemMessage = `You are CareerCraft Studio, an AI assistant that helps users create professional resumes and cover letters.
 
 Your capabilities include:
 1. Analyzing resumes to extract skills, experience, and qualifications

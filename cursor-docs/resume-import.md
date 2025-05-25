@@ -1,6 +1,6 @@
 # Resume Import & Parsing
 
-This document details the Resume Import and Parsing functionality within Resume Master, primarily handled by the `ResumeParsingService`.
+This document details the Resume Import and Parsing functionality within CareerCraft Studio, primarily handled by the `ResumeParsingService`.
 
 ## Overview
 
@@ -82,4 +82,4 @@ A significant aspect of the `ResumeParsingService` is its focus on database perf
 - **LLM Provider**: An external or internal Large Language Model is used for the AI-powered parsing.
 - **[Skill Normalization Service](./skill-normalization.md)**: For processing and normalizing extracted skills.
 
-This service is a critical part of Resume Master, enabling quick and intelligent onboarding of user data, which then powers other features like resume generation and job matching.
+This service is a critical part of CareerCraft Studio, enabling quick and intelligent onboarding of user data, which then powers other features like resume generation and job matching.

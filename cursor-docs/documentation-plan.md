@@ -1,10 +1,10 @@
 # Project Documentation Plan
 
-This document outlines the plan for creating comprehensive documentation for the Resume Master application.
+This document outlines the plan for creating comprehensive documentation for the CareerCraft Studio application.
 
 ## Goal
 
-To create detailed documentation for all major features and functionalities of the Resume Master application, adhering to the architectural guidelines provided. This documentation will reside in the `cursor-docs` directory.
+To create detailed documentation for all major features and functionalities of the CareerCraft Studio application, adhering to the architectural guidelines provided. This documentation will reside in the `cursor-docs` directory.
 
 ## Documentation Structure
 

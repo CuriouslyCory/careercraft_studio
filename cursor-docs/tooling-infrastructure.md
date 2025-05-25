@@ -1,6 +1,6 @@
 # Tooling Infrastructure for LangChain Agents
 
-This document describes the common supporting files found in the `src/server/langchain/tools/` directory. These files provide shared configuration, error handling, and type definitions for the various tools used by the LangChain agents within Resume Master.
+This document describes the common supporting files found in the `src/server/langchain/tools/` directory. These files provide shared configuration, error handling, and type definitions for the various tools used by the LangChain agents within CareerCraft Studio.
 
 While the specific content of these files has not been inspected for this documentation effort, their purpose can be inferred from their names and common practices in such architectures. The descriptions below are based on these typical roles.
 

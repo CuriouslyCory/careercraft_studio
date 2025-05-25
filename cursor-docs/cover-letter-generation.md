@@ -1,10 +1,10 @@
 # Cover Letter Generation
 
-This document describes the Cover Letter Generation feature in Resume Master, facilitated by the `Cover Letter Generator` agent within the AI Chat system. The agent and its tools are defined in `src/server/langchain/agentTeam.ts`.
+This document describes the Cover Letter Generation feature in CareerCraft Studio, facilitated by the `Cover Letter Generator` agent within the AI Chat system. The agent and its tools are defined in `src/server/langchain/agentTeam.ts`.
 
 ## Overview
 
-Resume Master can generate tailored cover letters for specific job applications. This feature leverages the user's profile data and the details of a target job posting to create a relevant and persuasive cover letter.
+CareerCraft Studio can generate tailored cover letters for specific job applications. This feature leverages the user's profile data and the details of a target job posting to create a relevant and persuasive cover letter.
 
 Reference: This feature is primarily handled by the `Cover Letter Generator` agent, as outlined in the [AI Chat](./ai-chat.md) documentation.
 

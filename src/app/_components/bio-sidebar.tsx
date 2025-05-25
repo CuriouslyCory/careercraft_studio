@@ -42,7 +42,7 @@ export function BioSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
-        <span className="text-lg font-semibold">Resume Master</span>
+        <span className="text-lg font-semibold">CareerCraft Studio</span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

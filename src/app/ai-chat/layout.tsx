@@ -21,7 +21,7 @@ export default async function AiChatLayout({
           </h1>
           <div className="flex flex-col items-center gap-4">
             <p className="text-center text-xl text-white">
-              Please sign in to access Resume Master
+              Please sign in to access CareerCraft Studio
             </p>
             <Link
               href="/api/auth/signin?callbackUrl=/ai-chat"

@@ -1,10 +1,10 @@
 # Resume Generation
 
-This document describes the Resume Generation feature within Resume Master, primarily facilitated by the `Resume Generator` agent in the AI Chat system. The agent and its tools are defined in `src/server/langchain/agentTeam.ts`, with tool implementations in `src/server/langchain/tools.ts` and supporting services like `src/server/services/tailored-resume-generator.ts`.
+This document describes the Resume Generation feature within CareerCraft Studio, primarily facilitated by the `Resume Generator` agent in the AI Chat system. The agent and its tools are defined in `src/server/langchain/agentTeam.ts`, with tool implementations in `src/server/langchain/tools.ts` and supporting services like `src/server/services/tailored-resume-generator.ts`.
 
 ## Overview
 
-Resume Master can generate complete resume documents based on the user's stored profile information. This feature aims to simplify the resume creation process, allowing users to quickly produce a well-structured resume that can be further refined or tailored, potentially for specific job applications.
+CareerCraft Studio can generate complete resume documents based on the user's stored profile information. This feature aims to simplify the resume creation process, allowing users to quickly produce a well-structured resume that can be further refined or tailored, potentially for specific job applications.
 
 Reference: This feature is primarily handled by the `Resume Generator` agent, as outlined in the [AI Chat](./ai-chat.md) documentation.
 

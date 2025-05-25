@@ -1,10 +1,10 @@
 # Landing Page Design & Architecture
 
-This document outlines the design decisions, technical architecture, and user experience strategy for the Resume Master landing page.
+This document outlines the design decisions, technical architecture, and user experience strategy for the CareerCraft Studio landing page.
 
 ## Overview
 
-The landing page serves as the primary marketing and conversion tool for Resume Master, designed to communicate the product's value proposition and guide users toward sign-up or immediate engagement with the platform.
+The landing page serves as the primary marketing and conversion tool for CareerCraft Studio, designed to communicate the product's value proposition and guide users toward sign-up or immediate engagement with the platform.
 
 **Location**: `src/app/page.tsx` (server component) and `src/app/_components/landing-page-client.tsx` (client component)
 
@@ -182,7 +182,7 @@ Each landing page feature section directly corresponds to documented functionali
 
 **Authenticated Users:**
 
-- Primary CTA: "Launch Resume Master" → Direct to AI Chat
+- Primary CTA: "Launch CareerCraft Studio" → Direct to AI Chat
 - Secondary CTA: "Continue to Dashboard" in footer
 - Personalized welcome message with user name
 
@@ -315,4 +315,4 @@ Each landing page feature section directly corresponds to documented functionali
 - CTA click-through rates
 - Trust signal impact on conversions
 
-This landing page design balances professional credibility with modern, engaging user experience to effectively communicate Resume Master's value proposition and drive user acquisition.
+This landing page design balances professional credibility with modern, engaging user experience to effectively communicate CareerCraft Studio's value proposition and drive user acquisition.

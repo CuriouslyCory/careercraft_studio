@@ -1,6 +1,6 @@
-# Resume Master Style Guidelines
+# CareerCraft Studio Style Guidelines
 
-This document establishes the design system and style guidelines for Resume Master to ensure consistent branding and user experience across all components and pages.
+This document establishes the design system and style guidelines for CareerCraft Studio to ensure consistent branding and user experience across all components and pages.
 
 ## Brand Identity
 
@@ -503,4 +503,4 @@ module.exports = {
 };
 ```
 
-These style guidelines ensure consistent, professional, and accessible design across all Resume Master components and pages.
+These style guidelines ensure consistent, professional, and accessible design across all CareerCraft Studio components and pages.

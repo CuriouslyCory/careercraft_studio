@@ -10,9 +10,9 @@ import { SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar";
 import { BioSidebar } from "./_components/bio-sidebar";
 
 export const metadata: Metadata = {
-  title: "Resume Master",
+  title: "CareerCraft Studio",
   description:
-    "Resume Master is a tool that helps you create resumes and cover letters tailored to your job applications.",
+    "CareerCraft Studio is a tool that helps you create resumes and cover letters tailored to your job applications.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 

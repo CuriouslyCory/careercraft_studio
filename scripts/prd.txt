@@ -1,8 +1,8 @@
-# Product Requirements Document: Resume Master
+# Product Requirements Document: CareerCraft Studio
 
 ## 1. Introduction
 
-Resume Master is an LLM-enhanced web application designed to assist users in creating and tailoring their resumes for specific job applications. By leveraging AI and providing a user-friendly interface, the tool aims to simplify the process of resume building, skill highlighting, and generating application documents like resumes and cover letters.
+CareerCraft Studio is an LLM-enhanced web application designed to assist users in creating and tailoring their resumes for specific job applications. By leveraging AI and providing a user-friendly interface, the tool aims to simplify the process of resume building, skill highlighting, and generating application documents like resumes and cover letters.
 
 ## 2. Goals
 
@@ -22,7 +22,7 @@ Resume Master is an LLM-enhanced web application designed to assist users in cre
 - **User Authentication:**
     - "Create new user" and "Log in" options on the main landing page.
 - **Landing Page:**
-    - Describe the project "Resume Master".
+    - Describe the project "CareerCraft Studio".
     - Provide links for registration, login, and other important pages (e.g., About, Contact - if applicable later).
 - **Resume Import:**
     - Allow users to add resumes via drag-and-drop into a chat bar.

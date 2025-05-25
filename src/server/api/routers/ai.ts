@@ -461,7 +461,7 @@ export const aiRouter = createTRPCRouter({
     await saveChatMessage(
       ctx.db,
       MessageRole.ASSISTANT,
-      "Welcome to Resume Master! How can I help you today?",
+      "Welcome to CareerCraft Studio! How can I help you today?",
       conversationId,
       ctx.session.user.id,
     );

@@ -1,6 +1,6 @@
-# Resume Master
+# CareerCraft Studio
 
-Resume Master is a tool that helps you create resumes and cover letters tailored to your job applications. Finally get human eyeballs on your resume and cover letter.
+CareerCraft Studio is a tool that helps you create resumes and cover letters tailored to your job applications. Finally get human eyeballs on your resume and cover letter.
 
 ## Features
 

@@ -1,6 +1,6 @@
 # Profile Management
 
-This document outlines how user profile data is managed within Resume Master, typically through the AI Chat interface facilitated by the `Data Manager` and `User Profile` agents. These agents and their tools are defined in `src/server/langchain/agentTeam.ts`.
+This document outlines how user profile data is managed within CareerCraft Studio, typically through the AI Chat interface facilitated by the `Data Manager` and `User Profile` agents. These agents and their tools are defined in `src/server/langchain/agentTeam.ts`.
 
 ## Overview
 
@@ -86,4 +86,4 @@ All profile data is persisted in the application's database. The agents' tools i
 - **[Resume Generation](./resume-generation.md)** & **[Cover Letter Generation](./cover-letter-generation.md)**: These features heavily rely on the accuracy and completeness of the data managed here, primarily retrieved via `get_user_profile`.
 - **[Job Posting Import & Analysis](./job-posting-import.md)**: User skills and experience from the profile are compared against job requirements.
 
-Effective profile management, driven by the tools within the `Data Manager` and `User Profile` agents, is crucial for the overall functionality of Resume Master.
+Effective profile management, driven by the tools within the `Data Manager` and `User Profile` agents, is crucial for the overall functionality of CareerCraft Studio.

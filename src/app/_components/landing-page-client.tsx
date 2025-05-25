@@ -93,7 +93,7 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
                   href="/ai-chat"
                   className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"
                 >
-                  Launch Resume Master
+                  Launch CareerCraft Studio
                   <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                 </Link>
               ) : (
@@ -318,7 +318,7 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              How Resume Master Works
+              How CareerCraft Studio Works
             </h2>
             <p className="mt-4 text-lg text-gray-600">
               From profile setup to landing interviews in three simple steps
@@ -377,7 +377,7 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
           <div className="grid gap-16 lg:grid-cols-2 lg:items-center">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-                Why Choose Resume Master?
+                Why Choose CareerCraft Studio?
               </h2>
               <p className="mt-4 text-lg text-gray-600">
                 Stop wasting time on generic applications that get lost in the
@@ -480,7 +480,7 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
           </h2>
           <p className="mt-4 text-xl text-blue-100">
             Join thousands of professionals who&apos;ve accelerated their
-            careers with Resume Master
+            careers with CareerCraft Studio
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -522,7 +522,9 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
       <footer className="bg-gray-900 py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h3 className="text-2xl font-bold text-white">Resume Master</h3>
+            <h3 className="text-2xl font-bold text-white">
+              CareerCraft Studio
+            </h3>
             <p className="mt-2 text-gray-400">
               AI-powered career acceleration platform
             </p>

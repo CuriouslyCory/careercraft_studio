@@ -1,6 +1,6 @@
 # AI Chat Functionality
 
-This document outlines the architecture and components of the AI Chat feature in Resume Master.
+This document outlines the architecture and components of the AI Chat feature in CareerCraft Studio.
 
 ## Overview
 
@@ -188,4 +188,4 @@ Each specialized agent is equipped with a set of tools (functions they can call)
 8.  **tRPC Router**: Streams the response back to the frontend.
 9.  **Frontend**: Displays the AI's response.
 
-This AI chat system provides a flexible and powerful way for users to interact with Resume Master, leveraging specialized AI capabilities for a variety of tasks.
+This AI chat system provides a flexible and powerful way for users to interact with CareerCraft Studio, leveraging specialized AI capabilities for a variety of tasks.

@@ -1,8 +1,8 @@
-# Resume Master Feature Documentation
+# CareerCraft Studio Feature Documentation
 
-Welcome to the feature documentation for Resume Master. This collection of documents aims to provide a comprehensive understanding of the application's architecture, features, and functionalities.
+Welcome to the feature documentation for CareerCraft Studio. This collection of documents aims to provide a comprehensive understanding of the application's architecture, features, and functionalities.
 
-Resume Master is designed to assist users in creating tailored resumes and cover letters by leveraging AI for parsing, generation, and analysis.
+CareerCraft Studio is designed to assist users in creating tailored resumes and cover letters by leveraging AI for parsing, generation, and analysis.
 
 ## Core Features
 

@@ -849,7 +849,7 @@ async function supervisorNode(
     const llm = model.bindTools(getSupervisorTools());
     logger.info("Successfully initialized supervisor LLM with tools");
 
-    const systemMessage = `You are the Supervisor Agent for Resume Master, an AI system that helps users create professional resumes and cover letters.
+    const systemMessage = `You are the Supervisor Agent for CareerCraft Studio, an AI system that helps users create professional resumes and cover letters.
 
 Your primary job is to analyze messages and route them to the correct specialized agent. Your routing decisions are critical to system functioning.
 
@@ -1316,7 +1316,7 @@ async function processDataManagerToolCalls(
 // Create data manager node using the factory
 const dataManagerNode = createAgentNode({
   agentType: "data_manager",
-  systemMessage: `You are the Data Manager Agent for Resume Master.
+  systemMessage: `You are the Data Manager Agent for CareerCraft Studio.
   
 Your job is to:
 1. Look up information relating to the user, including work history, skills, achievements, and preferences.
@@ -1364,7 +1364,7 @@ Always aim to provide helpful, formatted responses that directly address what th
 // Create resume generator node using the factory
 const resumeGeneratorNode = createAgentNode({
   agentType: "resume_generator",
-  systemMessage: `You are the Resume Generator Agent for Resume Master.
+  systemMessage: `You are the Resume Generator Agent for CareerCraft Studio.
   
 Your job is to:
 1. Create professional resumes based on user data
@@ -1383,7 +1383,7 @@ When using these tools, you only need to specify the required parameters - all a
 // Create cover letter generator node using the factory
 const coverLetterGeneratorNode = createAgentNode({
   agentType: "cover_letter_generator",
-  systemMessage: `You are the Cover Letter Generator Agent for Resume Master.
+  systemMessage: `You are the Cover Letter Generator Agent for CareerCraft Studio.
   
 Your job is to:
 1. Create tailored cover letters based on job descriptions and user data
@@ -1466,7 +1466,7 @@ async function processUserProfileToolCalls(
 // Create user profile node using the factory
 const userProfileNode = createAgentNode({
   agentType: "user_profile",
-  systemMessage: `You are the User Profile Agent for Resume Master.
+  systemMessage: `You are the User Profile Agent for CareerCraft Studio.
   
 Your job is to:
 1. Retrieve user profile information

@@ -1,10 +1,10 @@
 # Work Achievement Management
 
-This document details the system for managing work achievements associated with a user's work history entries in Resume Master. This functionality is primarily handled by the `Data Manager` agent via specialized tools.
+This document details the system for managing work achievements associated with a user's work history entries in CareerCraft Studio. This functionality is primarily handled by the `Data Manager` agent via specialized tools.
 
 ## Overview
 
-Resume Master allows for fine-grained management of work achievements (often bullet points in a resume detailing accomplishments and responsibilities for a specific role). Users can add, retrieve, update, delete, and even merge achievements using AI-powered tools. This ensures that achievements are accurately captured, well-phrased, and effectively deduplicated.
+CareerCraft Studio allows for fine-grained management of work achievements (often bullet points in a resume detailing accomplishments and responsibilities for a specific role). Users can add, retrieve, update, delete, and even merge achievements using AI-powered tools. This ensures that achievements are accurately captured, well-phrased, and effectively deduplicated.
 
 This functionality is an extension of [Profile Management](./profile-management.md), focusing specifically on the achievements linked to each work experience.
 
@@ -88,4 +88,4 @@ The achievement management tools interact with the database primarily through:
 - **Atomic Transactions**: As mentioned, for batch operations to ensure data integrity.
 - **Optimistic Concurrency Handling (Assumed)**: While not explicitly stated in the README, robust systems often include mechanisms to handle cases where data might be changed between a read and a write operation, though this might be managed at a higher level by the agent or ORM.
 
-By providing these comprehensive tools, Resume Master empowers users to meticulously curate the achievements section of their work history, which is often the most critical part of a resume.
+By providing these comprehensive tools, CareerCraft Studio empowers users to meticulously curate the achievements section of their work history, which is often the most critical part of a resume.

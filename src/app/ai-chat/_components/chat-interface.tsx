@@ -81,7 +81,7 @@ export function ChatInterface() {
         {showIntro && messages.length === 0 && !isLoading && (
           <div className="mb-4 rounded-lg bg-blue-50 p-6 text-center">
             <h2 className="mb-2 text-lg font-semibold text-blue-700">
-              Welcome to Resume Master!
+              Welcome to CareerCraft Studio!
             </h2>
             <p className="mb-3 text-sm text-gray-700">I can help you with:</p>
             <ul className="mb-4 inline-block list-disc pl-6 text-left text-sm">
@@ -121,7 +121,7 @@ export function ChatInterface() {
                   {msg.role === "user" ? "U" : "AI"}
                 </div>
                 <span className="text-xs text-gray-600">
-                  {msg.role === "user" ? "You" : "Resume Master AI"}
+                  {msg.role === "user" ? "You" : "CareerCraft Studio AI"}
                 </span>
               </div>
               <div className="prose prose-sm max-w-none">
