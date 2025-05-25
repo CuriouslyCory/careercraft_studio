@@ -92,6 +92,10 @@ const result = await parseResume(resumeText, userId, db, {
 });
 ```
 
+## Detailed Feature Documentation
+
+For a more in-depth understanding of the application's features, architecture, and agent capabilities, please refer to the [Feature Documentation](./cursor-docs/README.md).
+
 ## Work Achievement Management
 
 The Data Manager agent now includes comprehensive tools for managing work achievements, allowing for fine-grained editing and AI-powered merging of achievement data.

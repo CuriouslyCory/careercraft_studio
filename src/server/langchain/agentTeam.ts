@@ -1144,6 +1144,7 @@ async function processJobPostingToolCalls(
 ): Promise<string> {
   let toolCallSummary = "I've processed your job posting request:\n\n";
   let parsedJobPostingData: string | null = null;
+  let hasExplicitStoreCall = false;
 
   for (const toolCall of toolCalls) {
     if (toolCall.name === "parse_job_posting") {
@@ -1189,6 +1190,7 @@ async function processJobPostingToolCalls(
         toolCallSummary += `• Error parsing job posting: ${error instanceof Error ? error.message : String(error)}\n`;
       }
     } else if (toolCall.name === "store_job_posting") {
+      hasExplicitStoreCall = true;
       try {
         const args = validateToolArgs(
           toolCall.args,
@@ -1209,16 +1211,61 @@ async function processJobPostingToolCalls(
       } catch (error) {
         toolCallSummary += `• Error storing job posting: ${error instanceof Error ? error.message : String(error)}\n`;
       }
+    } else if (toolCall.name === "find_job_postings") {
+      try {
+        const tools = getJobPostingTools(userId);
+        const findJobPostingsTool = tools.find(
+          (t) => t.name === "find_job_postings",
+        );
+
+        if (findJobPostingsTool) {
+          const result = (await findJobPostingsTool.invoke(
+            toolCall.args,
+          )) as string;
+          toolCallSummary += `• Found job postings:\n${result}\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error finding job postings: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
+    } else if (toolCall.name === "compare_skills_to_job") {
+      try {
+        const tools = getJobPostingTools(userId);
+        const compareSkillsTool = tools.find(
+          (t) => t.name === "compare_skills_to_job",
+        );
+
+        if (compareSkillsTool) {
+          const result = (await compareSkillsTool.invoke(
+            toolCall.args,
+          )) as string;
+          toolCallSummary += `• Skill comparison analysis:\n${result}\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error comparing skills: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
+    } else if (toolCall.name === "get_user_profile") {
+      try {
+        const tools = getJobPostingTools(userId);
+        const getUserProfileTool = tools.find(
+          (t) => t.name === "get_user_profile",
+        );
+
+        if (getUserProfileTool) {
+          const result = (await getUserProfileTool.invoke(
+            toolCall.args,
+          )) as string;
+          toolCallSummary += `• Retrieved user profile data:\n${result}\n`;
+        }
+      } catch (error) {
+        toolCallSummary += `• Error retrieving user profile: ${error instanceof Error ? error.message : String(error)}\n`;
+      }
     } else {
       toolCallSummary += `• ${toolCall.name}: Processed successfully\n`;
     }
   }
 
-  // If we parsed a job posting but didn't get a store_job_posting call, automatically store it
-  if (
-    parsedJobPostingData &&
-    !toolCalls.some((tc) => tc.name === "store_job_posting")
-  ) {
+  // If we parsed a job posting but didn't get an explicit store_job_posting call, automatically store it
+  if (parsedJobPostingData && !hasExplicitStoreCall) {
     try {
       const tools = getJobPostingTools(userId);
       const storeJobPostingTool = tools.find(
