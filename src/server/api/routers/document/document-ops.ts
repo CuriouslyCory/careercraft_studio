@@ -7,6 +7,8 @@ import {
 import { detectDocumentType } from "./utils/type-detection";
 import { processJobPosting } from "./job-posting";
 import { DocumentProcessingError, LLMProcessingError } from "./types";
+import { UsageTracker } from "~/server/services/usage-tracker";
+import chromium from "@sparticuz/chromium";
 
 export const documentOpsRouter = createTRPCRouter({
   upload: protectedProcedure
@@ -65,24 +67,38 @@ export const documentOpsRouter = createTRPCRouter({
       detectedType = await detectDocumentType(rawContent);
       console.log("Detected document type:", detectedType);
 
-      // Step 3: Process content based on detected type
+      // Step 3: Check usage limits and record usage for resume uploads
+      if (detectedType === "resume") {
+        const usageTracker = new UsageTracker(ctx.db);
+        await usageTracker.checkLimitAndRecord(
+          ctx.session.user.id,
+          "RESUME_UPLOAD",
+          {
+            fileName: originalName,
+            fileType,
+            detectedType,
+          },
+        );
+      }
+
+      // Step 4: Process the content based on detected type
       if (detectedType === "job_posting") {
         // Process as job posting
         console.log("Processing as job posting...");
         try {
-          await processJobPosting(rawContent, ctx.session.user.id, ctx.db);
-          processedContent = JSON.stringify({
-            type: "job_posting",
-            message: "Job posting processed successfully",
-            content: rawContent.substring(0, 500) + "...",
-          });
-        } catch (error) {
-          throw new DocumentProcessingError(
-            "Failed to process job posting",
-            error instanceof Error ? error : new Error(String(error)),
-            "job_posting",
-            "processing",
-            { contentLength: rawContent.length },
+          const result = await processJobPosting(
+            rawContent,
+            ctx.session.user.id,
+            ctx.db,
+          );
+          processedContent = JSON.stringify(result, null, 2);
+          console.log("Job posting processed successfully");
+        } catch (err) {
+          throw new LLMProcessingError(
+            "Failed to process job posting content",
+            "processJobPosting",
+            err instanceof Error ? err : new Error(String(err)),
+            0,
           );
         }
       } else {
@@ -125,7 +141,7 @@ export const documentOpsRouter = createTRPCRouter({
         }
       }
 
-      // Step 4: Save to database
+      // Step 5: Save to database
       const doc = await ctx.db.document.create({
         data: {
           title: title ?? originalName,
@@ -135,7 +151,7 @@ export const documentOpsRouter = createTRPCRouter({
         },
       });
 
-      // Step 5: For resumes, the centralized service already handled structured data processing
+      // Step 6: For resumes, the centralized service already handled structured data processing
       // We just need to log success since the parsing was done by the service
       if (detectedType === "resume") {
         console.log(
@@ -264,6 +280,12 @@ export const documentOpsRouter = createTRPCRouter({
       const { jobPostingId } = input;
       const userId = ctx.session.user.id;
 
+      // Check usage limits and record usage for resume generation
+      const usageTracker = new UsageTracker(ctx.db);
+      await usageTracker.checkLimitAndRecord(userId, "RESUME_GENERATION", {
+        jobPostingId,
+      });
+
       try {
         const { generateTailoredResume, formatTailoredResumeAsMarkdown } =
           await import("~/server/services/tailored-resume-generator");
@@ -330,6 +352,16 @@ export const documentOpsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { jobPostingId } = input;
       const userId = ctx.session.user.id;
+
+      // Check usage limits and record usage for cover letter generation
+      const usageTracker = new UsageTracker(ctx.db);
+      await usageTracker.checkLimitAndRecord(
+        userId,
+        "COVER_LETTER_GENERATION",
+        {
+          jobPostingId,
+        },
+      );
 
       try {
         const { generateTailoredCoverLetter } = await import(
@@ -689,7 +721,11 @@ export const documentOpsRouter = createTRPCRouter({
         // Launch Puppeteer browser
         const browser = await puppeteer.launch({
           headless: true,
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+          args: puppeteer.defaultArgs({
+            args: chromium.args,
+            executablePath: await chromium.executablePath(),
+            headless: "shell",
+          }),
         });
 
         const page = await browser.newPage();

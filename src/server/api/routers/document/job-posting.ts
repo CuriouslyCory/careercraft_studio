@@ -6,6 +6,7 @@ import {
   type JobPostingProcessingResult,
 } from "~/server/services/job-posting-processor";
 import { DocumentProcessingError } from "./types";
+import { UsageTracker } from "~/server/services/usage-tracker";
 
 export const jobPostingRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -33,6 +34,19 @@ export const jobPostingRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Check usage limits and record usage for job posting import
+      const usageTracker = new UsageTracker(ctx.db);
+      await usageTracker.checkLimitAndRecord(
+        ctx.session.user.id,
+        "JOB_POSTING_IMPORT",
+        {
+          title: input.title,
+          company: input.company,
+          hasContent: input.content.length > 0,
+          contentLength: input.content.length,
+        },
+      );
+
       return ctx.db.jobPosting.create({
         data: {
           ...input,

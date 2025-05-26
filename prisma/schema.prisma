@@ -146,6 +146,30 @@ enum EducationLevel {
     COURSE
 }
 
+enum SubscriptionTierType {
+    FREE
+    PRO
+    ENTERPRISE // For future expansion
+}
+
+enum SubscriptionStatus {
+    ACTIVE
+    CANCELED
+    EXPIRED
+    PAST_DUE
+    INCOMPLETE
+    TRIALING
+}
+
+enum UsageActionType {
+    RESUME_UPLOAD
+    JOB_POSTING_IMPORT
+    RESUME_GENERATION
+    COVER_LETTER_GENERATION
+    AI_CHAT_MESSAGE // For future usage tracking
+    DOCUMENT_EXPORT // For future usage tracking
+}
+
 // Necessary for Next auth
 model Account {
     id                       String  @id @default(cuid())
@@ -193,6 +217,8 @@ model User {
     chatDetails     ChatDetails[]
     userSkills      UserSkill[]
     userLinks       UserLink[]
+    subscription    Subscription?
+    usageRecords    UsageRecord[]
 }
 
 model VerificationToken {
@@ -520,4 +546,87 @@ model JobPostDocument {
     jobPostingId String     @unique
 
     @@index([jobPostingId])
+}
+
+// Subscription and Usage Tracking Models
+model SubscriptionTier {
+    id          String               @id @default(cuid())
+    name        String               @unique // "Free", "Pro", "Enterprise"
+    type        SubscriptionTierType
+    description String?
+
+    // Monthly limits (null = unlimited)
+    resumeUploadLimit     Int? // Free: 1, Pro: null (unlimited)
+    jobPostingLimit       Int? // Free: 5, Pro: null (unlimited)
+    resumeGenerationLimit Int? // Free: 5, Pro: null (unlimited)
+    coverLetterLimit      Int? // Free: 5, Pro: null (unlimited)
+    aiChatMessageLimit    Int? // Future: Free: 50, Pro: null (unlimited)
+
+    // Pricing (in cents, for Stripe)
+    monthlyPriceCents Int? // Free: null, Pro: 999 ($9.99)
+    yearlyPriceCents  Int? // Free: null, Pro: 9999 ($99.99)
+
+    // Stripe integration
+    stripeMonthlyPriceId String? // Stripe price ID for monthly billing
+    stripeYearlyPriceId  String? // Stripe price ID for yearly billing
+
+    isActive  Boolean  @default(true)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    subscriptions Subscription[]
+
+    @@index([type])
+    @@index([isActive])
+}
+
+model Subscription {
+    id     String @id @default(cuid())
+    userId String @unique
+
+    // Subscription details
+    tier   SubscriptionTier   @relation(fields: [tierId], references: [id])
+    tierId String
+    status SubscriptionStatus @default(ACTIVE)
+
+    // Billing cycle
+    currentPeriodStart DateTime
+    currentPeriodEnd   DateTime
+    cancelAtPeriodEnd  Boolean  @default(false)
+
+    // Stripe integration
+    stripeSubscriptionId String? @unique
+    stripeCustomerId     String?
+    stripePriceId        String? // Current price being charged
+
+    // Metadata
+    canceledAt DateTime?
+    createdAt  DateTime  @default(now())
+    updatedAt  DateTime  @updatedAt
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([status])
+    @@index([stripeSubscriptionId])
+}
+
+model UsageRecord {
+    id     String          @id @default(cuid())
+    userId String
+    action UsageActionType
+
+    // Tracking details
+    timestamp DateTime @default(now())
+    metadata  Json? // Additional context (e.g., job posting ID, document type)
+
+    // Monthly tracking (for limit enforcement)
+    year  Int // e.g., 2024
+    month Int // 1-12
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([userId, action, year, month]) // Optimized for limit checking
+    @@index([action, timestamp]) // For analytics
 }
