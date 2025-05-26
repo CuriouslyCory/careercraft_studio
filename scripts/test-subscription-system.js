@@ -30,7 +30,7 @@ async function test() {
     
     console.log('🎉 Subscription system test passed!');
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
+    console.error('❌ Test failed:', error instanceof Error ? error.message : String(error));
   } finally {
     await db.$disconnect();
   }
