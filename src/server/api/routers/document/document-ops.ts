@@ -9,6 +9,10 @@ import { processJobPosting } from "./job-posting";
 import { DocumentProcessingError, LLMProcessingError } from "./types";
 import { UsageTracker } from "~/server/services/usage-tracker";
 import chromium from "@sparticuz/chromium";
+import { env } from "~/env";
+import puppeteer from "puppeteer-core";
+
+chromium.setGraphicsMode = true;
 
 export const documentOpsRouter = createTRPCRouter({
   upload: protectedProcedure
@@ -561,9 +565,6 @@ export const documentOpsRouter = createTRPCRouter({
       const { content, documentType, jobTitle } = input;
 
       try {
-        // Import Puppeteer dynamically
-        const puppeteer = await import("puppeteer");
-
         // Create HTML content with proper styling
         const htmlContent = `
 <!DOCTYPE html>
@@ -718,14 +719,17 @@ export const documentOpsRouter = createTRPCRouter({
 </body>
 </html>`;
 
-        // Launch Puppeteer browser
+        console.log(
+          "chromium.executablePath()",
+          await chromium.executablePath(),
+        );
         const browser = await puppeteer.launch({
-          headless: true,
           args: puppeteer.defaultArgs({
             args: chromium.args,
-            executablePath: await chromium.executablePath(),
             headless: "shell",
           }),
+          executablePath: await chromium.executablePath(),
+          headless: "shell",
         });
 
         const page = await browser.newPage();
