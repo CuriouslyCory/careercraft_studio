@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { observable } from "@trpc/server/observable";
+import crypto from "crypto";
 import {
   createAgent,
   convertToLangChainMessages,
@@ -105,10 +106,15 @@ export const aiRouter = createTRPCRouter({
     .input(ChatInputSchema)
     .subscription(({ input, ctx }) => {
       return observable<
-        string | { type: "metadata"; data: ProcessingMetadata }
+        | string
+        | { type: "metadata"; data: ProcessingMetadata }
+        | { type: "conversationId"; data: string }
       >((emit) => {
         const abortController = new AbortController();
         const processStream = async () => {
+          // Declare conversationId at function scope so it's available everywhere
+          let conversationId = input.conversationId;
+
           try {
             console.log("Received chat input:", input);
 
@@ -123,6 +129,37 @@ export const aiRouter = createTRPCRouter({
               );
             }
 
+            // Create conversation if none provided
+            if (!conversationId) {
+              console.log(
+                "🔍 DEBUG: No conversation ID provided, creating new conversation",
+              );
+              const newConversation = await ctx.db.chatDetails.create({
+                data: {
+                  userId: ctx.session.user.id,
+                  conversationId: crypto.randomUUID(),
+                  name: "New Chat",
+                },
+              });
+              conversationId = newConversation.conversationId;
+              console.log(
+                "🔍 DEBUG: Created new conversation:",
+                conversationId,
+              );
+
+              // Add welcome message to new conversation
+              await saveChatMessage(
+                ctx.db,
+                MessageRole.ASSISTANT,
+                "Welcome to CareerCraft Studio! How can I help you today?",
+                conversationId,
+                ctx.session.user.id,
+              );
+
+              // Emit the conversation ID to the client
+              emit.next({ type: "conversationId", data: conversationId });
+            }
+
             // Store the user message in the database
             const lastMessage = input.messages[input.messages.length - 1];
             if (lastMessage?.role === "user") {
@@ -130,7 +167,7 @@ export const aiRouter = createTRPCRouter({
                 ctx.db,
                 MessageRole.USER,
                 lastMessage.content,
-                input.conversationId,
+                conversationId,
                 ctx.session.user.id,
               );
             }
@@ -292,7 +329,7 @@ export const aiRouter = createTRPCRouter({
                   ctx.db,
                   MessageRole.ASSISTANT,
                   finalResponse,
-                  input.conversationId,
+                  conversationId,
                   ctx.session.user.id,
                 );
               }
@@ -385,7 +422,7 @@ export const aiRouter = createTRPCRouter({
                 ctx.db,
                 MessageRole.ASSISTANT,
                 userFriendlyMessage,
-                input.conversationId,
+                conversationId,
                 ctx.session.user.id,
               );
 
@@ -404,7 +441,7 @@ export const aiRouter = createTRPCRouter({
                 ctx.db,
                 MessageRole.ASSISTANT,
                 errorMessage,
-                input.conversationId ?? "error-session",
+                conversationId ?? "error-session",
                 ctx.session.user.id,
               );
             } catch (dbError) {

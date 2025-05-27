@@ -3,11 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Plus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import { useTrpcChat, type UISimpleMessage } from "~/lib/hooks/useTrpcChat";
 import { Textarea } from "~/components/ui/textarea";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { markdownComponents } from "./markdown-components";
+import { ChatProvider } from "./interactive-elements";
 
 export function ChatInterface() {
   const {
@@ -19,6 +21,7 @@ export function ChatInterface() {
     error,
     conversationId,
     startNewChat,
+    sendProgrammaticMessage,
   } = useTrpcChat();
   const [showIntro, setShowIntro] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -158,9 +161,18 @@ export function ChatInterface() {
                 </span>
               </div>
               <div className="prose prose-sm max-w-none">
-                <ReactMarkdown components={markdownComponents}>
-                  {msg.content}
-                </ReactMarkdown>
+                <ChatProvider
+                  sendProgrammaticMessage={sendProgrammaticMessage}
+                  conversationId={conversationId}
+                  messages={messages}
+                >
+                  <ReactMarkdown
+                    components={markdownComponents}
+                    rehypePlugins={[rehypeRaw]}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                </ChatProvider>
               </div>
             </div>
           ))}

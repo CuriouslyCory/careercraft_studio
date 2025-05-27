@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import { markdownComponents } from "./markdown-components";
 import { CompatibilityReportContent } from "./compatibility-report";
 import { Button } from "~/components/ui/button";
@@ -385,7 +386,10 @@ export function JobPostingsPanel() {
         </div>
         <div className="h-full overflow-y-auto rounded-lg border bg-white p-6">
           <div className="prose prose-sm max-w-none">
-            <ReactMarkdown components={markdownComponents}>
+            <ReactMarkdown
+              components={markdownComponents}
+              rehypePlugins={[rehypeRaw]}
+            >
               {viewingDocument.content}
             </ReactMarkdown>
           </div>
@@ -408,7 +412,10 @@ export function JobPostingsPanel() {
             </div>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               <div className="prose prose-sm max-w-none">
-                <ReactMarkdown components={markdownComponents}>
+                <ReactMarkdown
+                  components={markdownComponents}
+                  rehypePlugins={[rehypeRaw]}
+                >
                   {viewContent.content}
                 </ReactMarkdown>
               </div>

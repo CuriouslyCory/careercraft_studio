@@ -2,6 +2,13 @@ import React, { useState } from "react";
 import { type Components } from "react-markdown";
 import { Copy, Check } from "lucide-react";
 import { cn } from "~/lib/utils";
+import rehypeRaw from "rehype-raw";
+import {
+  InteractiveButton,
+  InteractiveLink,
+  InteractiveContainer,
+  isInteractiveElement,
+} from "./interactive-elements";
 
 // Helper function for copying code to clipboard
 function useCodeCopy() {
@@ -79,8 +86,58 @@ function CodeBlock({ inline, className, children, ...rest }: CodeBlockProps) {
   );
 }
 
+// Interactive button component for markdown
+function MarkdownButton(
+  props: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    "data-action"?: string;
+    "data-params"?: string;
+    "data-type"?: "chat-action" | "navigation" | "external";
+    "data-message"?: string;
+    "data-route"?: string;
+    children?: React.ReactNode;
+  },
+) {
+  // Check if this button has interactive data attributes
+  const hasInteractiveAttrs = !!(
+    props["data-action"] ??
+    props["data-type"] ??
+    props["data-message"] ??
+    props["data-route"]
+  );
+
+  if (hasInteractiveAttrs) {
+    return <InteractiveButton {...props} />;
+  }
+
+  // Regular button
+  return <button {...props} />;
+}
+
+// Interactive link component for markdown
+function MarkdownLink(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return <InteractiveLink {...props} />;
+}
+
+// Interactive div component for markdown
+function MarkdownDiv(
+  props: React.HTMLAttributes<HTMLDivElement> & {
+    "data-interactive"?: string;
+  },
+) {
+  // Check if this div has interactive data attributes
+  if (props["data-interactive"]) {
+    return <InteractiveContainer {...props} />;
+  }
+
+  // Regular div
+  return <div {...props} />;
+}
+
 export const markdownComponents: Components = {
   code: (props) => <CodeBlock {...props} />,
+  button: (props) => <MarkdownButton {...props} />,
+  a: (props) => <MarkdownLink {...props} />,
+  div: (props) => <MarkdownDiv {...props} />,
   ol: (props) => <ol className="mb-4 list-decimal pl-4" {...props} />,
   ul: (props) => <ul className="mb-4 list-disc pl-4" {...props} />,
   p: (props) => <div className="mb-4 break-all md:break-normal" {...props} />,
@@ -93,8 +150,5 @@ export const markdownComponents: Components = {
       className="mb-4 border-l-4 border-gray-300 pl-4 italic"
       {...props}
     />
-  ),
-  a: (props) => (
-    <a className="text-blue-600 underline hover:text-blue-800" {...props} />
   ),
 };

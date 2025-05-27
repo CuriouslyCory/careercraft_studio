@@ -903,15 +903,54 @@ async function supervisorNode(
 
 Your primary job is to analyze messages and route them to the correct specialized agent. Your routing decisions are critical to system functioning.
 
+INTERACTIVE ELEMENTS:
+You can provide interactive buttons and links in your responses using these formats:
+
+1. Action Buttons (for user confirmation/choices):
+<div data-interactive="action-group">
+  <button data-type="chat-action" data-message="parse and store">Parse and Store</button>
+  <button data-type="chat-action" data-message="just analyze this job posting">Analyze Only</button>
+</div>
+
+2. Navigation Links:
+[View your skills](@navigate:/ai-chat/skills)
+[Check job posting compatibility](@navigate:/ai-chat/job-postings?action=compatibility&jobId={jobId})
+
+3. Chat Actions:
+[Yes, add this to my profile](@chat:yes, add this to my profile)
+
+Use these when:
+- User provides ambiguous content (job posting, resume) - offer action choices
+- After successful operations - suggest next steps with navigation
+- When referencing specific items - provide direct links
+
 CLARIFICATION PATTERNS - Ask for clarification when:
 1. User provides job posting content without clear intent: "Job post: [content]" or "Here's a job posting: [content]"
-   - Ask: "I see you've shared a job posting. Would you like me to parse and store it, compare it to your skills, or analyze the requirements?"
+   - Provide action buttons: "I see you've shared a job posting. What would you like me to do with it?"
+   
+   <div data-interactive="action-group">
+     <button data-type="chat-action" data-message="parse and store this job posting">Parse and Store</button>
+     <button data-type="chat-action" data-message="just analyze the requirements">Analyze Only</button>
+     <button data-type="chat-action" data-message="compare this to my skills">Compare to My Skills</button>
+   </div>
 
 2. User provides resume content without clear intent: "My resume: [content]" or "Here's my resume: [content]"
-   - Ask: "I see you've shared resume content. Would you like me to parse and store this information in your profile, or are you looking for feedback on the resume?"
+   - Provide action buttons: "I see you've shared resume content. What would you like me to do with it?"
+   
+   <div data-interactive="action-group">
+     <button data-type="chat-action" data-message="parse and store this resume information">Parse and Store</button>
+     <button data-type="chat-action" data-message="provide feedback on this resume">Give Feedback</button>
+     <button data-type="chat-action" data-message="help me improve this resume">Help Improve</button>
+   </div>
 
 3. Ambiguous requests about skills: "What about my skills?" or "Skills analysis"
-   - Ask: "I can help with skills in several ways. Would you like me to show your current skills, compare them to a job posting, or help you add new skills to your profile?"
+   - Provide navigation and action options: "I can help with skills in several ways:"
+   
+   <div data-interactive="action-group">
+     <button data-type="navigation" data-route="/ai-chat/skills">View Current Skills</button>
+     <button data-type="chat-action" data-message="compare my skills to a job posting">Compare to Job</button>
+     <button data-type="chat-action" data-message="help me add new skills">Add New Skills</button>
+   </div>
 
 ROUTING RULES:
 1. For data storage or retrieval requests (work history, education, etc.) OR resume parsing: Route to 'data_manager'
@@ -933,7 +972,7 @@ ROUTING RULES:
 6. For general questions or completed tasks: Call 'route_to_agent' with '${END}'
    Example: "Thank you", "That's all for now"
 
-IMPORTANT: When content is provided without clear intent, provide clarification options instead of assuming. Only route to agents when the user's intent is clear.
+IMPORTANT: When content is provided without clear intent, provide clarification options with interactive buttons instead of assuming. Only route to agents when the user's intent is clear.
 
 ROUTING RESPONSE FORMAT:
 When you route to another agent, provide a brief acknowledgment in your response content, such as:
@@ -1431,6 +1470,44 @@ You have access to these tools:
 **Work Achievements Deduplication:**
 - deduplicate_and_merge_work_achievements: Remove exact duplicate work achievements and intelligently merge similar ones for a specific work history using AI while preserving all important details. Requires workHistoryId parameter. Use dryRun=true to preview changes first.
 
+INTERACTIVE ELEMENTS:
+After successful operations, provide interactive next steps using these formats:
+
+1. After parsing and storing resume data:
+✅ Successfully parsed and stored your resume data
+
+**What's Next:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/skills">View Your Skills</button>
+  <button data-type="navigation" data-route="/ai-chat/work-history">View Work History</button>
+  <button data-type="chat-action" data-message="generate a resume from my profile">Generate Resume</button>
+</div>
+
+2. After storing work history or achievements:
+✅ Successfully updated your work history
+
+**Next Steps:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/work-history">View All Work History</button>
+  <button data-type="chat-action" data-message="help me add more achievements">Add More Achievements</button>
+  <button data-type="chat-action" data-message="generate a resume">Create Resume</button>
+</div>
+
+3. After storing skills or preferences:
+✅ Successfully updated your profile
+
+**Explore Your Data:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/skills">View Skills</button>
+  <button data-type="navigation" data-route="/ai-chat/profile">View Full Profile</button>
+  <button data-type="chat-action" data-message="what job postings match my skills">Find Matching Jobs</button>
+</div>
+
+4. Navigation links for data references:
+[View your complete profile](@navigate:/ai-chat/profile)
+[Check your skills](@navigate:/ai-chat/skills)
+[See your work history](@navigate:/ai-chat/work-history)
+
 **IMPORTANT**: When a user provides resume text (either by pasting it directly or asking you to parse a resume), use the parse_and_store_resume tool to process it. This will:
 - Extract structured information using AI
 - Store work history, education, skills, and achievements in their profile
@@ -1472,6 +1549,32 @@ You have access to these tools:
 - generate_resume: For creating formatted resumes in different styles
 - get_user_profile: For retrieving user data needed for resume generation
 
+INTERACTIVE ELEMENTS:
+After successful operations, provide interactive next steps using these formats:
+
+1. After generating a resume:
+✅ Successfully generated your resume!
+
+**Next Steps:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/documents">View All Documents</button>
+  <button data-type="chat-action" data-message="generate a cover letter for this resume">Create Cover Letter</button>
+  <button data-type="chat-action" data-message="help me tailor this resume for a specific job">Tailor for Job</button>
+</div>
+
+2. After providing resume advice:
+**Take Action:**
+<div data-interactive="action-group">
+  <button data-type="chat-action" data-message="generate a new resume with these improvements">Apply Suggestions</button>
+  <button data-type="navigation" data-route="/ai-chat/skills">Update My Skills</button>
+  <button data-type="navigation" data-route="/ai-chat/work-history">Edit Work History</button>
+</div>
+
+3. Navigation links for references:
+[View your current resumes](@navigate:/ai-chat/documents?type=resume)
+[Check your profile data](@navigate:/ai-chat/profile)
+[Browse job postings](@navigate:/ai-chat/job-postings)
+
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`,
   getTools: getResumeGeneratorTools,
 });
@@ -1490,6 +1593,32 @@ Your job is to:
 You have access to these tools:
 - generate_cover_letter: For creating tailored cover letters for specific jobs
 - get_user_profile: For retrieving user data needed for cover letter generation
+
+INTERACTIVE ELEMENTS:
+After successful operations, provide interactive next steps using these formats:
+
+1. After generating a cover letter:
+✅ Successfully generated your cover letter!
+
+**Next Steps:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/documents">View All Documents</button>
+  <button data-type="chat-action" data-message="generate a matching resume for this job">Create Matching Resume</button>
+  <button data-type="chat-action" data-message="help me customize this cover letter further">Customize Further</button>
+</div>
+
+2. After providing cover letter advice:
+**Take Action:**
+<div data-interactive="action-group">
+  <button data-type="chat-action" data-message="generate a new cover letter with these improvements">Apply Suggestions</button>
+  <button data-type="navigation" data-route="/ai-chat/job-postings">Find Job Postings</button>
+  <button data-type="navigation" data-route="/ai-chat/profile">Update My Profile</button>
+</div>
+
+3. Navigation links for references:
+[View your cover letters](@navigate:/ai-chat/documents?type=cover-letter)
+[Check job postings](@navigate:/ai-chat/job-postings)
+[Review your profile](@navigate:/ai-chat/profile)
 
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`,
   getTools: getCoverLetterGeneratorTools,
@@ -1571,6 +1700,34 @@ Your job is to:
 
 You have access to these tools:
 - get_user_profile: For retrieving different types of user data (work history, education, skills, achievements, preferences, or all)
+
+INTERACTIVE ELEMENTS:
+After showing profile data, provide interactive navigation options using these formats:
+
+1. After showing profile data:
+Here's your profile information:
+
+[Profile data displayed]
+
+**Explore Your Data:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/skills">View Skills Detail</button>
+  <button data-type="navigation" data-route="/ai-chat/work-history">View Work History</button>
+  <button data-type="chat-action" data-message="help me update my profile">Update Profile</button>
+</div>
+
+2. After showing specific data types:
+**Related Actions:**
+<div data-interactive="action-group">
+  <button data-type="chat-action" data-message="generate a resume from this data">Create Resume</button>
+  <button data-type="chat-action" data-message="find jobs that match my skills">Find Matching Jobs</button>
+  <button data-type="navigation" data-route="/ai-chat/job-postings">Browse Job Postings</button>
+</div>
+
+3. Navigation links for data management:
+[Edit your skills](@navigate:/ai-chat/skills)
+[Update work history](@navigate:/ai-chat/work-history)
+[Manage documents](@navigate:/ai-chat/documents)
 
 You can retrieve different types of profile data using the get_user_profile tool. Simply specify which data type you need: work_history, education, skills, achievements, preferences, or all.`,
   getTools: getUserProfileTools,
@@ -1712,10 +1869,35 @@ You have access to these tools:
 - compare_skills_to_job: For comparing user skills against job requirements
 - get_user_profile: For retrieving user data including skills
 
+INTERACTIVE ELEMENTS:
+After successful operations, provide interactive next steps using these formats:
+
+1. After parsing and storing a job posting:
+✅ Successfully parsed and stored job posting: "{jobTitle}" at {company}
+
+**Next Steps:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/job-postings" data-params='{"action":"compatibility","jobId":"{jobId}"}'>View Compatibility Report</button>
+  <button data-type="navigation" data-route="/ai-chat/job-postings" data-params='{"action":"generate-resume","jobId":"{jobId}"}'>Generate Tailored Resume</button>
+  <button data-type="chat-action" data-message="compare my skills to this job posting">Compare My Skills</button>
+</div>
+
+2. After skill comparison:
+**Additional Actions:**
+<div data-interactive="action-group">
+  <button data-type="navigation" data-route="/ai-chat/skills">View All Skills</button>
+  <button data-type="chat-action" data-message="help me improve my skills for this job">Improve Skills</button>
+  <button data-type="navigation" data-route="/ai-chat/job-postings">View All Job Postings</button>
+</div>
+
+3. Navigation links for references:
+[View all your job postings](@navigate:/ai-chat/job-postings)
+[Check your skills profile](@navigate:/ai-chat/skills)
+
 IMPORTANT WORKFLOW:
 - When users provide job posting content, use parse_and_store_job_posting to automatically parse and store it
 - This tool combines parsing and storage into one seamless action
-- After successful parsing and storage, offer to compare their skills against the job posting
+- After successful parsing and storage, offer interactive next steps with buttons
 - When comparing skills, use compare_skills_to_job to analyze their fit
 - If you need to find a specific job posting, use find_job_postings with relevant criteria
 - The tools automatically handle user authentication and identification
@@ -1795,6 +1977,15 @@ export function convertToAgentStateInput(
   messages: { role: string; content: string }[],
   userId?: string,
 ): AgentStateType {
+  console.log("🔍 DEBUG: convertToAgentStateInput called");
+  console.log("🔍 Input messages count:", messages.length);
+  console.log(
+    "🔍 Input messages:",
+    messages.map(
+      (m, i) => `[${i}] ${m.role}: ${m.content.substring(0, 50)}...`,
+    ),
+  );
+
   // Sort messages into system, non-system
   const systemMessages: BaseMessage[] = [];
   const nonSystemMessages: BaseMessage[] = [];
@@ -1809,6 +2000,9 @@ export function convertToAgentStateInput(
     }
   }
 
+  console.log("🔍 System messages count:", systemMessages.length);
+  console.log("🔍 Non-system messages count:", nonSystemMessages.length);
+
   // Add a default system message if there are none
   if (systemMessages.length === 0) {
     systemMessages.push(
@@ -1816,15 +2010,17 @@ export function convertToAgentStateInput(
         "You are Resume Master, an AI assistant that helps with resume writing, cover letters, and job applications. Be helpful, concise, and professional.",
       ),
     );
+    console.log("🔍 Added default system message");
   }
 
   // Ensure system messages come first, then the rest
   const formattedMessages = [...systemMessages, ...nonSystemMessages];
 
   console.log(
-    "Formatted message types:",
+    "🔍 Final formatted message types:",
     formattedMessages.map((m) => m._getType()),
   );
+  console.log("🔍 Final formatted message count:", formattedMessages.length);
 
   return {
     messages: formattedMessages,

@@ -74,6 +74,7 @@
     "react-day-picker": "8.10.1",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
     "server-only": "^0.0.1",
     "sonner": "^2.0.3",
     "superjson": "^2.2.1",
