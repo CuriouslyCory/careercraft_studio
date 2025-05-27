@@ -191,3 +191,34 @@ Each specialized agent is equipped with a set of tools (functions they can call)
 9.  **Frontend**: Displays the AI's response.
 
 This AI chat system provides a flexible and powerful way for users to interact with CareerCraft Studio, leveraging specialized AI capabilities for a variety of tasks.
+
+## Recent Fixes
+
+### Job Posting Duplicate Detection (Fixed)
+
+**Issue**: When a user submitted a job posting to chat, it correctly confirmed what the user wanted to do with it. When a user opted to parse and save it, it succeeded. However, if a user then posted another job posting into the same chat session, it would tell them that it had parsed and saved it, even though it did not actually process the duplicate content.
+
+**Root Cause**: The system had comprehensive duplicate detection logic but two critical issues:
+
+1. **Missing Action Tracking**: The `handleAgentToolCalls` function was not actually recording completed actions in the state, so the `completedActions` array was always empty, making duplicate detection ineffective.
+2. **Misleading Success Messages**: The `processJobPostingToolCalls` function always started with "I've processed your job posting request:" even when tool calls were skipped due to duplicates.
+
+**Fix Applied**:
+
+1. **Implemented Completed Actions Tracking**: Updated `handleAgentToolCalls` to create and return `CompletedAction` objects when tools are executed, including content hashes for content-based tools like job posting parsing.
+2. **Improved Response Messages**: Modified `processJobPostingToolCalls` to track whether any actual processing occurred and adjust the response message accordingly:
+   - "I've processed your job posting request:" when actual processing occurs
+   - "I reviewed your job posting request:" when all actions are skipped due to duplicates
+
+**Technical Details**:
+
+- Content-based tools (like `parse_and_store_job_posting`) now generate content hashes for duplicate detection
+- Duplicate detection only skips if content hashes match AND the action is recent (within 5 minutes)
+- Different job posting content will be processed normally
+- Completed actions are properly tracked across the conversation session
+
+This ensures that:
+
+- Different job postings are always processed
+- Identical job postings submitted recently are skipped with clear messaging
+- Users receive accurate feedback about what actions were actually performed

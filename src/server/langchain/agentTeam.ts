@@ -1584,8 +1584,9 @@ async function processJobPostingToolCalls(
   response: { content?: unknown },
   completedActions: CompletedAction[] = [],
 ): Promise<string> {
-  let toolCallSummary = "I've processed your job posting request:\n\n";
   const agentType = "job_posting_manager";
+  let actuallyProcessed = false;
+  let toolCallSummary = "";
 
   for (const toolCall of toolCalls) {
     // Check for duplicates before processing
@@ -1602,6 +1603,9 @@ async function processJobPostingToolCalls(
       }
       continue;
     }
+
+    // Mark that we're actually processing something
+    actuallyProcessed = true;
 
     if (toolCall.name === "parse_and_store_job_posting") {
       try {
@@ -1683,7 +1687,12 @@ async function processJobPostingToolCalls(
     toolCallSummary += "\n" + responseContent;
   }
 
-  return toolCallSummary;
+  // Prepend appropriate header based on whether actual processing occurred
+  if (actuallyProcessed) {
+    return `I've processed your job posting request:\n\n${toolCallSummary}`;
+  } else {
+    return `I reviewed your job posting request:\n\n${toolCallSummary}`;
+  }
 }
 
 // Create job posting manager node using the factory
@@ -1983,7 +1992,11 @@ async function handleAgentToolCalls(
   config: AgentConfig,
   userId: string,
   state: typeof AgentState.State,
-): Promise<{ messages: BaseMessage[]; next: string }> {
+): Promise<{
+  messages: BaseMessage[];
+  next: string;
+  completedActions?: CompletedAction[];
+}> {
   try {
     let toolCallsToProcess = response.tool_calls;
     const cleanContent = getCleanContentForAiMessage(response.content);
@@ -2053,6 +2066,9 @@ async function handleAgentToolCalls(
         .filter((tc) => tc.id && tc.name), // Also ensure name is present for a valid tool_call
     });
 
+    // Track completed actions for duplicate detection
+    const newCompletedActions: CompletedAction[] = [];
+
     if (config.processToolCalls) {
       try {
         const customResult = await config.processToolCalls(
@@ -2062,6 +2078,36 @@ async function handleAgentToolCalls(
           { content: cleanContent, tool_calls: response.tool_calls },
           state.completedActions,
         );
+
+        // Create completed actions for each tool call that was processed
+        for (const toolCall of processedToolCalls) {
+          // Create content hash for content-based tools
+          let contentHash: string | undefined;
+          if (
+            toolCall.name === "parse_and_store_job_posting" &&
+            typeof toolCall.args.content === "string"
+          ) {
+            contentHash = createContentHash(toolCall.args.content);
+          } else if (
+            toolCall.name === "parse_and_store_resume" &&
+            typeof toolCall.args.content === "string"
+          ) {
+            contentHash = createContentHash(toolCall.args.content);
+          }
+
+          const completedAction: CompletedAction = {
+            id: `${config.agentType}_${toolCall.name}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            agentType: config.agentType,
+            toolName: toolCall.name,
+            args: toolCall.args,
+            result: customResult.substring(0, 500), // Store first 500 chars of result
+            timestamp: Date.now(),
+            contentHash,
+          };
+
+          newCompletedActions.push(completedAction);
+        }
+
         const customResultMessage = new ToolMessage({
           content: customResult,
           tool_call_id:
@@ -2070,6 +2116,7 @@ async function handleAgentToolCalls(
         return {
           messages: [aiMessageWithToolCalls, customResultMessage],
           next: "supervisor",
+          completedActions: newCompletedActions,
         };
       } catch (customError) {
         logger.error(`Error in custom tool processor for ${config.agentType}`, {
@@ -2108,21 +2155,48 @@ async function handleAgentToolCalls(
           toolArgs: toolCall.args,
         });
         const toolResult = await tool.invoke(toolCall.args);
+        const toolResultString =
+          typeof toolResult === "string"
+            ? toolResult
+            : JSON.stringify(toolResult);
+
         toolMessages.push(
           new ToolMessage({
-            content:
-              typeof toolResult === "string"
-                ? toolResult
-                : JSON.stringify(toolResult),
+            content: toolResultString,
             tool_call_id: toolCall.id,
           }),
         );
+
+        // Create content hash for content-based tools
+        let contentHash: string | undefined;
+        if (
+          toolCall.name === "parse_and_store_job_posting" &&
+          typeof toolCall.args.content === "string"
+        ) {
+          contentHash = createContentHash(toolCall.args.content);
+        } else if (
+          toolCall.name === "parse_and_store_resume" &&
+          typeof toolCall.args.content === "string"
+        ) {
+          contentHash = createContentHash(toolCall.args.content);
+        }
+
+        // Track this as a completed action
+        const completedAction: CompletedAction = {
+          id: `${config.agentType}_${toolCall.name}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          agentType: config.agentType,
+          toolName: toolCall.name,
+          args: toolCall.args,
+          result: toolResultString.substring(0, 500), // Store first 500 chars of result
+          timestamp: Date.now(),
+          contentHash,
+        };
+
+        newCompletedActions.push(completedAction);
+
         logger.info(`Tool ${toolCall.name} executed successfully`, {
           agentType: config.agentType,
-          resultLength:
-            typeof toolResult === "string"
-              ? toolResult.length
-              : JSON.stringify(toolResult).length,
+          resultLength: toolResultString.length,
         });
       } catch (toolError) {
         const errorMessage =
@@ -2144,6 +2218,7 @@ async function handleAgentToolCalls(
     return {
       messages: [aiMessageWithToolCalls, ...toolMessages],
       next: "supervisor",
+      completedActions: newCompletedActions,
     };
   } catch (error) {
     logger.error(`Error in handleAgentToolCalls for ${config.agentType}`, {

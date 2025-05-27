@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 
 const BIO_VIEWS = [
-  { key: "documents", label: "Documents", href: "/ai-chat/documents" },
+  { key: "job-postings", label: "Job Postings", href: "/ai-chat/job-postings" },
   { key: "work-history", label: "Work History", href: "/ai-chat/work-history" },
   {
     key: "achievements",
@@ -24,13 +24,9 @@ const BIO_VIEWS = [
   },
   { key: "skills", label: "Skills", href: "/ai-chat/skills" },
   { key: "education", label: "Education", href: "/ai-chat/education" },
-  { key: "job-postings", label: "Job Postings", href: "/ai-chat/job-postings" },
-  {
-    key: "document-editor",
-    label: "Document Editor",
-    href: "/ai-chat/document-editor",
-  },
+
   { key: "links", label: "Links", href: "/ai-chat/links" },
+  { key: "documents", label: "Documents", href: "/ai-chat/documents" },
   {
     key: "conversations",
     label: "Conversations",
