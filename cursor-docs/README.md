@@ -39,7 +39,7 @@ Below is an index of the documented features. Each link will take you to a more 
 - **[AI Chat](./ai-chat.md)**: Describes the architecture and capabilities of the AI-powered chat interface, including its agent team and available tools.
 - **[Job Posting Import & Analysis](./job-posting-import.md)**: Explains how job postings are imported, parsed, stored, and analyzed against user profiles.
 - **[Job Posting Data Table](./job-posting-data-table.md)**: Documents the sortable, searchable data table interface for managing job postings with advanced filtering and action capabilities.
-- **[User Profile Management](./user-profile-management.md)**: Describes the professional profile management system that allows users to maintain contact information and personal details separate from authentication provider data.
+- **[User Profile Management](./user-profile-management.md)**: Describes the user profile system for managing professional contact information separate from authentication provider data.
 - **[Profile Management](./profile-management.md)**: Details the CRUD (Create, Read, Update, Delete) operations for user profile information such as work history, skills, and personal links.
 - **[Work History Merge](./work-history-merge.md)**: Describes the utility for merging multiple work history records into a single consolidated record, including skills and achievements consolidation.
 - **[Resume Import & Parsing](./resume-import.md)**: Outlines the process of importing resumes (via file upload or text pasting) and the AI-driven parsing into structured data.
@@ -47,7 +47,7 @@ Below is an index of the documented features. Each link will take you to a more 
 - **[Cover Letter Generation](./cover-letter-generation.md)**: Details the process of creating tailored cover letters, managed by the `Cover Letter Generator` agent.
 - **[Skill Normalization](./skill-normalization.md)**: Covers the system for deduplicating and categorizing skills across various industries while preserving detailed variants for ATS matching. (Existing document, will be reviewed)
 - **[Work Achievement Management](./work-achievement-management.md)**: Details the tools and processes for managing, editing, and merging work achievements, including AI-powered enhancements.
-- **[Subscription System & Usage Tracking](./subscription-system.md)**: Describes the tiered subscription model with usage limits, tracking, and Stripe integration for monetization.
+- **[Subscription System](./subscription-system.md)**: Documents the comprehensive subscription and usage tracking system with tiered access controls and user interface for plan management.
 - **[Tooling Infrastructure](./tooling-infrastructure.md)**: Describes the shared configuration, error handling, and type definition files for LangChain tools.
 
 ## Architectural Guidelines

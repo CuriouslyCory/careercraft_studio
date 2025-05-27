@@ -25,6 +25,7 @@ The subscription system implements a freemium model with:
 3. **API Layer** - Comprehensive tRPC router with all endpoints
 4. **Default Tier Initialization** - Script to set up free and pro tiers
 5. **Usage Tracking Integration** - Integrated into all key endpoints
+6. **Subscription Panel UI** - Complete user interface for subscription management
 
 ### 🔄 Integration Points
 
@@ -434,3 +435,62 @@ node scripts/init-subscription-tiers.js
 - Subscription status monitoring
 - Error rate tracking for limit exceeded scenarios
 - Database query performance for usage calculations
+
+## User Interface
+
+### Subscription Panel
+
+**Location**: `src/app/ai-chat/_components/subscription-panel.tsx`
+**Page**: `src/app/ai-chat/subscription/page.tsx`
+
+The subscription panel provides a comprehensive interface for users to:
+
+- **View Current Subscription**: Display current tier, status, and billing information
+- **Monitor Usage**: Real-time usage tracking with visual progress bars
+- **Compare Plans**: Side-by-side feature comparison of all available tiers
+- **Upgrade/Downgrade**: One-click subscription tier changes
+- **Visual Indicators**: Color-coded usage status (green/yellow/red for usage levels)
+
+#### Key Features
+
+1. **Current Subscription Status**
+
+   - Displays current tier with appropriate icon (Star/Crown/Building)
+   - Shows subscription status badge
+   - Tier-specific color coding
+
+2. **Usage Dashboard**
+
+   - Real-time usage tracking for all limited actions
+   - Progress bars with percentage indicators
+   - Color-coded warnings for approaching limits
+   - Clear display of current usage vs. limits
+
+3. **Plan Comparison**
+
+   - Three-column layout for Free, Pro, and Enterprise tiers
+   - Feature highlights specific to each tier
+   - Pricing display with monthly costs
+   - Clear upgrade/downgrade buttons
+
+4. **Interactive Elements**
+   - Click to select plans
+   - Visual feedback during upgrade process
+   - Success/error notifications via toast messages
+   - Disabled states for current plan
+
+#### Usage Patterns
+
+```typescript
+// The component automatically handles:
+// - Fetching current subscription status
+// - Loading available tiers
+// - Displaying current usage
+// - Processing tier changes
+
+// Users can:
+// 1. View their current usage and limits
+// 2. Compare available plans
+// 3. Click upgrade/downgrade buttons
+// 4. Receive immediate feedback on changes
+```

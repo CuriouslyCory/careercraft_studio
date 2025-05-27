@@ -17,6 +17,11 @@ import { useSession } from "next-auth/react";
 const BIO_VIEWS = [
   { key: "job-postings", label: "Job Postings", href: "/ai-chat/job-postings" },
   { key: "work-history", label: "Work History", href: "/ai-chat/work-history" },
+  {
+    key: "conversations",
+    label: "Conversations",
+    href: "/ai-chat/conversations",
+  },
   { key: "profile", label: "Contact Info", href: "/ai-chat/profile" },
   {
     key: "achievements",
@@ -28,11 +33,7 @@ const BIO_VIEWS = [
 
   { key: "links", label: "Links", href: "/ai-chat/links" },
   { key: "documents", label: "Documents", href: "/ai-chat/documents" },
-  {
-    key: "conversations",
-    label: "Conversations",
-    href: "/ai-chat/conversations",
-  },
+  { key: "subscription", label: "Subscription", href: "/ai-chat/subscription" },
 ];
 
 export function BioSidebar() {

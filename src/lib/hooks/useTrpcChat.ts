@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 import { v4 as uuidv4 } from "uuid";
 import { api } from "~/trpc/react";
 import { type ChatMessage } from "@prisma/client";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 // Type for processing metadata
 type ProcessingMetadata = {
@@ -21,7 +21,6 @@ export type UISimpleMessage = {
 
 export function useTrpcChat() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [messages, setMessages] = useState<UISimpleMessage[]>([]);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -65,12 +64,7 @@ export function useTrpcChat() {
     // Set flag to prevent conversation loading during new chat creation
     isStartingNewChatRef.current = true;
 
-    // Clear the conversation parameter from URL first
-    const params = new URLSearchParams(searchParams);
-    params.delete("conversation");
-    router.replace(`/ai-chat?${params.toString()}`);
-
-    // Reset all state after URL is cleared
+    // Reset all state immediately without URL manipulation
     setMessages([]);
     setInput("");
     setConversationId(null);
@@ -91,6 +85,12 @@ export function useTrpcChat() {
           initializationRef.current = true;
           // Clear the flag after successful creation
           isStartingNewChatRef.current = false;
+
+          // Update URL without causing a page reload
+          const params = new URLSearchParams(searchParams);
+          params.delete("conversation");
+          const newUrl = `/ai-chat?${params.toString()}`;
+          window.history.replaceState({}, "", newUrl);
         },
         onError: (err: { message: string }) => {
           console.error("Failed to create new conversation:", err.message);
@@ -102,7 +102,7 @@ export function useTrpcChat() {
         },
       });
     }
-  }, [session, createConversationMutation, searchParams, router]);
+  }, [session, createConversationMutation, searchParams]);
 
   // Check for conversation parameter in URL
   useEffect(() => {
