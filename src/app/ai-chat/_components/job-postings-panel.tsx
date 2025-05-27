@@ -16,17 +16,6 @@ import { JobPostingsDataTable } from "./job-postings-data-table";
 import { createJobPostingsColumns } from "./job-postings-table-columns";
 import { useRouter } from "next/navigation";
 
-interface JobPostingFormData {
-  title: string;
-  content: string;
-  company: string;
-  location: string;
-  industry: string;
-  url: string;
-  status: string;
-  notes: string;
-}
-
 // Use Prisma generated type with includes
 type JobPosting = Prisma.JobPostingGetPayload<{
   include: {
