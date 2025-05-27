@@ -53,7 +53,6 @@ function FieldInfo({ field }: { field: AnyFieldApi }) {
 
 export function JobPostingsPanel() {
   const router = useRouter();
-  const [editId, setEditId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewContent, setViewContent] = useState<{
     id: string;
@@ -73,6 +72,38 @@ export function JobPostingsPanel() {
 
   const queryClient = api.useUtils();
   const jobPostingsQuery = api.document.listJobPostings.useQuery();
+
+  // Job posting form for pasting content and AI parsing
+  const jobPostingForm = useForm({
+    defaultValues: {
+      content: "",
+      url: "",
+      status: "",
+      notes: "",
+    },
+    onSubmit: async ({ value }) => {
+      // Validate required field
+      if (!value.content.trim()) {
+        toast.error("Job posting content is required");
+        return;
+      }
+
+      // Only send fields that have values
+      const dataToSubmit = Object.fromEntries(
+        Object.entries(value).filter(
+          ([_, fieldValue]) =>
+            typeof fieldValue === "string" && fieldValue.trim() !== "",
+        ),
+      ) as {
+        content: string;
+        url?: string;
+        status?: string;
+        notes?: string;
+      };
+
+      parseAndStoreMutation.mutate(dataToSubmit);
+    },
+  });
 
   const generateResumeMutation =
     api.document.generateTailoredResume.useMutation({
@@ -155,160 +186,14 @@ export function JobPostingsPanel() {
     },
   );
 
-  // Add new job posting form
-  const addJobForm = useForm({
-    defaultValues: {
-      title: "",
-      content: "",
-      company: "",
-      location: "",
-      industry: "",
-      url: "",
-      status: "",
-      notes: "",
-    },
-    onSubmit: async ({ value }) => {
-      // Validate required fields
-      if (
-        !value.title.trim() ||
-        !value.company.trim() ||
-        !value.location.trim()
-      ) {
-        toast.error("Title, Company, and Location are required fields");
-        return;
-      }
-
-      // Only send fields that have values
-      const dataToCreate = Object.fromEntries(
-        Object.entries(value).filter(
-          ([_, fieldValue]) =>
-            typeof fieldValue === "string" && fieldValue.trim() !== "",
-        ),
-      ) as {
-        title: string;
-        content: string;
-        company: string;
-        location: string;
-        industry?: string;
-        url?: string;
-        status?: string;
-        notes?: string;
-      };
-
-      createMutation.mutate(dataToCreate);
-    },
-  });
-
-  // Edit job posting form
-  const editJobForm = useForm({
-    defaultValues: {
-      title: "",
-      content: "",
-      company: "",
-      location: "",
-      industry: "",
-      url: "",
-      status: "",
-      notes: "",
-    },
-    onSubmit: async ({ value }) => {
-      if (!editId) return;
-
-      // Only send fields that have values
-      const dataToUpdate = Object.fromEntries(
-        Object.entries(value).filter(
-          ([_, fieldValue]) =>
-            typeof fieldValue === "string" && fieldValue.trim() !== "",
-        ),
-      ) as Partial<Omit<JobPostingFormData, "id">>;
-
-      updateMutation.mutate({
-        id: editId,
-        ...dataToUpdate,
-      });
-    },
-  });
-
-  const updateMutation = api.document.updateJobPosting.useMutation({
-    onSuccess: () => {
-      void jobPostingsQuery.refetch();
-      setEditId(null);
-      toast.success("Job posting updated successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to update job posting: ${error.message}`);
-    },
-  });
-
-  const createMutation = api.document.createJobPosting.useMutation({
-    onSuccess: () => {
-      void jobPostingsQuery.refetch();
-      setShowAddForm(false);
-      addJobForm.reset();
-      toast.success("Job posting created successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to create job posting: ${error.message}`);
-    },
-  });
-
-  const deleteMutation = api.document.deleteJobPosting.useMutation({
-    onMutate: async (deleteData) => {
-      // Cancel any outgoing refetches
-      await queryClient.document.listJobPostings.cancel();
-
-      // Save the current state
-      const previousJobPostings = jobPostingsQuery.data ?? [];
-
-      // Optimistically update the UI
-      queryClient.document.listJobPostings.setData(undefined, (old) => {
-        return old ? old.filter((job) => job.id !== deleteData.id) : [];
-      });
-
-      // Return the previous state in case we need to revert
-      return { previousJobPostings };
-    },
-    onError: (err, _deleteData, context) => {
-      // If the mutation fails, restore the previous job postings
-      if (context?.previousJobPostings) {
-        queryClient.document.listJobPostings.setData(
-          undefined,
-          context.previousJobPostings,
-        );
-      }
-      toast.error(`Failed to delete job posting: ${err.message}`);
-    },
-    onSettled: (data, error) => {
-      // Sync with server
-      void queryClient.document.listJobPostings.invalidate();
-
-      // Show success toast if no error
-      if (!error) {
-        toast.success("Job posting deleted successfully");
-      }
-    },
-  });
-
-  const handleEdit = (jobPosting: JobPosting) => {
-    setEditId(jobPosting.id);
-    editJobForm.setFieldValue("title", jobPosting.title ?? "");
-    editJobForm.setFieldValue("content", jobPosting.content ?? "");
-    editJobForm.setFieldValue("company", jobPosting.company ?? "");
-    editJobForm.setFieldValue("location", jobPosting.location ?? "");
-    editJobForm.setFieldValue("industry", jobPosting.industry ?? "");
-    editJobForm.setFieldValue("url", jobPosting.url ?? "");
-    editJobForm.setFieldValue("status", jobPosting.status ?? "");
-    editJobForm.setFieldValue("notes", jobPosting.notes ?? "");
+  const handleViewContent = (id: string, content: string, title: string) => {
+    setViewContent({ id, content, title });
   };
 
   const handleDelete = (id: string) => {
     if (confirm("Are you sure you want to delete this job posting?")) {
       deleteMutation.mutate({ id });
     }
-  };
-
-  const handleViewContent = (id: string, content: string, title: string) => {
-    setViewContent({ id, content, title });
   };
 
   const handleCloseContent = () => {
@@ -386,6 +271,72 @@ export function JobPostingsPanel() {
       jobPostingId,
     });
   };
+
+  const parseAndStoreMutation =
+    api.document.parseAndStoreJobPosting.useMutation({
+      onSuccess: (result: {
+        success: boolean;
+        message: string;
+        jobPosting: {
+          id: string;
+          title: string;
+          company: string;
+          location: string;
+          industry: string | null;
+        };
+        skillCounts: {
+          requiredSkills: number;
+          bonusSkills: number;
+          educationRequirements: number;
+          experienceRequirements: number;
+        };
+      }) => {
+        void jobPostingsQuery.refetch();
+        setShowAddForm(false);
+        jobPostingForm.reset();
+        toast.success(result.message);
+      },
+      onError: (error: { message: string }) => {
+        toast.error(`Failed to parse and store job posting: ${error.message}`);
+      },
+    });
+
+  const deleteMutation = api.document.deleteJobPosting.useMutation({
+    onMutate: async (deleteData) => {
+      // Cancel any outgoing refetches
+      await queryClient.document.listJobPostings.cancel();
+
+      // Save the current state
+      const previousJobPostings = jobPostingsQuery.data ?? [];
+
+      // Optimistically update the UI
+      queryClient.document.listJobPostings.setData(undefined, (old) => {
+        return old ? old.filter((job) => job.id !== deleteData.id) : [];
+      });
+
+      // Return the previous state in case we need to revert
+      return { previousJobPostings };
+    },
+    onError: (err, _deleteData, context) => {
+      // If the mutation fails, restore the previous job postings
+      if (context?.previousJobPostings) {
+        queryClient.document.listJobPostings.setData(
+          undefined,
+          context.previousJobPostings,
+        );
+      }
+      toast.error(`Failed to delete job posting: ${err.message}`);
+    },
+    onSettled: (data, error) => {
+      // Sync with server
+      void queryClient.document.listJobPostings.invalidate();
+
+      // Show success toast if no error
+      if (!error) {
+        toast.success("Job posting deleted successfully");
+      }
+    },
+  });
 
   if (jobPostingsQuery.isLoading) {
     return <div className="p-4 text-center">Loading your job postings...</div>;
@@ -477,232 +428,6 @@ export function JobPostingsPanel() {
         </div>
       )}
 
-      {/* Edit Job Posting Modal */}
-      {editId && (
-        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
-          <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
-            <div className="flex items-center justify-between border-b p-4">
-              <h3 className="text-lg font-semibold">Edit Job Posting</h3>
-              <Button variant="outline" onClick={() => setEditId(null)}>
-                Cancel
-              </Button>
-            </div>
-            <div className="max-h-[60vh] overflow-y-auto p-4">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  void editJobForm.handleSubmit();
-                }}
-              >
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <editJobForm.Field name="title">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          Title
-                        </label>
-                        <input
-                          id={field.name}
-                          name={field.name}
-                          type="text"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                        />
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                  <editJobForm.Field name="company">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          Company
-                        </label>
-                        <input
-                          id={field.name}
-                          name={field.name}
-                          type="text"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                        />
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                  <editJobForm.Field name="location">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          Location
-                        </label>
-                        <input
-                          id={field.name}
-                          name={field.name}
-                          type="text"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                        />
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                  <editJobForm.Field name="industry">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          Industry
-                        </label>
-                        <input
-                          id={field.name}
-                          name={field.name}
-                          type="text"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                        />
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                  <editJobForm.Field name="url">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          URL
-                        </label>
-                        <input
-                          id={field.name}
-                          name={field.name}
-                          type="url"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                        />
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                  <editJobForm.Field name="status">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          Status
-                        </label>
-                        <select
-                          id={field.name}
-                          name={field.name}
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="w-full rounded border px-3 py-2 text-sm"
-                        >
-                          <option value="">Select status</option>
-                          <option value="Saved">Saved</option>
-                          <option value="Applied">Applied</option>
-                          <option value="Interview">Interview</option>
-                          <option value="Rejected">Rejected</option>
-                          <option value="Offer">Offer</option>
-                        </select>
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                </div>
-                <div className="mt-4">
-                  <editJobForm.Field name="content">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          Content
-                        </label>
-                        <Textarea
-                          id={field.name}
-                          name={field.name}
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="min-h-[100px] w-full"
-                        />
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                </div>
-                <div className="mt-4">
-                  <editJobForm.Field name="notes">
-                    {(field) => (
-                      <div>
-                        <label
-                          htmlFor={field.name}
-                          className="mb-1 block text-sm font-medium"
-                        >
-                          Notes
-                        </label>
-                        <Textarea
-                          id={field.name}
-                          name={field.name}
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          className="min-h-[60px] w-full"
-                        />
-                        <FieldInfo field={field} />
-                      </div>
-                    )}
-                  </editJobForm.Field>
-                </div>
-                <div className="mt-6 flex gap-2">
-                  <Button
-                    type="submit"
-                    disabled={updateMutation.isPending}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setEditId(null)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">
@@ -713,7 +438,9 @@ export function JobPostingsPanel() {
         </h2>
         <div className="flex gap-3">
           <Button
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => {
+              setShowAddForm(!showAddForm);
+            }}
             className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg hover:from-blue-700 hover:to-indigo-700"
           >
             {showAddForm ? "Cancel" : <Plus />}
@@ -731,205 +458,109 @@ export function JobPostingsPanel() {
             onSubmit={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              void addJobForm.handleSubmit();
+              void jobPostingForm.handleSubmit();
             }}
           >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <addJobForm.Field
-                name="title"
+            <div className="space-y-4">
+              <jobPostingForm.Field
+                name="content"
                 validators={{
                   onChange: ({ value }) =>
-                    !value.trim() ? "Title is required" : undefined,
+                    !value.trim()
+                      ? "Job posting content is required"
+                      : undefined,
                 }}
               >
                 {(field) => (
                   <div>
                     <label
                       htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
+                      className="mb-2 block text-sm font-medium"
                     >
-                      Title *
+                      Job Posting Content *
                     </label>
-                    <input
-                      id={field.name}
-                      name={field.name}
-                      type="text"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="Software Engineer"
-                    />
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </addJobForm.Field>
-              <addJobForm.Field
-                name="company"
-                validators={{
-                  onChange: ({ value }) =>
-                    !value.trim() ? "Company is required" : undefined,
-                }}
-              >
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
-                    >
-                      Company *
-                    </label>
-                    <input
-                      id={field.name}
-                      name={field.name}
-                      type="text"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="Acme Corp"
-                    />
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </addJobForm.Field>
-              <addJobForm.Field
-                name="location"
-                validators={{
-                  onChange: ({ value }) =>
-                    !value.trim() ? "Location is required" : undefined,
-                }}
-              >
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
-                    >
-                      Location *
-                    </label>
-                    <input
-                      id={field.name}
-                      name={field.name}
-                      type="text"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="San Francisco, CA"
-                    />
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </addJobForm.Field>
-              <addJobForm.Field name="industry">
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
-                    >
-                      Industry
-                    </label>
-                    <input
-                      id={field.name}
-                      name={field.name}
-                      type="text"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="Technology"
-                    />
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </addJobForm.Field>
-              <addJobForm.Field name="url">
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
-                    >
-                      URL
-                    </label>
-                    <input
-                      id={field.name}
-                      name={field.name}
-                      type="url"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                      placeholder="https://company.com/jobs/123"
-                    />
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </addJobForm.Field>
-              <addJobForm.Field name="status">
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
-                    >
-                      Status
-                    </label>
-                    <select
-                      id={field.name}
-                      name={field.name}
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="w-full rounded border px-3 py-2 text-sm"
-                    >
-                      <option value="">Select status</option>
-                      <option value="Saved">Saved</option>
-                      <option value="Applied">Applied</option>
-                      <option value="Interview">Interview</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Offer">Offer</option>
-                    </select>
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </addJobForm.Field>
-            </div>
-            <div className="mt-4">
-              <addJobForm.Field name="content">
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
-                    >
-                      Content
-                    </label>
+                    <p className="mb-2 text-sm text-gray-600">
+                      Paste the job posting content here. Our AI will
+                      automatically extract the title, company, location, and
+                      requirements.
+                    </p>
                     <Textarea
                       id={field.name}
                       name={field.name}
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                       onBlur={field.handleBlur}
-                      className="min-h-[100px] w-full"
-                      placeholder="Paste the job posting description here..."
+                      className="min-h-[200px] w-full"
+                      placeholder="Paste the job posting content here..."
                     />
                     <FieldInfo field={field} />
                   </div>
                 )}
-              </addJobForm.Field>
-            </div>
-            <div className="mt-4">
-              <addJobForm.Field name="notes">
+              </jobPostingForm.Field>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <jobPostingForm.Field name="url">
+                  {(field) => (
+                    <div>
+                      <label
+                        htmlFor={field.name}
+                        className="mb-1 block text-sm font-medium"
+                      >
+                        URL (Optional)
+                      </label>
+                      <input
+                        id={field.name}
+                        name={field.name}
+                        type="url"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full rounded border px-3 py-2 text-sm"
+                        placeholder="https://company.com/jobs/123"
+                      />
+                      <FieldInfo field={field} />
+                    </div>
+                  )}
+                </jobPostingForm.Field>
+                <jobPostingForm.Field name="status">
+                  {(field) => (
+                    <div>
+                      <label
+                        htmlFor={field.name}
+                        className="mb-1 block text-sm font-medium"
+                      >
+                        Status (Optional)
+                      </label>
+                      <select
+                        id={field.name}
+                        name={field.name}
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full rounded border px-3 py-2 text-sm"
+                      >
+                        <option value="">Select status</option>
+                        <option value="Saved">Saved</option>
+                        <option value="Applied">Applied</option>
+                        <option value="Interview">Interview</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="Offer">Offer</option>
+                      </select>
+                      <FieldInfo field={field} />
+                    </div>
+                  )}
+                </jobPostingForm.Field>
+                <div></div> {/* Empty div for grid spacing */}
+              </div>
+
+              <jobPostingForm.Field name="notes">
                 {(field) => (
                   <div>
                     <label
                       htmlFor={field.name}
                       className="mb-1 block text-sm font-medium"
                     >
-                      Notes
+                      Notes (Optional)
                     </label>
                     <Textarea
                       id={field.name}
@@ -943,31 +574,35 @@ export function JobPostingsPanel() {
                     <FieldInfo field={field} />
                   </div>
                 )}
-              </addJobForm.Field>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <addJobForm.Subscribe
-                selector={(state) => [state.canSubmit, state.isSubmitting]}
-              >
-                {([canSubmit, isSubmitting]) => (
-                  <Button
-                    type="submit"
-                    disabled={!canSubmit || createMutation.isPending}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {createMutation.isPending || isSubmitting
-                      ? "Creating..."
-                      : "Create Job Posting"}
-                  </Button>
-                )}
-              </addJobForm.Subscribe>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowAddForm(false)}
-              >
-                Cancel
-              </Button>
+              </jobPostingForm.Field>
+
+              <div className="flex gap-2">
+                <jobPostingForm.Subscribe
+                  selector={(state) => [state.canSubmit, state.isSubmitting]}
+                >
+                  {([canSubmit, isSubmitting]) => (
+                    <Button
+                      type="submit"
+                      disabled={!canSubmit || parseAndStoreMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {parseAndStoreMutation.isPending || isSubmitting
+                        ? "Processing..."
+                        : "Parse & Store Job Posting"}
+                    </Button>
+                  )}
+                </jobPostingForm.Subscribe>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    jobPostingForm.reset();
+                    setShowAddForm(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
           </form>
         </div>
@@ -999,7 +634,10 @@ export function JobPostingsPanel() {
       ) : (
         <JobPostingsDataTable
           columns={createJobPostingsColumns(
-            handleEdit,
+            (_job: JobPosting) => {
+              // Edit functionality disabled - job postings must be re-parsed with AI
+              return;
+            },
             handleDelete,
             handleViewContent,
             handleViewCompatibility,

@@ -91,6 +91,23 @@ await tx.jobSkillRequirement.createMany({
 
 ## Usage Examples
 
+### Via Job Postings Panel (Recommended)
+
+**AI Parsing Workflow:**
+
+1. User clicks "Add New Job Posting" button
+2. User pastes job posting content into the text area
+3. User optionally adds URL, status, and notes
+4. User clicks "Parse & Store Job Posting"
+5. System automatically:
+   - Parses content using AI to extract title, company, location, industry
+   - Identifies and normalizes required vs. bonus skills
+   - Extracts experience and education requirements
+   - Stores structured data in the database
+6. User receives success message with extracted information summary
+
+**Note**: All job postings must be processed through AI parsing to extract structured data and skills. Manual entry is not supported as the system requires AI analysis to properly categorize skills and requirements.
+
 ### Via AI Chat
 
 1. User pastes job posting content in chat
@@ -105,6 +122,20 @@ await tx.jobSkillRequirement.createMany({
 const processor = new JobPostingProcessor(db);
 const result = await processor.processAndStore(jobPostingContent, userId);
 ```
+
+## API Endpoints
+
+### `parseAndStoreJobPosting`
+
+- **Input**: `{ content: string, url?: string, status?: string, notes?: string }`
+- **Output**: `{ success: boolean, message: string, jobPosting: JobPosting, skillCounts: SkillCounts }`
+- **Description**: Parses job posting content using AI and stores structured data
+
+### `createJobPosting` (Deprecated)
+
+- **Input**: `{ title: string, company: string, location: string, content: string, ... }`
+- **Output**: `JobPosting`
+- **Description**: Creates job posting with manual data entry (deprecated - use parseAndStoreJobPosting instead)
 
 ## Error Handling
 

@@ -63,6 +63,7 @@ export const documentRouter = createTRPCRouter({
   createJobPosting: jobPostingRouter.create,
   updateJobPosting: jobPostingRouter.update,
   deleteJobPosting: jobPostingRouter.delete,
+  parseAndStoreJobPosting: jobPostingRouter.parseAndStore,
 
   // User Links operations
   listUserLinks: userLinksRouter.list,

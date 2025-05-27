@@ -113,6 +113,64 @@ export const jobPostingRouter = createTRPCRouter({
         where: { id: input.id, userId: ctx.session.user.id },
       });
     }),
+
+  parseAndStore: protectedProcedure
+    .input(
+      z.object({
+        content: z.string().min(1, "Job posting content is required"),
+        url: z.string().optional(),
+        status: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Check usage limits and record usage for job posting import
+      const usageTracker = new UsageTracker(ctx.db);
+      await usageTracker.checkLimitAndRecord(
+        ctx.session.user.id,
+        "JOB_POSTING_IMPORT",
+        {
+          hasContent: input.content.length > 0,
+          contentLength: input.content.length,
+        },
+      );
+
+      try {
+        // Use the centralized service with skill normalization and AI parsing
+        const result = await processJobPostingService(
+          input.content,
+          ctx.session.user.id,
+          ctx.db,
+        );
+
+        // Update the job posting with additional fields if provided
+        const updatedJobPosting = await ctx.db.jobPosting.update({
+          where: { id: result.jobPosting.id },
+          data: {
+            url: input.url,
+            status: input.status,
+            notes: input.notes,
+          },
+          include: { details: true },
+        });
+
+        return {
+          success: true,
+          message: `Successfully parsed and stored job posting: ${result.jobPosting.title} at ${result.jobPosting.company}`,
+          jobPosting: updatedJobPosting,
+          skillCounts: result.skillCounts,
+        };
+      } catch (error) {
+        console.error("Error parsing and storing job posting:", error);
+        throw new DocumentProcessingError(
+          `Failed to parse and store job posting: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? error : new Error(String(error)),
+          "job_posting",
+          "parsing",
+          { contentLength: input.content.length },
+        );
+      }
+    }),
 });
 
 // Helper function to process and store job posting data
