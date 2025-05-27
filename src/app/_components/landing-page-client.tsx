@@ -785,6 +785,27 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
                 <span className="text-sm">Trusted by Professionals</span>
               </div>
             </div>
+
+            {/* Legal Links */}
+            <div className="mt-8 flex justify-center space-x-8 border-t border-gray-800 pt-8">
+              <Link
+                href="/privacy"
+                className="text-sm text-gray-400 transition-colors hover:text-white"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                href="/terms-of-service"
+                className="text-sm text-gray-400 transition-colors hover:text-white"
+              >
+                Terms of Service
+              </Link>
+            </div>
+
+            <div className="mt-4 text-xs text-gray-500">
+              © {new Date().getFullYear()} CareerCraft Studio. All rights
+              reserved.
+            </div>
           </div>
         </div>
       </footer>
