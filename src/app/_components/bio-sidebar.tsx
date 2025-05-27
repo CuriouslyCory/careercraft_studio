@@ -10,33 +10,45 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "~/components/ui/sidebar";
-import { useSearchParams, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
 const BIO_VIEWS = [
-  { key: "documents", label: "Documents" },
-  { key: "workHistory", label: "Work History" },
-  { key: "keyAchievements", label: "Key Achievements" },
-  { key: "skills", label: "Skills" },
-  { key: "education", label: "Education" },
-  { key: "jobPostings", label: "Job Postings" },
-  { key: "documentEditor", label: "Document Editor" },
-  { key: "links", label: "Links" },
-  { key: "conversations", label: "Conversations" },
+  { key: "documents", label: "Documents", href: "/ai-chat/documents" },
+  { key: "work-history", label: "Work History", href: "/ai-chat/work-history" },
+  {
+    key: "achievements",
+    label: "Key Achievements",
+    href: "/ai-chat/achievements",
+  },
+  { key: "skills", label: "Skills", href: "/ai-chat/skills" },
+  { key: "education", label: "Education", href: "/ai-chat/education" },
+  { key: "job-postings", label: "Job Postings", href: "/ai-chat/job-postings" },
+  {
+    key: "document-editor",
+    label: "Document Editor",
+    href: "/ai-chat/document-editor",
+  },
+  { key: "links", label: "Links", href: "/ai-chat/links" },
+  {
+    key: "conversations",
+    label: "Conversations",
+    href: "/ai-chat/conversations",
+  },
 ];
 
 export function BioSidebar() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const pathname = usePathname();
   const session = useSession();
-  const activeView = searchParams.get("bio") ?? "documents";
 
-  function handleChange(key: string) {
-    const params = new URLSearchParams(Array.from(searchParams.entries()));
-    params.set("bio", key);
-    router.push(`?${params.toString()}`);
-  }
+  // Determine active view based on current pathname
+  const getActiveView = () => {
+    const currentView = BIO_VIEWS.find((view) => pathname === view.href);
+    return currentView?.key ?? "documents";
+  };
+
+  const activeView = getActiveView();
 
   return (
     <Sidebar
@@ -64,9 +76,9 @@ export function BioSidebar() {
                         : "text-gray-700 hover:bg-blue-100 hover:text-blue-700"
                     }`}
                     isActive={activeView === item.key}
-                    onClick={() => handleChange(item.key)}
+                    asChild
                   >
-                    {item.label}
+                    <Link href={item.href}>{item.label}</Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

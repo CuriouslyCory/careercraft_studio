@@ -33,12 +33,7 @@ export function DocumentEditorPanel() {
 
   const handleCancel = () => {
     // Navigate back to job postings
-    const params = new URLSearchParams(Array.from(searchParams.entries()));
-    params.delete("jobPostingId");
-    params.delete("documentType");
-    params.delete("jobTitle");
-    params.set("bio", "jobPostings");
-    router.push(`?${params.toString()}`);
+    router.push("/ai-chat/job-postings");
   };
 
   // Show loading state while fetching job posting
@@ -53,34 +48,30 @@ export function DocumentEditorPanel() {
     );
   }
 
-  // Show error state if job posting not found
-  if (jobPostingQuery.error || !jobPostingQuery.data) {
+  // Show error state if job posting not found or missing parameters
+  if (
+    !jobPostingId ||
+    !documentType ||
+    !jobTitle ||
+    jobPostingQuery.error ||
+    !jobPostingQuery.data
+  ) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center space-y-4">
         <div className="text-center">
-          <p className="mb-4 text-red-600">
-            {jobPostingQuery.error?.message || "Document not found"}
+          <h2 className="text-xl font-semibold text-gray-900">
+            Document Not Found
+          </h2>
+          <p className="mt-2 text-gray-600">
+            {!jobPostingId || !documentType || !jobTitle
+              ? "Missing required parameters to load the document."
+              : "The requested document could not be found."}
           </p>
-          <Button onClick={handleCancel} variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Job Postings
-          </Button>
         </div>
-      </div>
-    );
-  }
-
-  // Validate required parameters
-  if (!jobPostingId || !documentType || !jobTitle) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <p className="mb-4 text-red-600">Missing required parameters</p>
-          <Button onClick={handleCancel} variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Job Postings
-          </Button>
-        </div>
+        <Button onClick={handleCancel} variant="outline">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Job Postings
+        </Button>
       </div>
     );
   }
@@ -91,32 +82,57 @@ export function DocumentEditorPanel() {
       ? jobPosting.document?.resumeContent
       : jobPosting.document?.coverLetterContent;
 
-  // Show message if document doesn't exist
+  // Show message if document content doesn't exist yet
   if (!documentContent) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center space-y-4">
         <div className="text-center">
-          <p className="mb-4 text-gray-600">
-            No {documentType === "resume" ? "resume" : "cover letter"} found for
-            this job posting
+          <h2 className="text-xl font-semibold text-gray-900">
+            No {documentType === "resume" ? "Resume" : "Cover Letter"} Found
+          </h2>
+          <p className="mt-2 text-gray-600">
+            No {documentType === "resume" ? "resume" : "cover letter"} has been
+            generated for this job posting yet.
           </p>
-          <Button onClick={handleCancel} variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Job Postings
-          </Button>
         </div>
+        <Button onClick={handleCancel} variant="outline">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Job Postings
+        </Button>
       </div>
     );
   }
 
   return (
-    <DocumentEditor
-      jobPostingId={jobPostingId}
-      jobTitle={jobTitle}
-      initialContent={documentContent}
-      documentType={documentType}
-      onSave={handleSave}
-      onCancel={handleCancel}
-    />
+    <div className="h-full space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {documentType === "resume" ? "Resume" : "Cover Letter"} Editor
+          </h1>
+          <p className="text-gray-600">
+            Editing {documentType === "resume" ? "resume" : "cover letter"} for{" "}
+            <span className="font-medium">{jobTitle}</span>
+          </p>
+        </div>
+        <Button onClick={handleCancel} variant="outline">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Job Postings
+        </Button>
+      </div>
+
+      {/* Document Editor */}
+      <div className="h-full">
+        <DocumentEditor
+          jobPostingId={jobPostingId}
+          jobTitle={jobTitle}
+          documentType={documentType}
+          initialContent={documentContent}
+          onSave={handleSave}
+          onCancel={handleCancel}
+        />
+      </div>
+    </div>
   );
 }

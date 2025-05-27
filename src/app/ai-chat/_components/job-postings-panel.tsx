@@ -14,6 +14,7 @@ import type { Prisma } from "@prisma/client";
 import { Plus } from "lucide-react";
 import { JobPostingsDataTable } from "./job-postings-data-table";
 import { createJobPostingsColumns } from "./job-postings-table-columns";
+import { useRouter } from "next/navigation";
 
 interface JobPostingFormData {
   title: string;
@@ -51,6 +52,7 @@ function FieldInfo({ field }: { field: AnyFieldApi }) {
 }
 
 export function JobPostingsPanel() {
+  const router = useRouter();
   const [editId, setEditId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewContent, setViewContent] = useState<{
@@ -88,12 +90,11 @@ export function JobPostingsPanel() {
               );
               if (jobPosting) {
                 // Navigate to document editor with URL parameters
-                const params = new URLSearchParams(window.location.search);
-                params.set("bio", "documentEditor");
+                const params = new URLSearchParams();
                 params.set("jobPostingId", result.jobPostingId);
                 params.set("documentType", "resume");
                 params.set("jobTitle", jobPosting.title);
-                window.location.search = params.toString();
+                router.push(`/ai-chat/document-editor?${params.toString()}`);
               }
             },
           },
@@ -125,12 +126,11 @@ export function JobPostingsPanel() {
               );
               if (jobPosting) {
                 // Navigate to document editor with URL parameters
-                const params = new URLSearchParams(window.location.search);
-                params.set("bio", "documentEditor");
+                const params = new URLSearchParams();
                 params.set("jobPostingId", result.jobPostingId);
                 params.set("documentType", "coverLetter");
                 params.set("jobTitle", jobPosting.title);
-                window.location.search = params.toString();
+                router.push(`/ai-chat/document-editor?${params.toString()}`);
               }
             },
           },
@@ -340,12 +340,11 @@ export function JobPostingsPanel() {
     type: "resume" | "coverLetter",
   ) => {
     // Navigate to document editor with URL parameters
-    const params = new URLSearchParams(window.location.search);
-    params.set("bio", "documentEditor");
+    const params = new URLSearchParams();
     params.set("jobPostingId", jobPostingId);
     params.set("documentType", type);
     params.set("jobTitle", jobTitle);
-    window.location.search = params.toString();
+    router.push(`/ai-chat/document-editor?${params.toString()}`);
   };
 
   const handleDownloadDocument = () => {
@@ -459,7 +458,7 @@ export function JobPostingsPanel() {
     <div className="h-full space-y-4">
       {/* Content View Modal */}
       {viewContent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
           <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="text-lg font-semibold">{viewContent.title}</h3>
@@ -480,7 +479,7 @@ export function JobPostingsPanel() {
 
       {/* Edit Job Posting Modal */}
       {editId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
           <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="text-lg font-semibold">Edit Job Posting</h3>

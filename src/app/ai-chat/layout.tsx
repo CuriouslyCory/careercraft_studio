@@ -3,8 +3,9 @@ import { SidebarProvider } from "~/components/ui/sidebar";
 import { SidebarTrigger } from "~/components/ui/sidebar";
 import { BioSidebar } from "../_components/bio-sidebar";
 import { auth } from "~/server/auth";
+import { AiChatLayout } from "./_components/ai-chat-layout";
 
-export default async function AiChatLayout({
+export default async function AiChatLayoutWrapper({
   children,
 }: {
   children: React.ReactNode;
@@ -44,13 +45,13 @@ export default async function AiChatLayout({
     );
   }
 
-  // If authenticated, show the normal layout
+  // If authenticated, show the normal layout with integrated chat interface
   return (
     <SidebarProvider>
       <BioSidebar />
       <main className="flex h-screen w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
         <SidebarTrigger />
-        {children}
+        <AiChatLayout>{children}</AiChatLayout>
       </main>
     </SidebarProvider>
   );
