@@ -13,8 +13,10 @@ export const env = createEnv({
         : z.string().optional(),
     AUTH_DISCORD_ID: z.string(),
     AUTH_DISCORD_SECRET: z.string(),
+    CHROMIUM_PACK_URL: z.string(),
     DATABASE_URL: z.string().url(),
     GOOGLE_API_KEY: z.string(),
+    LOCAL_CHROME_EXECUTABLE_PATH: z.string(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -37,7 +39,9 @@ export const env = createEnv({
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_DISCORD_ID: process.env.AUTH_DISCORD_ID,
     AUTH_DISCORD_SECRET: process.env.AUTH_DISCORD_SECRET,
+    CHROMIUM_PACK_URL: process.env.CHROMIUM_PACK_URL,
     DATABASE_URL: process.env.DATABASE_URL,
+    LOCAL_CHROME_EXECUTABLE_PATH: process.env.LOCAL_CHROME_EXECUTABLE_PATH,
     NODE_ENV: process.env.NODE_ENV,
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
   },

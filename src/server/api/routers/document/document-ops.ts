@@ -718,18 +718,46 @@ export const documentOpsRouter = createTRPCRouter({
   </div>
 </body>
 </html>`;
+        const chromiumPackUrl = env.CHROMIUM_PACK_URL;
 
-        console.log(
-          "chromium.executablePath()",
-          await chromium.executablePath(),
-        );
+        // Determine if running locally for easier debugging
+        const isLocal = env.NODE_ENV === "development";
+
+        if (!chromiumPackUrl) {
+          console.error("CHROMIUM_PACK_URL environment variable is not set.");
+          throw new Error(
+            "Server configuration error: Missing CHROMIUM_PACK_URL",
+          );
+        }
+
+        // Optional: Disable WebGL if not needed
+        // chromium.setGraphicsMode = false;
+
+        // Optional: Load custom fonts
+        // await chromium.font('https://raw.githack.com/googlei18n/noto-emoji/master/fonts/NotoColorEmoji.ttf');
+
+        const executablePath = isLocal
+          ? (process.env.LOCAL_CHROME_EXECUTABLE_PATH ?? "/tmp/chromium") // Example for linux
+          : await chromium.executablePath(chromiumPackUrl);
+
+        const viewport = {
+          deviceScaleFactor: 1,
+          hasTouch: false,
+          height: 1080,
+          isLandscape: true,
+          isMobile: false,
+          width: 1920,
+        };
+
+        const browserArgs = isLocal
+          ? [] // Minimal args for local, or puppeteer.defaultArgs()
+          : chromium.args;
+
         const browser = await puppeteer.launch({
-          args: puppeteer.defaultArgs({
-            args: chromium.args,
-            headless: "shell",
-          }),
-          executablePath: await chromium.executablePath(),
-          headless: "shell",
+          args: browserArgs,
+          defaultViewport: viewport,
+          executablePath: executablePath,
+          headless: isLocal ? false : "shell", // Use "shell" for new headless on Vercel
         });
 
         const page = await browser.newPage();
