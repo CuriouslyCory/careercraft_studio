@@ -5,6 +5,7 @@ import { educationRouter } from "./education";
 import { jobPostingRouter } from "./job-posting";
 import { keyAchievementsRouter } from "./key-achievements";
 import { userLinksRouter } from "./user-links";
+import { userProfileRouter } from "./user-profile";
 
 // Main document router that combines all sub-routers
 export const documentRouter = createTRPCRouter({
@@ -68,6 +69,11 @@ export const documentRouter = createTRPCRouter({
   createUserLink: userLinksRouter.create,
   updateUserLink: userLinksRouter.update,
   deleteUserLink: userLinksRouter.delete,
+
+  // User Profile operations
+  getUserProfile: userProfileRouter.get,
+  upsertUserProfile: userProfileRouter.upsert,
+  deleteUserProfile: userProfileRouter.delete,
 });
 
 // Export types and utilities for use in other parts of the application

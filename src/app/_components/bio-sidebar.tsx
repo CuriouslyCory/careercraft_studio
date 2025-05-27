@@ -17,6 +17,7 @@ import { useSession } from "next-auth/react";
 const BIO_VIEWS = [
   { key: "job-postings", label: "Job Postings", href: "/ai-chat/job-postings" },
   { key: "work-history", label: "Work History", href: "/ai-chat/work-history" },
+  { key: "profile", label: "Contact Info", href: "/ai-chat/profile" },
   {
     key: "achievements",
     label: "Key Achievements",

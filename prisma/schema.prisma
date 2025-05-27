@@ -219,6 +219,23 @@ model User {
     userLinks       UserLink[]
     subscription    Subscription?
     usageRecords    UsageRecord[]
+    userProfile     UserProfile?
+}
+
+model UserProfile {
+    id        String   @id @default(cuid())
+    firstName String? // Professional first name
+    lastName  String? // Professional last name
+    email     String? // Preferred professional email
+    phone     String? // Phone number
+    location  String? // City, State or City, Country
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String @unique
+
+    @@index([userId])
 }
 
 model VerificationToken {

@@ -9,6 +9,7 @@ import type {
 // Comprehensive user data type for resume generation
 type UserResumeData = Prisma.UserGetPayload<{
   include: {
+    userProfile: true;
     workHistories: {
       include: {
         achievements: true;
@@ -50,6 +51,7 @@ export class ResumeDataGenerator {
     const userData = await this.db.user.findUnique({
       where: { id: userId },
       include: {
+        userProfile: true,
         workHistories: {
           include: {
             achievements: true,
@@ -132,15 +134,34 @@ export class ResumeDataGenerator {
     sections.push("");
 
     // Personal Information
-    if (userData.name || userData.email) {
+    const profile = userData.userProfile;
+    if (profile || userData.name || userData.email) {
       sections.push("## Personal Information");
       sections.push("");
-      if (userData.name) {
-        sections.push(`**Name:** ${userData.name}`);
+
+      // Use profile data if available, fallback to auth data
+      const firstName = profile?.firstName ?? "";
+      const lastName = profile?.lastName ?? "";
+      const fullName =
+        [firstName, lastName].filter(Boolean).join(" ") || userData.name;
+
+      if (fullName) {
+        sections.push(`**Name:** ${fullName}`);
       }
-      if (userData.email) {
-        sections.push(`**Email:** ${userData.email}`);
+
+      const email = profile?.email ?? userData.email;
+      if (email) {
+        sections.push(`**Email:** ${email}`);
       }
+
+      if (profile?.phone) {
+        sections.push(`**Phone:** ${profile.phone}`);
+      }
+
+      if (profile?.location) {
+        sections.push(`**Location:** ${profile.location}`);
+      }
+
       sections.push("");
     }
 
