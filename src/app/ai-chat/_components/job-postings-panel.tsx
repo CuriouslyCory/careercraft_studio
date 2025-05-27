@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -43,6 +44,7 @@ function FieldInfo({ field }: { field: AnyFieldApi }) {
 
 export function JobPostingsPanel() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewContent, setViewContent] = useState<{
     id: string;
@@ -59,6 +61,9 @@ export function JobPostingsPanel() {
     content: string;
     type: "resume" | "coverLetter";
   } | null>(null);
+
+  // Track if URL parameters have been processed to prevent infinite loops
+  const processedParamsRef = useRef<string | null>(null);
 
   const queryClient = api.useUtils();
   const jobPostingsQuery = api.document.listJobPostings.useQuery();
@@ -327,6 +332,73 @@ export function JobPostingsPanel() {
       }
     },
   });
+
+  // Handle URL parameters for automatic actions
+  useEffect(() => {
+    const action = searchParams.get("action");
+    const jobId = searchParams.get("jobId");
+
+    // Create a unique key for these parameters
+    const paramsKey = action && jobId ? `${action}:${jobId}` : null;
+
+    // Skip if no parameters or if we've already processed these exact parameters
+    if (!paramsKey || processedParamsRef.current === paramsKey) {
+      return;
+    }
+
+    if (jobPostingsQuery.data) {
+      const jobPosting = jobPostingsQuery.data.find((jp) => jp.id === jobId);
+
+      if (jobPosting && jobId) {
+        // Mark these parameters as processed
+        processedParamsRef.current = paramsKey;
+
+        switch (action) {
+          case "compatibility":
+            console.log(
+              "🔍 DEBUG: Auto-triggering compatibility report for job:",
+              jobPosting.title,
+            );
+            setCompatibilityReport({
+              jobPostingId: jobId,
+              jobTitle: jobPosting.title,
+            });
+            break;
+          case "generate-resume":
+            console.log(
+              "🔍 DEBUG: Auto-triggering resume generation for job:",
+              jobPosting.title,
+            );
+            generateResumeMutation.mutate({ jobPostingId: jobId });
+            break;
+          case "generate-cover-letter":
+            console.log(
+              "🔍 DEBUG: Auto-triggering cover letter generation for job:",
+              jobPosting.title,
+            );
+            generateCoverLetterMutation.mutate({ jobPostingId: jobId });
+            break;
+          default:
+            console.warn("Unknown action parameter:", action);
+        }
+
+        // Clear URL parameters after handling them
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("action");
+        newUrl.searchParams.delete("jobId");
+        router.replace(newUrl.pathname + newUrl.search);
+      } else {
+        console.warn("Job posting not found for ID:", jobId);
+        toast.error("Job posting not found");
+      }
+    }
+  }, [
+    searchParams,
+    jobPostingsQuery.data,
+    router,
+    generateResumeMutation,
+    generateCoverLetterMutation,
+  ]);
 
   if (jobPostingsQuery.isLoading) {
     return <div className="p-4 text-center">Loading your job postings...</div>;

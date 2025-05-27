@@ -11,6 +11,23 @@ import { cn } from "~/lib/utils";
 import { markdownComponents } from "./markdown-components";
 import { ChatProvider } from "./interactive-elements";
 
+// Transform custom link formats to HTML before markdown processing
+function transformCustomLinks(content: string): string {
+  // Transform @navigate: links to HTML buttons with data attributes
+  content = content.replace(
+    /\[([^\]]+)\]\(@navigate:([^)]+)\)/g,
+    '<button data-type="navigation" data-route="$2">$1</button>',
+  );
+
+  // Transform @chat: links to HTML buttons with data attributes
+  content = content.replace(
+    /\[([^\]]+)\]\(@chat:([^)]+)\)/g,
+    '<button data-type="chat-action" data-message="$2">$1</button>',
+  );
+
+  return content;
+}
+
 export function ChatInterface() {
   const {
     messages,
@@ -170,7 +187,7 @@ export function ChatInterface() {
                     components={markdownComponents}
                     rehypePlugins={[rehypeRaw]}
                   >
-                    {msg.content}
+                    {transformCustomLinks(msg.content)}
                   </ReactMarkdown>
                 </ChatProvider>
               </div>

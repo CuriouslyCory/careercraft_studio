@@ -61,3 +61,42 @@ This documentation adheres to the following principles:
 ## Contribution
 
 To contribute to or update this documentation, please follow the established structure and style. If a new feature is added, create a corresponding `<feature-name>.md` file and link it in this README.
+
+## Key Features
+
+### AI-Powered Career Assistant
+
+- **Intelligent Resume Analysis**: Upload and analyze resumes with AI-powered insights
+- **Job Posting Compatibility**: Match job requirements with your skills and experience
+- **Skill Gap Analysis**: Identify areas for improvement and growth opportunities
+- **Document Generation**: Create tailored resumes and cover letters
+- **Interactive AI Conversations**: ✅ **NEW!** Click buttons and links in AI responses for seamless workflows
+
+### Comprehensive Profile Management
+
+- **Work History Tracking**: Detailed employment history with achievements
+- **Skills Management**: Categorized skill tracking with proficiency levels
+- **Education Records**: Academic background and certifications
+- **Achievement Portfolio**: Key accomplishments and milestones
+- **Professional Links**: LinkedIn, GitHub, portfolio, and other professional profiles
+
+### Document Management
+
+- **Resume Builder**: AI-assisted resume creation and optimization
+- **Cover Letter Generator**: Personalized cover letters for specific positions
+- **Document Storage**: Secure storage and version control
+- **Export Options**: Multiple format support (PDF, Word, etc.)
+
+### Job Application Workflow
+
+- **Job Posting Analysis**: Parse and store job descriptions
+- **Compatibility Reports**: Detailed matching analysis
+- **Application Tracking**: Monitor application status and progress
+- **Interview Preparation**: AI-powered interview question generation
+
+### Advanced AI Features ✅ **NEW!**
+
+- **Interactive Elements**: Click buttons in AI responses to trigger actions
+- **Contextual Navigation**: Direct links to relevant sections and data
+- **Workflow Automation**: One-click actions for common tasks
+- **Conversation Continuity**: Full context preservation across interactions

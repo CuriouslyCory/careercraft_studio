@@ -57,6 +57,7 @@ export function createParseAndStoreJobPostingTool(
 - **Company:** ${result.jobPosting.company}
 - **Location:** ${result.jobPosting.location ?? "Not specified"}
 - **Industry:** ${result.jobPosting.industry ?? "Not specified"}
+- **Job ID:** ${result.jobPosting.id}
 
 **Requirements Extracted:**
 - **Required Skills:** ${result.skillCounts.requiredSkills} skills identified
@@ -64,7 +65,10 @@ export function createParseAndStoreJobPostingTool(
 - **Education Requirements:** ${result.skillCounts.educationRequirements} requirements
 - **Experience Requirements:** ${result.skillCounts.experienceRequirements} requirements
 
-The job posting has been saved to your profile and is ready for skill comparison analysis. You can now ask me to compare your skills against this job posting!`;
+The job posting has been saved to your profile and is ready for skill comparison analysis. You can now ask me to compare your skills against this job posting!
+
+**Next Steps:**
+[Check job posting compatibility](@navigate:/ai-chat/job-postings?action=compatibility&jobId=${result.jobPosting.id})`;
         } catch (error) {
           if (error instanceof Error) {
             throw new DatabaseError("parse and store job posting", error);
