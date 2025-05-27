@@ -16,7 +16,7 @@ export const env = createEnv({
     CHROMIUM_PACK_URL: z.string(),
     DATABASE_URL: z.string().url(),
     GOOGLE_API_KEY: z.string(),
-    LOCAL_CHROME_EXECUTABLE_PATH: z.string(),
+    LOCAL_CHROME_EXECUTABLE_PATH: z.string().optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
