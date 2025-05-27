@@ -137,3 +137,16 @@
     transform: scaleX(0);
   }
 }
+
+/* Loading row animation using pseudo-element */
+.loading-row::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #3b82f6 50%, transparent 100%);
+  animation: loading 2s ease-in-out infinite;
+  z-index: 1;
+}

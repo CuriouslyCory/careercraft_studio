@@ -38,17 +38,6 @@ interface DataTableProps<TData, TValue> {
 }
 
 /**
- * Loading animation component for resume generation
- */
-function LoadingAnimation() {
-  return (
-    <div className="absolute right-0 bottom-0 left-0 h-0.5 overflow-hidden bg-blue-100">
-      <div className="h-full w-full origin-left animate-[loading_2s_ease-in-out_infinite] bg-blue-500" />
-    </div>
-  );
-}
-
-/**
  * Reusable data table component for job postings with sorting, filtering, and pagination
  * Built using TanStack Table and shadcn/ui components
  */
@@ -177,7 +166,7 @@ export function JobPostingsDataTable<TData, TValue>({
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
                     className={`relative border-blue-100 hover:bg-blue-50/30 ${
-                      isLoading ? "bg-blue-50/20" : ""
+                      isLoading ? "loading-row bg-blue-50/20" : ""
                     }`}
                   >
                     {row.getVisibleCells().map((cell) => (
@@ -188,7 +177,6 @@ export function JobPostingsDataTable<TData, TValue>({
                         )}
                       </TableCell>
                     ))}
-                    {isLoading && <LoadingAnimation />}
                   </TableRow>
                 );
               })

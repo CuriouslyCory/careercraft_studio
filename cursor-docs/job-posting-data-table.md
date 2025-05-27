@@ -33,6 +33,7 @@ The job posting data table provides a modern, sortable, and searchable interface
   - Cover letter generation/viewing
   - Job posting deletion
 - **Loading States**: Visual feedback during async operations within the context menu
+- **Document Editor Navigation**: Viewing/editing documents navigates to a dedicated Document Editor panel
 
 ## Components
 
@@ -122,6 +123,13 @@ A new modal interface for editing job postings that includes:
 - **Contextual actions** based on job posting state (e.g., "View Resume" vs "Generate Resume")
 - **External links** open in new tabs when available
 
+### Success Toast Navigation
+
+- **Resume Generation**: Success toast includes "Open Resume" button that navigates to Document Editor
+- **Cover Letter Generation**: Success toast includes "Open Cover Letter" button that navigates to Document Editor
+- **Extended Duration**: Success toasts show for 10 seconds to allow user interaction
+- **URL Parameters**: Navigation uses URL parameters to maintain state and allow direct linking
+
 ### Visual Feedback
 
 - **Cursor pointer** on all clickable table cells
@@ -132,6 +140,7 @@ A new modal interface for editing job postings that includes:
   - Blue progress line that fills from left to right
   - Continuous animation until generation completes
   - Subtle background highlight on loading rows
+  - CSS-based animation using pseudo-elements for proper DOM structure
 
 ## Styling
 
@@ -213,7 +222,7 @@ Click any column header to sort:
 
 ### Optimization Features
 
-- **Efficient Context Menus**: Context menus are rendered on-demand
+- **Efficient Loading Animation**: CSS-based animation using pseudo-elements avoids DOM nesting issues
 - **Memoization**: Column definitions are memoized to prevent unnecessary re-renders
 - **Efficient Filtering**: TanStack Table's built-in filtering is optimized for performance
 - **Pagination**: Reduces DOM nodes for better performance with large datasets

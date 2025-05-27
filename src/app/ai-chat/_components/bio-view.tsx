@@ -8,6 +8,7 @@ import { EducationPanel } from "./education-panel";
 import { JobPostingsPanel } from "./job-postings-panel";
 import { LinksPanel } from "./links-panel";
 import { ConversationsPanel } from "./conversations-panel";
+import { DocumentEditorPanel } from "./document-editor-panel";
 
 interface BioViewProps {
   view: string;
@@ -31,6 +32,8 @@ export function BioView({ view }: BioViewProps) {
       return <LinksPanel />;
     case "conversations":
       return <ConversationsPanel />;
+    case "documentEditor":
+      return <DocumentEditorPanel />;
     default:
       return <div>Select a bio section</div>;
   }

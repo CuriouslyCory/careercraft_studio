@@ -12,7 +12,6 @@ import { useForm } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
 import type { Prisma } from "@prisma/client";
 import { Plus } from "lucide-react";
-import { DocumentEditor } from "./document-editor";
 import { JobPostingsDataTable } from "./job-postings-data-table";
 import { createJobPostingsColumns } from "./job-postings-table-columns";
 
@@ -70,13 +69,6 @@ export function JobPostingsPanel() {
     type: "resume" | "coverLetter";
   } | null>(null);
 
-  const [editingDocument, setEditingDocument] = useState<{
-    jobPostingId: string;
-    jobTitle: string;
-    content: string;
-    type: "resume" | "coverLetter";
-  } | null>(null);
-
   const queryClient = api.useUtils();
   const jobPostingsQuery = api.document.listJobPostings.useQuery();
 
@@ -84,7 +76,29 @@ export function JobPostingsPanel() {
     api.document.generateTailoredResume.useMutation({
       onSuccess: (result) => {
         void jobPostingsQuery.refetch();
-        toast.success(result.message);
+
+        // Create a clickable toast that navigates to the document editor
+        toast.success(result.message, {
+          action: {
+            label: "Open Resume",
+            onClick: () => {
+              // Find the job posting to get the title
+              const jobPosting = jobPostings.find(
+                (jp) => jp.id === result.jobPostingId,
+              );
+              if (jobPosting) {
+                // Navigate to document editor with URL parameters
+                const params = new URLSearchParams(window.location.search);
+                params.set("bio", "documentEditor");
+                params.set("jobPostingId", result.jobPostingId);
+                params.set("documentType", "resume");
+                params.set("jobTitle", jobPosting.title);
+                window.location.search = params.toString();
+              }
+            },
+          },
+          duration: 10000, // Show for 10 seconds to give user time to click
+        });
       },
       onError: (error) => {
         toast.error(`Failed to generate resume: ${error.message}`);
@@ -99,7 +113,29 @@ export function JobPostingsPanel() {
         jobPostingId: string;
       }) => {
         void jobPostingsQuery.refetch();
-        toast.success(result.message);
+
+        // Create a clickable toast that navigates to the document editor
+        toast.success(result.message, {
+          action: {
+            label: "Open Cover Letter",
+            onClick: () => {
+              // Find the job posting to get the title
+              const jobPosting = jobPostings.find(
+                (jp) => jp.id === result.jobPostingId,
+              );
+              if (jobPosting) {
+                // Navigate to document editor with URL parameters
+                const params = new URLSearchParams(window.location.search);
+                params.set("bio", "documentEditor");
+                params.set("jobPostingId", result.jobPostingId);
+                params.set("documentType", "coverLetter");
+                params.set("jobTitle", jobPosting.title);
+                window.location.search = params.toString();
+              }
+            },
+          },
+          duration: 10000, // Show for 10 seconds to give user time to click
+        });
       },
       onError: (error) => {
         toast.error(`Failed to generate cover letter: ${error.message}`);
@@ -303,22 +339,13 @@ export function JobPostingsPanel() {
     content: string,
     type: "resume" | "coverLetter",
   ) => {
-    setEditingDocument({
-      jobPostingId,
-      jobTitle,
-      content,
-      type,
-    });
-  };
-
-  const handleCloseEdit = () => {
-    setEditingDocument(null);
-    void jobPostingsQuery.refetch(); // Refresh the data after editing
-  };
-
-  const handleSaveDocument = () => {
-    // Refresh the data but keep the editor open
-    void jobPostingsQuery.refetch();
+    // Navigate to document editor with URL parameters
+    const params = new URLSearchParams(window.location.search);
+    params.set("bio", "documentEditor");
+    params.set("jobPostingId", jobPostingId);
+    params.set("documentType", type);
+    params.set("jobTitle", jobTitle);
+    window.location.search = params.toString();
   };
 
   const handleDownloadDocument = () => {
@@ -382,20 +409,6 @@ export function JobPostingsPanel() {
         jobPostingId={compatibilityReport.jobPostingId}
         jobTitle={compatibilityReport.jobTitle}
         onBack={handleCloseCompatibility}
-      />
-    );
-  }
-
-  // Show document editor if one is being edited
-  if (editingDocument) {
-    return (
-      <DocumentEditor
-        jobPostingId={editingDocument.jobPostingId}
-        jobTitle={editingDocument.jobTitle}
-        initialContent={editingDocument.content}
-        documentType={editingDocument.type}
-        onSave={handleSaveDocument}
-        onCancel={handleCloseEdit}
       />
     );
   }

@@ -20,6 +20,27 @@ export const jobPostingRouter = createTRPCRouter({
     });
   }),
 
+  get: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const jobPosting = await ctx.db.jobPosting.findUnique({
+        where: {
+          id: input.id,
+          userId: ctx.session.user.id,
+        },
+        include: {
+          details: true,
+          document: true,
+        },
+      });
+
+      if (!jobPosting) {
+        throw new Error("Job posting not found or you don't have access to it");
+      }
+
+      return jobPosting;
+    }),
+
   create: protectedProcedure
     .input(
       z.object({

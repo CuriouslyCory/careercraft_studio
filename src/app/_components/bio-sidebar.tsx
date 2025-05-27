@@ -21,6 +21,7 @@ const BIO_VIEWS = [
   { key: "skills", label: "Skills" },
   { key: "education", label: "Education" },
   { key: "jobPostings", label: "Job Postings" },
+  { key: "documentEditor", label: "Document Editor" },
   { key: "links", label: "Links" },
   { key: "conversations", label: "Conversations" },
 ];
