@@ -10,10 +10,11 @@ The AI chat is a core interactive feature, enabling users to communicate with an
 
 The AI chat system is designed with a clear separation of concerns across three main layers:
 
-1.  **Frontend (`src/app/ai-chat/page.tsx`)**:
+1.  **Frontend (AI Chat Layout & Sub-routes)**:
 
-    - Provides the User Interface (UI) for chat interactions.
-    - Dynamically renders chat messages, and potentially different views for bio/document editing or viewing.
+    - Provides the User Interface (UI) for chat interactions across all sub-routes.
+    - The chat interface is persistent across all `/ai-chat/*` routes via the shared layout.
+    - Dynamically renders chat messages alongside different panel views (documents, work history, etc.).
     - Manages basic UI state (e.g., input fields, message lists).
     - Communicates with the backend tRPC router to send user messages and receive AI responses.
 

@@ -17,7 +17,7 @@ This application includes a comprehensive AI chat feature powered by a LangChain
 
 The AI chat functionality follows a clear separation of concerns:
 
-- **Frontend (`src/app/ai-chat/page.tsx`):** Provides the user interface for interacting with the AI. It dynamically renders chat and bio/document views and handles basic UI state.
+- **Frontend (AI Chat Layout & Sub-routes):** Provides the user interface for interacting with the AI across all `/ai-chat/*` routes. The chat interface is persistent across all sub-routes via the shared layout, dynamically rendering chat messages alongside different panel views (documents, work history, etc.).
 - **Backend Router (`src/server/api/routers/ai.ts`):** Acts as the API layer using tRPC. It receives user messages, interacts with the LangChain agent team, and streams responses back to the frontend. It also handles persistence of chat messages.
 - **LangChain Agent Team (`src/server/langchain/agentTeam.ts`):** Contains the core AI logic. It's structured as a `StateGraph` with a supervisor agent routing tasks to specialized agents.
 

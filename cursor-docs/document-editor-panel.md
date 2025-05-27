@@ -2,13 +2,13 @@
 
 ## Overview
 
-The Document Editor Panel provides a dedicated interface for editing job-specific resumes and cover letters. It's accessible through the bio sidebar and uses URL parameters to maintain state and allow direct linking to specific documents.
+The Document Editor Panel provides a dedicated interface for editing job-specific resumes and cover letters. It's accessible through the new sub-route structure and uses URL parameters to maintain state and allow direct linking to specific documents.
 
 ## Features
 
 ### URL-Based Navigation
 
-- **Route**: `?bio=documentEditor&jobPostingId={id}&documentType={type}&jobTitle={title}`
+- **Route**: `/ai-chat/document-editor?jobPostingId={id}&documentType={type}&jobTitle={title}`
 - **Parameters**:
   - `jobPostingId`: The ID of the job posting
   - `documentType`: Either "resume" or "coverLetter"
@@ -25,7 +25,7 @@ The Document Editor Panel provides a dedicated interface for editing job-specifi
 
 #### From Sidebar
 
-- **Document Editor**: Available as a dedicated panel in the bio sidebar
+- **Document Editor**: Available as a dedicated sub-route in the navigation sidebar
 - **State Management**: URL parameters preserve the editing context
 
 ### Document Loading
@@ -75,19 +75,14 @@ const jobTitle = searchParams.get("jobTitle");
 
 ```typescript
 // Navigate to document editor
-const params = new URLSearchParams(window.location.search);
-params.set("bio", "documentEditor");
+const params = new URLSearchParams();
 params.set("jobPostingId", jobPostingId);
 params.set("documentType", "resume");
 params.set("jobTitle", jobTitle);
-window.location.search = params.toString();
+router.push(`/ai-chat/document-editor?${params.toString()}`);
 
 // Return to job postings
-params.delete("jobPostingId");
-params.delete("documentType");
-params.delete("jobTitle");
-params.set("bio", "jobPostings");
-window.location.search = params.toString();
+router.push("/ai-chat/job-postings");
 ```
 
 ## API Dependencies
@@ -129,17 +124,17 @@ window.location.search = params.toString();
 1. User generates resume/cover letter
 2. Success toast appears with "Open Resume"/"Open Cover Letter" button
 3. User clicks button within 10-second window
-4. Navigates to Document Editor Panel with document loaded
+4. Navigates to Document Editor sub-route with document loaded
 
 ### From Context Menu
 
 1. User right-clicks on job posting row
 2. Selects "View Resume" or "View Cover Letter"
-3. Navigates to Document Editor Panel with document loaded
+3. Navigates to Document Editor sub-route with document loaded
 
 ### Direct Access
 
-1. User clicks "Document Editor" in bio sidebar
+1. User clicks "Document Editor" in navigation sidebar
 2. If no URL parameters, shows parameter requirement message
 3. If valid parameters, loads and displays document
 
@@ -147,7 +142,7 @@ window.location.search = params.toString();
 
 1. User clicks "Cancel" or "Back to Job Postings"
 2. URL parameters are cleaned up
-3. Returns to Job Postings panel
+3. Returns to Job Postings sub-route
 
 ## Benefits
 
