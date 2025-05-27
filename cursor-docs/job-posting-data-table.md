@@ -13,6 +13,7 @@ The job posting data table provides a modern, sortable, and searchable interface
 - **Column Filtering**: Filter by status (Saved, Applied, Interview, Rejected, Offer) and company
 - **Pagination**: Navigate through large datasets with configurable page sizes (5, 10, 20, 30, 50)
 - **Responsive Design**: Optimized for both desktop and mobile viewing
+- **Loading Animation**: Visual progress indicator during resume generation operations
 
 ### Data Display
 
@@ -51,6 +52,7 @@ Reusable data table component with the following features:
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  isGeneratingResume?: (id: string) => boolean;
 }
 ```
 
@@ -126,6 +128,10 @@ A new modal interface for editing job postings that includes:
 - **Hover effects** for better interactivity
 - **Loading states** within context menu items
 - **Color-coded status badges** for quick identification
+- **Row Loading Animation**: Animated progress bar at the bottom of table rows during resume generation
+  - Blue progress line that fills from left to right
+  - Continuous animation until generation completes
+  - Subtle background highlight on loading rows
 
 ## Styling
 
@@ -167,7 +173,14 @@ const columns = createJobPostingsColumns(
   isDeleting,
 );
 
-<JobPostingsDataTable columns={columns} data={jobPostings} />;
+<JobPostingsDataTable
+  columns={columns}
+  data={jobPostings}
+  isGeneratingResume={(jobPostingId) =>
+    generateResumeMutation.isPending &&
+    generateResumeMutation.variables?.jobPostingId === jobPostingId
+  }
+/>;
 ```
 
 ### Context Menu Usage

@@ -446,7 +446,7 @@ export function JobPostingsPanel() {
     <div className="h-full space-y-4">
       {/* Content View Modal */}
       {viewContent && (
-        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="text-lg font-semibold">{viewContent.title}</h3>
@@ -467,7 +467,7 @@ export function JobPostingsPanel() {
 
       {/* Edit Job Posting Modal */}
       {editId && (
-        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="text-lg font-semibold">Edit Job Posting</h3>
@@ -1004,6 +1004,10 @@ export function JobPostingsPanel() {
             deleteMutation.isPending,
           )}
           data={jobPostings}
+          isGeneratingResume={(jobPostingId: string) =>
+            generateResumeMutation.isPending &&
+            generateResumeMutation.variables?.jobPostingId === jobPostingId
+          }
         />
       )}
     </div>

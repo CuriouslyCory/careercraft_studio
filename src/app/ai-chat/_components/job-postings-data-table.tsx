@@ -34,6 +34,18 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  isGeneratingResume?: (id: string) => boolean;
+}
+
+/**
+ * Loading animation component for resume generation
+ */
+function LoadingAnimation() {
+  return (
+    <div className="absolute right-0 bottom-0 left-0 h-0.5 overflow-hidden bg-blue-100">
+      <div className="h-full w-full origin-left animate-[loading_2s_ease-in-out_infinite] bg-blue-500" />
+    </div>
+  );
 }
 
 /**
@@ -43,6 +55,7 @@ interface DataTableProps<TData, TValue> {
 export function JobPostingsDataTable<TData, TValue>({
   columns,
   data,
+  isGeneratingResume,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -155,22 +168,30 @@ export function JobPostingsDataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  className="border-blue-100 hover:bg-blue-50/30"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const jobId = (row.original as { id: string }).id;
+                const isLoading = isGeneratingResume?.(jobId) ?? false;
+
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                    className={`relative border-blue-100 hover:bg-blue-50/30 ${
+                      isLoading ? "bg-blue-50/20" : ""
+                    }`}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                    {isLoading && <LoadingAnimation />}
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell
