@@ -16,7 +16,7 @@ export function LandingPageStatic() {
             name: "CareerCraft Studio",
             description:
               "AI-powered resume and cover letter builder that creates tailored documents for job applications with 95% ATS compatibility.",
-            url: "https://resume-master.curiouslycory.com",
+            url: "https://CareerCraft.studio",
             applicationCategory: "BusinessApplication",
             operatingSystem: "Web Browser",
             offers: {
@@ -24,11 +24,6 @@ export function LandingPageStatic() {
               price: "0",
               priceCurrency: "USD",
               description: "Free tier available with premium features",
-            },
-            aggregateRating: {
-              "@type": "AggregateRating",
-              ratingValue: "4.8",
-              ratingCount: "1250",
             },
             features: [
               "AI-powered resume generation",
