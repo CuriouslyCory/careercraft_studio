@@ -1,19 +1,3 @@
-import {
-  Brain,
-  FileText,
-  Target,
-  Zap,
-  CheckCircle,
-  Users,
-  TrendingUp,
-  Sparkles,
-  Upload,
-  MessageSquare,
-  BarChart3,
-  Shield,
-  Clock,
-} from "lucide-react";
-
 /**
  * Static landing page content for SEO optimization
  * This component contains all the content that can be statically generated
