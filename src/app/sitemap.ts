@@ -1,7 +1,7 @@
 import { type MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://resume-master.curiouslycory.com";
+  const baseUrl = "https://careercraft.studio";
 
   return [
     {
