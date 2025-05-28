@@ -25,6 +25,10 @@ interface LandingPageClientProps {
   session: { user?: { name?: string | null } } | null;
 }
 
+/**
+ * Client-side landing page component focused on animations and interactivity
+ * Static content is handled by LandingPageStatic for SEO optimization
+ */
 export function LandingPageClient({ session }: LandingPageClientProps) {
   useEffect(() => {
     // Animate hero elements on load
@@ -58,6 +62,27 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
       ".stat-item",
       { opacity: [0, 1], scale: [0.8, 1] },
       { delay: stagger(0.1), duration: 0.5 },
+    );
+
+    // Animate how it works steps
+    animate(
+      ".step-item",
+      { opacity: [0, 1], y: [30, 0] },
+      { delay: stagger(0.2), duration: 0.6 },
+    );
+
+    // Animate benefits
+    animate(
+      ".benefit-item",
+      { opacity: [0, 1], x: [-20, 0] },
+      { delay: stagger(0.1), duration: 0.5 },
+    );
+
+    // Animate screenshot sections
+    animate(
+      ".screenshot-section",
+      { opacity: [0, 1], y: [40, 0] },
+      { delay: stagger(0.3), duration: 0.8 },
     );
   }, []);
 
@@ -250,59 +275,59 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
                   Cover Letters
                 </span>
                 <span className="rounded-full bg-orange-50 px-3 py-1 text-xs text-orange-700">
-                  Multiple Formats
+                  ATS Optimized
                 </span>
               </div>
             </div>
 
-            {/* Skill Normalization */}
+            {/* Skill Management */}
             <div className="feature-card group rounded-2xl bg-white p-8 shadow-lg transition-all hover:shadow-xl">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100 group-hover:bg-indigo-200">
-                <Brain className="h-6 w-6 text-indigo-600" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-teal-100 group-hover:bg-teal-200">
+                <Brain className="h-6 w-6 text-teal-600" />
               </div>
               <h3 className="mt-6 text-xl font-semibold text-gray-900">
                 Smart Skill Management
               </h3>
               <p className="mt-2 text-gray-600">
-                Advanced skill normalization across 50+ industries.
-                Automatically categorizes and deduplicates skills while
-                maintaining ATS-friendly variations.
+                Intelligent categorization and deduplication of skills across
+                multiple industries. Maintain clean profiles while preserving
+                detailed variants for ATS matching.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
-                  Multi-Industry
-                </span>
-                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
+                <span className="rounded-full bg-teal-50 px-3 py-1 text-xs text-teal-700">
                   Auto-Categorize
                 </span>
-                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
+                <span className="rounded-full bg-teal-50 px-3 py-1 text-xs text-teal-700">
                   Deduplication
+                </span>
+                <span className="rounded-full bg-teal-50 px-3 py-1 text-xs text-teal-700">
+                  Multi-Industry
                 </span>
               </div>
             </div>
 
-            {/* Achievement Management */}
+            {/* Achievement Optimization */}
             <div className="feature-card group rounded-2xl bg-white p-8 shadow-lg transition-all hover:shadow-xl">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100 group-hover:bg-emerald-200">
-                <TrendingUp className="h-6 w-6 text-emerald-600" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-rose-100 group-hover:bg-rose-200">
+                <Sparkles className="h-6 w-6 text-rose-600" />
               </div>
               <h3 className="mt-6 text-xl font-semibold text-gray-900">
                 Achievement Optimization
               </h3>
               <p className="mt-2 text-gray-600">
-                AI-powered achievement management with intelligent merging and
-                optimization. Transform your accomplishments into compelling
-                resume bullets.
+                AI-powered enhancement of your career achievements. Quantify
+                impact, improve language, and structure accomplishments for
+                maximum effectiveness.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">
-                  AI Merging
+                <span className="rounded-full bg-rose-50 px-3 py-1 text-xs text-rose-700">
+                  Impact Metrics
                 </span>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">
-                  Impact Focus
+                <span className="rounded-full bg-rose-50 px-3 py-1 text-xs text-rose-700">
+                  Language Polish
                 </span>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-700">
-                  Deduplication
+                <span className="rounded-full bg-rose-50 px-3 py-1 text-xs text-rose-700">
+                  AI Enhancement
                 </span>
               </div>
             </div>
@@ -310,58 +335,56 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="bg-gray-50 py-24">
+      {/* How It Works Section */}
+      <section className="bg-white py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              How CareerCraft Studio Works
+              How it works
             </h2>
             <p className="mt-4 text-lg text-gray-600">
-              From profile setup to landing interviews in three simple steps
+              Get started in less than 5 minutes
             </p>
           </div>
 
           <div className="mt-20 grid gap-12 lg:grid-cols-3">
-            <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-white">
-                <span className="text-xl font-bold">1</span>
+            <div className="step-item text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+                <Upload className="h-8 w-8 text-blue-600" />
               </div>
               <h3 className="mt-6 text-xl font-semibold text-gray-900">
-                Import Your Profile
+                1. Import Your Profile
               </h3>
-              <p className="mt-2 text-gray-600">
-                Upload your existing resume or chat with our AI to build your
-                profile from scratch. Our system intelligently extracts and
-                organizes your information.
+              <p className="mt-4 text-gray-600">
+                Upload your existing resume or build from scratch. Our AI parses
+                and organizes your information into a structured profile.
               </p>
             </div>
 
-            <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600 text-white">
-                <span className="text-xl font-bold">2</span>
+            <div className="step-item text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-purple-100">
+                <BarChart3 className="h-8 w-8 text-purple-600" />
               </div>
               <h3 className="mt-6 text-xl font-semibold text-gray-900">
-                Analyze Job Postings
+                2. Analyze Job Opportunities
               </h3>
-              <p className="mt-2 text-gray-600">
-                Paste job descriptions to get instant compatibility analysis.
-                See which skills match and what gaps to address in your
-                application materials.
+              <p className="mt-4 text-gray-600">
+                Paste job postings to get instant analysis. See how your skills
+                match requirements and get personalized recommendations.
               </p>
             </div>
 
-            <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-purple-600 text-white">
-                <span className="text-xl font-bold">3</span>
+            <div className="step-item text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <FileText className="h-8 w-8 text-green-600" />
               </div>
               <h3 className="mt-6 text-xl font-semibold text-gray-900">
-                Generate & Apply
+                3. Generate Tailored Documents
               </h3>
-              <p className="mt-2 text-gray-600">
-                Create tailored resumes and cover letters optimized for each
-                application. Download in multiple formats and start landing more
-                interviews.
+              <p className="mt-4 text-gray-600">
+                Create customized resumes and cover letters for each
+                application. Our AI optimizes content for specific roles and
+                companies.
               </p>
             </div>
           </div>
@@ -369,7 +392,7 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
       </section>
 
       {/* See It In Action Section */}
-      <section className="bg-white py-24">
+      <section className="bg-gray-50 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -382,15 +405,16 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
 
           <div className="mt-20 space-y-24">
             {/* AI Chat Example */}
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="screenshot-section grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="order-2 lg:order-1">
                 <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 p-2 shadow-2xl">
                   <Image
                     src="/images/chat-example.png"
-                    alt="AI Chat Assistant Interface"
+                    alt="AI Chat Assistant Interface showing conversational resume building with natural language processing"
                     className="w-full rounded-xl shadow-lg"
                     width={500}
                     height={300}
+                    priority
                   />
                 </div>
               </div>
@@ -423,11 +447,11 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             </div>
 
             {/* Skills Management Example */}
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="screenshot-section grid gap-12 lg:grid-cols-2 lg:items-center">
               <div>
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
-                    <Brain className="h-5 w-5 text-indigo-600" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100">
+                    <Brain className="h-5 w-5 text-teal-600" />
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900">
                     Smart Skills Management
@@ -439,22 +463,22 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
                   ATS-friendly variations for maximum compatibility.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+                  <span className="rounded-full bg-teal-50 px-4 py-2 text-sm font-medium text-teal-700">
                     Auto-Categorization
                   </span>
-                  <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+                  <span className="rounded-full bg-teal-50 px-4 py-2 text-sm font-medium text-teal-700">
                     Skill Normalization
                   </span>
-                  <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
+                  <span className="rounded-full bg-teal-50 px-4 py-2 text-sm font-medium text-teal-700">
                     Industry-Specific
                   </span>
                 </div>
               </div>
               <div>
-                <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 p-2 shadow-2xl">
+                <div className="rounded-2xl bg-gradient-to-br from-teal-50 to-cyan-50 p-2 shadow-2xl">
                   <Image
                     src="/images/your-skills-example.png"
-                    alt="Skills Management Interface"
+                    alt="Skills Management Interface showing intelligent categorization and deduplication across multiple industries"
                     className="w-full rounded-xl shadow-lg"
                     width={500}
                     height={300}
@@ -464,12 +488,12 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             </div>
 
             {/* Work History Example */}
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="screenshot-section grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="order-2 lg:order-1">
-                <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-green-50 p-2 shadow-2xl">
+                <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-pink-50 p-2 shadow-2xl">
                   <Image
                     src="/images/work-history-example.png"
-                    alt="Work History Management Interface"
+                    alt="Work History Management Interface showing achievement optimization and AI-powered merging"
                     className="w-full rounded-xl shadow-lg"
                     width={500}
                     height={300}
@@ -478,8 +502,8 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
               </div>
               <div className="order-1 lg:order-2">
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
-                    <TrendingUp className="h-5 w-5 text-emerald-600" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-rose-100">
+                    <Sparkles className="h-5 w-5 text-rose-600" />
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900">
                     Achievement Optimization
@@ -491,13 +515,13 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
                   them for maximum impact in your applications.
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                  <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700">
                     Achievement Merging
                   </span>
-                  <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                  <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700">
                     Impact Optimization
                   </span>
-                  <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                  <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700">
                     Deduplication
                   </span>
                 </div>
@@ -505,7 +529,7 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             </div>
 
             {/* Job Postings Analysis Example */}
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="screenshot-section grid gap-12 lg:grid-cols-2 lg:items-center">
               <div>
                 <div className="mb-4 flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
@@ -533,10 +557,10 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
                 </div>
               </div>
               <div>
-                <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 p-2 shadow-2xl">
+                <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 p-2 shadow-2xl">
                   <Image
                     src="/images/job-postings-example.png"
-                    alt="Job Posting Analysis Interface"
+                    alt="Job Posting Analysis Interface showing skill matching, gap analysis, and ATS keyword optimization"
                     className="w-full rounded-xl shadow-lg"
                     width={500}
                     height={300}
@@ -546,12 +570,12 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             </div>
 
             {/* Compatibility Analysis Example */}
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="screenshot-section grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="order-2 lg:order-1">
                 <div className="rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 p-2 shadow-2xl">
                   <Image
                     src="/images/compatibility-analysis-example.png"
-                    alt="Compatibility Analysis Interface"
+                    alt="Compatibility Analysis Interface showing detailed scoring, skill breakdown, and actionable insights"
                     className="w-full rounded-xl shadow-lg"
                     width={500}
                     height={300}
@@ -617,64 +641,73 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
       {/* Benefits Section */}
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-16 lg:grid-cols-2 lg:items-center">
+          <div className="grid gap-16 lg:grid-cols-2 lg:gap-24">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-                Why Choose CareerCraft Studio?
+                Why choose CareerCraft Studio?
               </h2>
               <p className="mt-4 text-lg text-gray-600">
-                Stop wasting time on generic applications that get lost in the
-                pile. Our AI-powered approach ensures every application is
-                optimized for success.
+                Join thousands of professionals who have transformed their job
+                search with AI-powered career tools.
               </p>
 
-              <div className="mt-8 space-y-6">
-                <div className="flex items-start gap-4">
-                  <CheckCircle className="mt-1 h-5 w-5 text-green-500" />
+              <div className="mt-12 space-y-6">
+                <div className="benefit-item flex items-start gap-4">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                    <CheckCircle className="h-5 w-5 text-blue-600" />
+                  </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">
-                      ATS-Optimized
+                      AI-Powered Personalization
                     </h3>
                     <p className="text-gray-600">
-                      Every document is optimized to pass Applicant Tracking
-                      Systems with the right keywords and formatting.
+                      Unlike generic resume builders, our AI understands context
+                      and creates truly personalized documents.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <CheckCircle className="mt-1 h-5 w-5 text-green-500" />
+                <div className="benefit-item flex items-start gap-4">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">
-                      Industry-Specific
+                      95% ATS Compatibility
                     </h3>
                     <p className="text-gray-600">
-                      Support for 50+ industries with specialized skill
-                      categorization and terminology.
+                      Ensure your resume passes through Applicant Tracking
+                      Systems with our industry-leading compatibility rate.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <CheckCircle className="mt-1 h-5 w-5 text-green-500" />
+                <div className="benefit-item flex items-start gap-4">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100">
+                    <CheckCircle className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">
+                      Multi-Industry Expertise
+                    </h3>
+                    <p className="text-gray-600">
+                      Support for 50+ industries with specialized knowledge of
+                      requirements and terminology.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="benefit-item flex items-start gap-4">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
+                    <CheckCircle className="h-5 w-5 text-orange-600" />
+                  </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">
                       Continuous Learning
                     </h3>
                     <p className="text-gray-600">
-                      Our AI learns from successful applications and industry
-                      trends to improve your results.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <CheckCircle className="mt-1 h-5 w-5 text-green-500" />
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Time-Saving</h3>
-                    <p className="text-gray-600">
-                      Generate tailored applications in minutes instead of
-                      hours. Focus on networking and interview prep.
+                      Our AI improves based on successful placements and
+                      industry trends, keeping your documents current.
                     </p>
                   </div>
                 </div>
@@ -682,31 +715,38 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             </div>
 
             <div className="relative">
-              <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 rounded-lg bg-white p-4 shadow-sm">
-                    <Sparkles className="h-5 w-5 text-blue-600" />
-                    <span className="text-sm font-medium">
-                      AI analyzing job requirements...
-                    </span>
+              <div className="aspect-square rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                <div className="flex h-full flex-col justify-center space-y-6">
+                  <div className="rounded-lg bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                      <div className="text-sm font-medium">
+                        Resume Generated
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      Tailored for Software Engineer at Tech Corp
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 rounded-lg bg-white p-4 shadow-sm">
-                    <Target className="h-5 w-5 text-green-600" />
-                    <span className="text-sm font-medium">
-                      Matching skills: 95% compatibility
-                    </span>
+
+                  <div className="rounded-lg bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="h-3 w-3 rounded-full bg-blue-500"></div>
+                      <div className="text-sm font-medium">Skills Matched</div>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      React, TypeScript, Node.js +12 more
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 rounded-lg bg-white p-4 shadow-sm">
-                    <FileText className="h-5 w-5 text-purple-600" />
-                    <span className="text-sm font-medium">
-                      Generating tailored resume...
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-lg bg-white p-4 shadow-sm">
-                    <CheckCircle className="h-5 w-5 text-emerald-600" />
-                    <span className="text-sm font-medium">
-                      Ready to download!
-                    </span>
+
+                  <div className="rounded-lg bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="h-3 w-3 rounded-full bg-purple-500"></div>
+                      <div className="text-sm font-medium">ATS Score</div>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                      98% compatibility rating
+                    </div>
                   </div>
                 </div>
               </div>
@@ -715,100 +755,52 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-indigo-600 py-16">
-        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-white sm:text-4xl">
-            Ready to Transform Your Job Search?
-          </h2>
-          <p className="mt-4 text-xl text-blue-100">
-            Join thousands of professionals who&apos;ve accelerated their
-            careers with CareerCraft Studio
-          </p>
-
-          <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            {session?.user ? (
-              <Link
-                href="/ai-chat"
-                className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-blue-600 shadow-lg transition-all hover:bg-gray-50 hover:shadow-xl"
-              >
-                Continue to Dashboard
-                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/api/auth/signin"
-                  className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-blue-600 shadow-lg transition-all hover:bg-gray-50 hover:shadow-xl"
-                >
-                  Start Free Today
-                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </Link>
-
-                <div className="flex items-center gap-2 text-blue-100">
-                  <Clock className="h-5 w-5" />
-                  <span>Setup takes less than 5 minutes</span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {session?.user && (
-            <p className="mt-4 text-blue-200">
-              Welcome back, {session.user.name}! 👋
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 py-12">
+      {/* Final CTA Section */}
+      <section className="bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 py-24 text-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h3 className="text-2xl font-bold text-white">
-              CareerCraft Studio
-            </h3>
-            <p className="mt-2 text-gray-400">
-              AI-powered career acceleration platform
+            <h2 className="text-3xl font-bold sm:text-4xl">
+              Ready to transform your job search?
+            </h2>
+            <p className="mt-4 text-xl text-blue-100">
+              Join thousands of professionals who have improved their career
+              prospects with CareerCraft Studio.
             </p>
-            <div className="mt-6 flex justify-center space-x-6">
-              <div className="flex items-center gap-2 text-gray-400">
-                <Shield className="h-4 w-4" />
-                <span className="text-sm">Secure & Private</span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-400">
-                <Zap className="h-4 w-4" />
-                <span className="text-sm">Lightning Fast</span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-400">
-                <Users className="h-4 w-4" />
-                <span className="text-sm">Trusted by Professionals</span>
+
+            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+              {session?.user ? (
+                <Link
+                  href="/ai-chat"
+                  className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-indigo-900 shadow-lg transition-all hover:bg-gray-50 hover:shadow-xl"
+                >
+                  Continue to Dashboard
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </Link>
+              ) : (
+                <Link
+                  href="/api/auth/signin"
+                  className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-indigo-900 shadow-lg transition-all hover:bg-gray-50 hover:shadow-xl"
+                >
+                  Get Started Free
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </Link>
+              )}
+
+              <div className="flex items-center gap-2 text-blue-200">
+                <Clock className="h-5 w-5" />
+                <span>Setup takes less than 5 minutes</span>
               </div>
             </div>
 
-            {/* Legal Links */}
-            <div className="mt-8 flex justify-center space-x-8 border-t border-gray-800 pt-8">
-              <Link
-                href="/privacy"
-                className="text-sm text-gray-400 transition-colors hover:text-white"
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                href="/terms-of-service"
-                className="text-sm text-gray-400 transition-colors hover:text-white"
-              >
-                Terms of Service
-              </Link>
-            </div>
-
-            <div className="mt-4 text-xs text-gray-500">
-              © {new Date().getFullYear()} CareerCraft Studio. All rights
-              reserved.
-            </div>
+            {session?.user && (
+              <p className="mt-6 text-blue-200">
+                Welcome back, {session.user.name}! Ready to continue your career
+                journey?
+              </p>
+            )}
           </div>
         </div>
-      </footer>
+      </section>
     </div>
   );
 }
