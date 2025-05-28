@@ -801,6 +801,55 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h3 className="text-2xl font-bold text-white">
+              CareerCraft Studio
+            </h3>
+            <p className="mt-2 text-gray-400">
+              AI-powered career acceleration platform
+            </p>
+            <div className="mt-6 flex justify-center space-x-6">
+              <div className="flex items-center gap-2 text-gray-400">
+                <Shield className="h-4 w-4" />
+                <span className="text-sm">Secure & Private</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                <Zap className="h-4 w-4" />
+                <span className="text-sm">Lightning Fast</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-400">
+                <Users className="h-4 w-4" />
+                <span className="text-sm">Trusted by Professionals</span>
+              </div>
+            </div>
+
+            {/* Legal Links */}
+            <div className="mt-8 flex justify-center space-x-8 border-t border-gray-800 pt-8">
+              <Link
+                href="/privacy"
+                className="text-sm text-gray-400 transition-colors hover:text-white"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                href="/terms-of-service"
+                className="text-sm text-gray-400 transition-colors hover:text-white"
+              >
+                Terms of Service
+              </Link>
+            </div>
+
+            <div className="mt-4 text-xs text-gray-500">
+              © {new Date().getFullYear()} CareerCraft Studio. All rights
+              reserved.
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
