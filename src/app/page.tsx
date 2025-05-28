@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL("https://resume-master.curiouslycory.com"),
+  metadataBase: new URL("https://careercraft.studio"),
   alternates: {
     canonical: "/",
   },
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     title: "CareerCraft Studio - AI-Powered Resume & Cover Letter Builder",
     description:
       "Create tailored resumes and cover letters with AI assistance. Upload your resume, analyze job postings, and generate personalized documents that get you interviews.",
-    url: "https://resume-master.curiouslycory.com",
+    url: "https://careercraft.studio",
     siteName: "CareerCraft Studio",
     images: [
       {

@@ -73,7 +73,7 @@ CareerCraft Studio is an LLM-enhanced web application designed to assist users i
 ## 7. Deployment
 
 - Deploy to Vercel.
-- Domain: resume-master.curiouslycory.com.
+- Domain: carrercraft.studio
 
 ## 8. Future Considerations (Optional for V1, but good to note)
 
