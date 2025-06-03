@@ -114,6 +114,22 @@ export const jobPostingRouter = createTRPCRouter({
       });
     }),
 
+  updateStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        status: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Update only the status field
+      return ctx.db.jobPosting.update({
+        where: { id: input.id, userId: ctx.session.user.id },
+        data: { status: input.status === "" ? null : input.status },
+        include: { details: true },
+      });
+    }),
+
   parseAndStore: protectedProcedure
     .input(
       z.object({

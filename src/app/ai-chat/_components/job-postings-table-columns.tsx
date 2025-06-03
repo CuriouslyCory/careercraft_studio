@@ -10,6 +10,13 @@ import {
   DropdownMenuSeparator,
 } from "~/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import {
   ArrowUpDown,
   FileTextIcon,
   MailIcon,
@@ -19,6 +26,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { Prisma } from "@prisma/client";
+import { useState } from "react";
 
 // Use Prisma generated type with includes
 type JobPosting = Prisma.JobPostingGetPayload<{
@@ -27,6 +35,18 @@ type JobPosting = Prisma.JobPostingGetPayload<{
     document: true;
   };
 }>;
+
+/**
+ * Available status options for job postings
+ */
+const STATUS_OPTIONS = [
+  { value: "none", label: "No Status" },
+  { value: "Saved", label: "Saved" },
+  { value: "Applied", label: "Applied" },
+  { value: "Interview", label: "Interview" },
+  { value: "Rejected", label: "Rejected" },
+  { value: "Offer", label: "Offer" },
+] as const;
 
 /**
  * Get color classes for status badges
@@ -47,6 +67,64 @@ const getStatusColor = (status: string | null) => {
       return "bg-gray-100 text-gray-800 border-gray-200";
   }
 };
+
+/**
+ * Inline status dropdown component for editing job posting status
+ */
+export function InlineStatusDropdown({
+  jobId,
+  currentStatus,
+  onStatusUpdate,
+  isUpdating,
+}: {
+  jobId: string;
+  currentStatus: string | null;
+  onStatusUpdate: (jobId: string, status: string) => void;
+  isUpdating: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleStatusChange = (newStatus: string) => {
+    // Convert "none" back to empty string for the API
+    const statusToSend = newStatus === "none" ? "" : newStatus;
+    onStatusUpdate(jobId, statusToSend);
+    setIsOpen(false);
+  };
+
+  // Convert null/empty to "none" for the Select component
+  const selectValue = currentStatus ?? "none";
+
+  return (
+    <Select
+      value={selectValue}
+      onValueChange={handleStatusChange}
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      disabled={isUpdating}
+    >
+      <SelectTrigger
+        className={`hover:bg-opacity-80 inline-flex h-auto w-auto rounded-full border px-2 py-1 text-xs font-medium ${getStatusColor(currentStatus)} ${
+          isUpdating ? "opacity-50" : "cursor-pointer"
+        }`}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent triggering the context menu
+          setIsOpen(true);
+        }}
+      >
+        <SelectValue>
+          {isUpdating ? "Updating..." : (currentStatus ?? "No Status")}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent onClick={(e) => e.stopPropagation()}>
+        {STATUS_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 /**
  * Context menu component for job posting actions
@@ -219,6 +297,8 @@ export const createJobPostingsColumns = (
   isGeneratingResume: (jobPostingId: string) => boolean,
   isGeneratingCoverLetter: (jobPostingId: string) => boolean,
   isDeleting: boolean,
+  onStatusUpdate: (jobId: string, status: string) => void,
+  isUpdatingStatus: (jobId: string) => boolean,
 ): ColumnDef<JobPosting>[] => [
   {
     accessorKey: "title",
@@ -350,25 +430,12 @@ export const createJobPostingsColumns = (
       const job = row.original;
       const status = row.getValue("status");
       return (
-        <JobPostingContextMenu
-          job={job}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onViewContent={onViewContent}
-          onViewCompatibility={onViewCompatibility}
-          onGenerateResume={onGenerateResume}
-          onGenerateCoverLetter={onGenerateCoverLetter}
-          onEditDocument={onEditDocument}
-          isGeneratingResume={isGeneratingResume}
-          isGeneratingCoverLetter={isGeneratingCoverLetter}
-          isDeleting={isDeleting}
-        >
-          <span
-            className={`inline-flex cursor-pointer rounded-full border px-2 py-1 text-xs font-medium ${getStatusColor(status as string | null)}`}
-          >
-            {(status as string | null) ?? "—"}
-          </span>
-        </JobPostingContextMenu>
+        <InlineStatusDropdown
+          jobId={job.id}
+          currentStatus={status as string | null}
+          onStatusUpdate={onStatusUpdate}
+          isUpdating={isUpdatingStatus(job.id)}
+        />
       );
     },
   },
