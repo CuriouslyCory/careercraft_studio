@@ -23,6 +23,7 @@ enum EducationType {
     MASTERS
     DOCTORATE
     CERTIFICATION
+    CONTINUOUS_PROFESSIONAL_DEVELOPMENT
     OTHER
 }
 
@@ -444,7 +445,7 @@ model Education {
     type             EducationType
     institutionName  String
     degreeOrCertName String? // e.g., "B.S. Computer Science", "CompTIA A+"
-    description      String // For additional details
+    description      String? // For additional details (optional)
     dateCompleted    DateTime?
     createdAt        DateTime      @default(now())
     updatedAt        DateTime      @updatedAt

@@ -1,14 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import React from "react";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
 import { type ProficiencyLevel, type SkillSource } from "@prisma/client";
 import { toast } from "sonner";
 import type { RouterOutputs } from "~/trpc/react";
+import { useForm } from "@tanstack/react-form";
+import type { AnyFieldApi } from "@tanstack/react-form";
 
 // Export the type so it can be reused in other components
 export type UserSkillData = RouterOutputs["userSkills"]["list"][number];
+
+// Field info component for displaying validation errors
+function FieldInfo({ field }: { field: AnyFieldApi }) {
+  return (
+    <>
+      {field.state.meta.isTouched && !field.state.meta.isValid ? (
+        <div className="mt-1 text-sm text-red-600">
+          {field.state.meta.errors.join(", ")}
+        </div>
+      ) : null}
+      {field.state.meta.isValidating ? (
+        <div className="mt-1 text-sm text-blue-600">Validating...</div>
+      ) : null}
+    </>
+  );
+}
 
 interface SkillModalProps {
   mode: "add" | "edit";
@@ -17,6 +35,16 @@ interface SkillModalProps {
   missingSkillName?: string;
   existingSkill?: UserSkillData;
 }
+
+// Type for form values
+type SkillFormValues = {
+  skillName: string;
+  proficiency: ProficiencyLevel;
+  yearsExperience: string;
+  workHistoryIds: string[];
+  source: SkillSource;
+  notes: string;
+};
 
 /**
  * Centralized skill modal for adding and editing user skills
@@ -29,30 +57,30 @@ export function SkillModal({
   missingSkillName = "",
   existingSkill,
 }: SkillModalProps) {
-  const [skillName, setSkillName] = useState(
-    mode === "edit" ? (existingSkill?.skill.name ?? "") : missingSkillName,
-  );
-  const [proficiency, setProficiency] = useState<ProficiencyLevel>(
-    mode === "edit"
-      ? (existingSkill?.proficiency ?? "INTERMEDIATE")
-      : "INTERMEDIATE",
-  );
-  const [yearsExperience, setYearsExperience] = useState<string>(
-    mode === "edit" ? (existingSkill?.yearsExperience?.toString() ?? "") : "",
-  );
-  const [selectedWorkHistories, setSelectedWorkHistories] = useState<string[]>(
-    mode === "edit" && existingSkill?.workHistoryId
-      ? [existingSkill.workHistoryId]
-      : [],
-  );
-  const [source, setSource] = useState<SkillSource>(
-    mode === "edit"
-      ? (existingSkill?.source ?? "WORK_EXPERIENCE")
-      : "WORK_EXPERIENCE",
-  );
-  const [notes, setNotes] = useState(
-    mode === "edit" ? (existingSkill?.notes ?? "") : "",
-  );
+  // Initialize default values based on mode
+  const getDefaultValues = (): SkillFormValues => {
+    return {
+      skillName:
+        mode === "edit" ? (existingSkill?.skill.name ?? "") : missingSkillName,
+      proficiency:
+        mode === "edit"
+          ? (existingSkill?.proficiency ?? "INTERMEDIATE")
+          : "INTERMEDIATE",
+      yearsExperience:
+        mode === "edit"
+          ? (existingSkill?.yearsExperience?.toString() ?? "")
+          : "",
+      workHistoryIds:
+        mode === "edit" && existingSkill?.workHistoryId
+          ? [existingSkill.workHistoryId]
+          : [],
+      source:
+        mode === "edit"
+          ? (existingSkill?.source ?? "WORK_EXPERIENCE")
+          : "WORK_EXPERIENCE",
+      notes: mode === "edit" ? (existingSkill?.notes ?? "") : "",
+    };
+  };
 
   // Fetch user's work history for the multiselect
   const workHistoryQuery = api.document.listWorkHistory.useQuery();
@@ -81,52 +109,50 @@ export function SkillModal({
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // TanStack Form
+  const form = useForm({
+    defaultValues: getDefaultValues(),
+    onSubmit: async ({ value }) => {
+      // If work histories are selected and source is WORK_EXPERIENCE,
+      // we'll just use the first one for simplicity (could be enhanced later)
+      const workHistoryId =
+        value.workHistoryIds.length > 0 && value.source === "WORK_EXPERIENCE"
+          ? value.workHistoryIds[0]
+          : undefined;
 
-    if (mode === "add" && !skillName.trim()) {
-      toast.error("Skill name is required");
-      return;
-    }
+      if (mode === "add") {
+        addSkillMutation.mutate({
+          skillName: value.skillName.trim(),
+          proficiency: value.proficiency,
+          yearsExperience: value.yearsExperience
+            ? parseFloat(value.yearsExperience)
+            : undefined,
+          source: value.source,
+          notes: value.notes.trim() || undefined,
+          workHistoryId,
+        });
+      } else if (mode === "edit" && existingSkill) {
+        updateSkillMutation.mutate({
+          userSkillId: existingSkill.id,
+          proficiency: value.proficiency,
+          yearsExperience: value.yearsExperience
+            ? parseFloat(value.yearsExperience)
+            : undefined,
+          source: value.source,
+          notes: value.notes.trim() || undefined,
+          workHistoryId,
+        });
+      }
+    },
+  });
 
-    // If work histories are selected and source is WORK_EXPERIENCE,
-    // we'll just use the first one for simplicity (could be enhanced later)
-    const workHistoryId =
-      selectedWorkHistories.length > 0 && source === "WORK_EXPERIENCE"
-        ? selectedWorkHistories[0]
-        : undefined;
-
-    if (mode === "add") {
-      addSkillMutation.mutate({
-        skillName: skillName.trim(),
-        proficiency,
-        yearsExperience: yearsExperience
-          ? parseFloat(yearsExperience)
-          : undefined,
-        source,
-        notes: notes.trim() || undefined,
-        workHistoryId,
-      });
-    } else if (mode === "edit" && existingSkill) {
-      updateSkillMutation.mutate({
-        userSkillId: existingSkill.id,
-        proficiency,
-        yearsExperience: yearsExperience
-          ? parseFloat(yearsExperience)
-          : undefined,
-        source,
-        notes: notes.trim() || undefined,
-        workHistoryId,
-      });
-    }
-  };
-
-  const handleWorkHistoryToggle = (workHistoryId: string) => {
-    setSelectedWorkHistories((prev) =>
-      prev.includes(workHistoryId)
-        ? prev.filter((id) => id !== workHistoryId)
-        : [...prev, workHistoryId],
-    );
+  const handleWorkHistoryToggle = (
+    workHistoryId: string,
+    currentIds: string[],
+  ) => {
+    return currentIds.includes(workHistoryId)
+      ? currentIds.filter((id) => id !== workHistoryId)
+      : [...currentIds, workHistoryId];
   };
 
   const proficiencyOptions: { value: ProficiencyLevel; label: string }[] = [
@@ -160,125 +186,187 @@ export function SkillModal({
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void form.handleSubmit();
+          }}
+          className="space-y-4"
+        >
           {/* Skill Name - only editable in add mode */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Skill Name *
-            </label>
-            {mode === "add" ? (
-              <input
-                type="text"
-                value={skillName}
-                onChange={(e) => setSkillName(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-                placeholder="e.g., React, Python, Project Management"
-                required
-              />
-            ) : (
-              <div className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-700">
-                {skillName}
-              </div>
-            )}
-          </div>
-
-          {/* Proficiency Level */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Proficiency Level *
-            </label>
-            <select
-              value={proficiency}
-              onChange={(e) =>
-                setProficiency(e.target.value as ProficiencyLevel)
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            >
-              {proficiencyOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Years of Experience */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Years of Experience
-            </label>
-            <input
-              type="number"
-              value={yearsExperience}
-              onChange={(e) => setYearsExperience(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-              placeholder="e.g., 2.5"
-              min="0"
-              max="50"
-              step="0.5"
-            />
-          </div>
-
-          {/* Source */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              How did you learn this skill? *
-            </label>
-            <select
-              value={source}
-              onChange={(e) => setSource(e.target.value as SkillSource)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-            >
-              {sourceOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Work History Selection (only show if source is WORK_EXPERIENCE) */}
-          {source === "WORK_EXPERIENCE" &&
-            workHistoryQuery.data &&
-            workHistoryQuery.data.length > 0 && (
+          <form.Field
+            name="skillName"
+            validators={{
+              onChange: ({ value }: { value: string }) =>
+                mode === "add" && !value.trim()
+                  ? "Skill name is required"
+                  : undefined,
+            }}
+          >
+            {(field) => (
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Select Jobs Where You Used This Skill
+                  Skill Name *
                 </label>
-                <div className="max-h-32 overflow-y-auto rounded-md border border-gray-300 p-2">
-                  {workHistoryQuery.data.map((job) => (
-                    <label
-                      key={job.id}
-                      className="flex items-center space-x-2 p-1"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedWorkHistories.includes(job.id)}
-                        onChange={() => handleWorkHistoryToggle(job.id)}
-                        className="rounded border-gray-300"
-                      />
-                      <span className="text-sm">
-                        {job.jobTitle} at {job.companyName}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                {mode === "add" ? (
+                  <input
+                    type="text"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                    placeholder="e.g., React, Python, Project Management"
+                  />
+                ) : (
+                  <div className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-700">
+                    {field.state.value}
+                  </div>
+                )}
+                <FieldInfo field={field} />
               </div>
             )}
+          </form.Field>
+
+          {/* Proficiency Level */}
+          <form.Field name="proficiency">
+            {(field) => (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Proficiency Level *
+                </label>
+                <select
+                  value={field.state.value}
+                  onChange={(e) =>
+                    field.handleChange(e.target.value as ProficiencyLevel)
+                  }
+                  onBlur={field.handleBlur}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                >
+                  {proficiencyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          {/* Years of Experience */}
+          <form.Field name="yearsExperience">
+            {(field) => (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Years of Experience
+                </label>
+                <input
+                  type="number"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                  placeholder="e.g., 2.5"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          {/* Source */}
+          <form.Field name="source">
+            {(field) => (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  How did you learn this skill? *
+                </label>
+                <select
+                  value={field.state.value}
+                  onChange={(e) =>
+                    field.handleChange(e.target.value as SkillSource)
+                  }
+                  onBlur={field.handleBlur}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                >
+                  {sourceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
+
+          {/* Work History Selection (only show if source is WORK_EXPERIENCE) */}
+          <form.Subscribe selector={(state) => state.values.source}>
+            {(source) =>
+              source === "WORK_EXPERIENCE" &&
+              workHistoryQuery.data &&
+              workHistoryQuery.data.length > 0 ? (
+                <form.Field name="workHistoryIds">
+                  {(field) => (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        Select Jobs Where You Used This Skill
+                      </label>
+                      <div className="max-h-32 overflow-y-auto rounded-md border border-gray-300 p-2">
+                        {workHistoryQuery.data.map((job) => (
+                          <label
+                            key={job.id}
+                            className="flex items-center space-x-2 p-1"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={field.state.value.includes(job.id)}
+                              onChange={() =>
+                                field.handleChange(
+                                  handleWorkHistoryToggle(
+                                    job.id,
+                                    field.state.value,
+                                  ),
+                                )
+                              }
+                              className="rounded border-gray-300"
+                            />
+                            <span className="text-sm">
+                              {job.jobTitle} at {job.companyName}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <FieldInfo field={field} />
+                    </div>
+                  )}
+                </form.Field>
+              ) : null
+            }
+          </form.Subscribe>
 
           {/* Notes */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Notes (Optional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
-              placeholder="Additional context about this skill..."
-              rows={2}
-            />
-          </div>
+          <form.Field name="notes">
+            {(field) => (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                  placeholder="Additional context about this skill..."
+                  rows={2}
+                />
+                <FieldInfo field={field} />
+              </div>
+            )}
+          </form.Field>
 
           {/* Submit Buttons */}
           <div className="flex gap-2">
@@ -290,19 +378,25 @@ export function SkillModal({
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              className="flex-1"
-              disabled={isLoading || (mode === "add" && !skillName.trim())}
+            <form.Subscribe
+              selector={(state) => [state.canSubmit, state.isSubmitting]}
             >
-              {isLoading
-                ? mode === "add"
-                  ? "Adding..."
-                  : "Updating..."
-                : mode === "add"
-                  ? "Add Skill"
-                  : "Update Skill"}
-            </Button>
+              {([canSubmit, isSubmitting]) => (
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  disabled={!canSubmit || isLoading}
+                >
+                  {isLoading || isSubmitting
+                    ? mode === "add"
+                      ? "Adding..."
+                      : "Updating..."
+                    : mode === "add"
+                      ? "Add Skill"
+                      : "Update Skill"}
+                </Button>
+              )}
+            </form.Subscribe>
           </div>
         </form>
 

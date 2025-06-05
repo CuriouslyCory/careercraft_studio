@@ -351,22 +351,6 @@ export class ResumeDataGenerator {
       userData.workHistories,
     );
     sections.push(`**Total Work Experience:** ${totalExperience} years`);
-    sections.push(`**Number of Positions:** ${userData.workHistories.length}`);
-    sections.push(`**Education Entries:** ${userData.educations.length}`);
-    sections.push(`**Total Skills:** ${userData.userSkills.length}`);
-    sections.push(`**Key Achievements:** ${userData.keyAchievements.length}`);
-
-    // Skills breakdown
-    const skillsByProficiency = this.groupSkillsByProficiency(
-      userData.userSkills,
-    );
-    for (const [proficiency, count] of Object.entries(skillsByProficiency)) {
-      if (count > 0) {
-        sections.push(
-          `**${this.formatProficiency(proficiency as ProficiencyLevel)} Skills:** ${count}`,
-        );
-      }
-    }
 
     return sections.join("\n");
   }
@@ -570,6 +554,8 @@ export class ResumeDataGenerator {
       MASTERS: "Master's Degree",
       DOCTORATE: "Doctorate",
       CERTIFICATION: "Certification",
+      CONTINUOUS_PROFESSIONAL_DEVELOPMENT:
+        "Continuous Professional Development",
       OTHER: "Other",
     };
     return mapping[type];

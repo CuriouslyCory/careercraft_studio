@@ -82,6 +82,7 @@ export const userSkillsRouter = createTRPCRouter({
         proficiency: z.nativeEnum(ProficiencyLevel).optional(),
         yearsExperience: z.number().min(0).max(50).optional(),
         source: z.nativeEnum(SkillSource).optional(),
+        dateCompleted: z.string().optional(),
         notes: z.string().optional(),
         workHistoryId: z.string().optional(),
       }),
