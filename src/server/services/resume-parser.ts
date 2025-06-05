@@ -9,7 +9,10 @@ import {
 } from "~/server/api/routers/document/work-history";
 import { processEducation } from "~/server/api/routers/document/education";
 import { processKeyAchievements } from "~/server/api/routers/document/key-achievements";
-import { processUserLinks } from "~/server/api/routers/document/user-links";
+import {
+  processUserLinks,
+  parseAndValidateUrl,
+} from "~/server/api/routers/document/user-links";
 import { type EducationType } from "@prisma/client";
 import { SkillNormalizationService } from "./skill-normalization";
 import { mergeWorkAchievements } from "~/server/api/routers/document/utils/llm-merger";
@@ -247,18 +250,45 @@ export class ResumeParsingService {
             existingLinks.map((link) => link.url.toLowerCase()),
           );
 
-          const linksToCreate = userLinks
-            .filter(
-              (link): link is { title: string; url: string; type?: string } =>
-                Boolean(link.url && link.title),
-            )
-            .filter((link) => !existingUrls.has(link.url.toLowerCase()))
-            .map((link) => ({
-              title: link.title,
-              url: link.url,
-              type: link.type ?? "OTHER",
-              userId,
-            }));
+          const linksToCreate: Array<{
+            title: string;
+            url: string;
+            type: string;
+            userId: string;
+          }> = [];
+
+          // Process each link with URL validation
+          for (const link of userLinks) {
+            if (!link.url || !link.title) {
+              console.log("Skipping incomplete link:", link);
+              continue;
+            }
+
+            // Parse and validate URL, adding protocol if needed
+            let validatedUrl: string;
+            try {
+              validatedUrl = parseAndValidateUrl(link.url);
+            } catch (error: unknown) {
+              console.log(
+                `Skipping link "${link.title}" due to invalid URL: ${link.url} - ${error instanceof Error ? error.message : "Unknown error"}`,
+              );
+              continue;
+            }
+
+            // Check for duplicates using validated URL
+            if (!existingUrls.has(validatedUrl.toLowerCase())) {
+              linksToCreate.push({
+                title: link.title,
+                url: validatedUrl,
+                type: link.type ?? "OTHER",
+                userId,
+              });
+            } else {
+              console.log(
+                `Skipping duplicate link: "${link.title}" - ${validatedUrl}`,
+              );
+            }
+          }
 
           if (linksToCreate.length > 0) {
             await tx.userLink.createMany({

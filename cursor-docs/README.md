@@ -48,6 +48,7 @@ Below is an index of the documented features. Each link will take you to a more 
 - **[Skill Normalization](./skill-normalization.md)**: Covers the system for deduplicating and categorizing skills across various industries while preserving detailed variants for ATS matching. (Existing document, will be reviewed)
 - **[Work Achievement Management](./work-achievement-management.md)**: Details the tools and processes for managing, editing, and merging work achievements, including AI-powered enhancements.
 - **[Subscription System](./subscription-system.md)**: Documents the comprehensive subscription and usage tracking system with tiered access controls and user interface for plan management.
+- **[User Link URL Validation](./user-link-url-validation.md)**: Details the enhanced URL validation system that automatically adds protocols to user links, improving data consistency and user experience.
 - **[Tooling Infrastructure](./tooling-infrastructure.md)**: Describes the shared configuration, error handling, and type definition files for LangChain tools.
 
 ## Architectural Guidelines

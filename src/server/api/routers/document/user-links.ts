@@ -3,6 +3,57 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { type PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 
+/**
+ * Parses and validates a URL, adding http(s) protocol if missing
+ * @param url - The URL string to parse and validate
+ * @returns A fully formed URL string with protocol
+ * @throws Error if the URL cannot be made valid
+ */
+function parseAndValidateUrl(url: string): string {
+  const trimmedUrl = url.trim();
+
+  // If URL is empty or just whitespace, throw error
+  if (!trimmedUrl) {
+    throw new Error("URL cannot be empty");
+  }
+
+  // Try to parse the URL as-is first
+  try {
+    const urlObj = new URL(trimmedUrl);
+    return urlObj.toString();
+  } catch {
+    // If that fails, try adding https:// protocol
+    try {
+      const urlWithHttps = `https://${trimmedUrl}`;
+      const urlObj = new URL(urlWithHttps);
+
+      // Validate that the hostname looks reasonable (has at least one dot for domain)
+      if (!urlObj.hostname.slice(0, -2).includes(".")) {
+        throw new Error("Invalid domain format");
+      }
+
+      return urlObj.toString();
+    } catch {
+      // If https doesn't work, try http://
+      try {
+        const urlWithHttp = `http://${trimmedUrl}`;
+        const urlObj = new URL(urlWithHttp);
+
+        // Validate that the hostname looks reasonable
+        if (!urlObj.hostname.slice(0, -2).includes(".")) {
+          throw new Error("Invalid domain format");
+        }
+
+        return urlObj.toString();
+      } catch {
+        throw new Error(
+          "Invalid URL format - could not create a valid URL with or without protocol",
+        );
+      }
+    }
+  }
+}
+
 // Helper function to normalize URLs for comparison
 function normalizeUrl(url: string): string {
   try {
@@ -45,20 +96,20 @@ export const userLinksRouter = createTRPCRouter({
           .max(200, "Title must be 200 characters or less"),
         url: z
           .string()
-          .url("Must be a valid URL")
+          .min(1, "URL is required")
           .max(500, "URL must be 500 characters or less"),
         type: z.string().optional().default("OTHER"),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Normalize URL before validation and storage
-      let normalizedUrl: string;
+      // Parse and validate URL, adding protocol if needed
+      let validatedUrl: string;
       try {
-        const urlObj = new URL(input.url);
-        // Ensure protocol is present and normalize
-        normalizedUrl = urlObj.toString();
-      } catch {
-        throw new Error("Invalid URL format provided");
+        validatedUrl = parseAndValidateUrl(input.url);
+      } catch (error) {
+        throw new Error(
+          error instanceof Error ? error.message : "Invalid URL format",
+        );
       }
 
       // Check for existing duplicate URLs
@@ -66,7 +117,7 @@ export const userLinksRouter = createTRPCRouter({
         where: { userId: ctx.session.user.id },
       });
 
-      const normalizedInputUrl = normalizeUrl(normalizedUrl);
+      const normalizedInputUrl = normalizeUrl(validatedUrl);
       const existingLink = existingLinks.find(
         (link) => normalizeUrl(link.url) === normalizedInputUrl,
       );
@@ -81,7 +132,7 @@ export const userLinksRouter = createTRPCRouter({
         return await ctx.db.userLink.create({
           data: {
             title: input.title.trim(),
-            url: normalizedUrl,
+            url: validatedUrl,
             type: input.type,
             user: { connect: { id: ctx.session.user.id } },
           },
@@ -105,12 +156,24 @@ export const userLinksRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         title: z.string().min(1, "Title is required").optional(),
-        url: z.string().url("Must be a valid URL").optional(),
+        url: z.string().min(1, "URL is required").optional(),
         type: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
+
+      // If URL is being updated, validate it
+      if (data.url) {
+        try {
+          data.url = parseAndValidateUrl(data.url);
+        } catch (error) {
+          throw new Error(
+            error instanceof Error ? error.message : "Invalid URL format",
+          );
+        }
+      }
+
       return ctx.db.userLink.update({
         where: { id, userId: ctx.session.user.id },
         data,
@@ -159,8 +222,19 @@ export async function processUserLinks(
       continue;
     }
 
+    // Parse and validate URL, adding protocol if needed
+    let validatedUrl: string;
+    try {
+      validatedUrl = parseAndValidateUrl(link.url);
+    } catch (error) {
+      console.log(
+        `Skipping link "${link.title}" due to invalid URL: ${link.url} - ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+      continue;
+    }
+
     // Normalize URLs for comparison
-    const normalizedUrl = normalizeUrl(link.url);
+    const normalizedUrl = normalizeUrl(validatedUrl);
 
     // Check if this link already exists (by normalized URL)
     const existingLink = existingLinks.find(
@@ -207,13 +281,13 @@ export async function processUserLinks(
         await ctx.db.userLink.create({
           data: {
             title: link.title,
-            url: link.url,
+            url: validatedUrl,
             type: link.type ?? "OTHER",
             user: { connect: { id: userId } },
           },
         });
         console.log(
-          `Created new link: "${link.title}" (${link.type ?? "OTHER"}) - ${link.url}`,
+          `Created new link: "${link.title}" (${link.type ?? "OTHER"}) - ${validatedUrl}`,
         );
       } catch (error) {
         // Handle Prisma unique constraint violations gracefully
@@ -222,7 +296,7 @@ export async function processUserLinks(
           error.code === "P2002"
         ) {
           console.log(
-            `Skipping duplicate link (database constraint): "${link.title}" - ${link.url}`,
+            `Skipping duplicate link (database constraint): "${link.title}" - ${validatedUrl}`,
           );
         } else {
           console.error(`Failed to create link "${link.title}":`, error);
@@ -234,3 +308,6 @@ export async function processUserLinks(
 
   console.log("Finished processing user links");
 }
+
+// Export the utility function for use in other modules
+export { parseAndValidateUrl };
