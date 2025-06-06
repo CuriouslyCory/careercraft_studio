@@ -442,7 +442,7 @@ export function DocumentEditor({
         </Tooltip>
       </div>
 
-      <div className="h-full bg-red-500">
+      <div className="h-full">
         <Editor
           ref={(ref: EditorElement | null) => {
             editorRef.current = ref;
