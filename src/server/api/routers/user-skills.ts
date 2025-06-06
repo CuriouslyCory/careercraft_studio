@@ -35,10 +35,23 @@ export const userSkillsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Use SkillNormalizationService to handle skill creation/normalization
       const skillNormalizer = new SkillNormalizationService(ctx.db);
-      const normalizedSkill = await skillNormalizer.normalizeSkill(
+      const normalizedSkills = await skillNormalizer.normalizeSkill(
         input.skillName,
         "OTHER", // Default category, can be improved with better categorization logic
       );
+
+      // For user-added skills, we only allow single skills (not compound)
+      if (normalizedSkills.length > 1) {
+        throw new Error(
+          "Please add compound skills (like 'React/Next.js') as separate skills",
+        );
+      }
+
+      if (normalizedSkills.length === 0) {
+        throw new Error("Failed to normalize skill");
+      }
+
+      const normalizedSkill = normalizedSkills[0]!;
 
       // Check if user already has this skill
       const existingUserSkill = await ctx.db.userSkill.findUnique({

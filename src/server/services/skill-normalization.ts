@@ -57,7 +57,7 @@ export class SkillNormalizationService {
     // TECHNOLOGY & ENGINEERING
     // =============================================================================
 
-    // React patterns
+    // React patterns - more comprehensive
     {
       pattern: /^React(?:\.js|JS)?\s*\(.*\)$/i,
       baseSkill: "React",
@@ -65,6 +65,16 @@ export class SkillNormalizationService {
     },
     {
       pattern: /^React(?:\.js|JS)?\s+.+$/i,
+      baseSkill: "React",
+      category: "FRAMEWORK_LIBRARY",
+    },
+    {
+      pattern: /^React\.js$/i,
+      baseSkill: "React",
+      category: "FRAMEWORK_LIBRARY",
+    },
+    {
+      pattern: /^ReactJS$/i,
       baseSkill: "React",
       category: "FRAMEWORK_LIBRARY",
     },
@@ -449,6 +459,25 @@ export class SkillNormalizationService {
   public parseSkillName(skillName: string): SkillParseResult {
     const trimmedSkill = skillName.trim();
 
+    // Handle compound skills separated by slash, comma, or "and"
+    // e.g., "React/Next.js", "React, Next.js", "React and Next.js"
+    const compoundMatch = /^([^/,&]+)(?:\/|,|\s+and\s+)([^/,&]+)$/.exec(
+      trimmedSkill,
+    );
+    if (compoundMatch?.[1] && compoundMatch[2]) {
+      const firstSkill = compoundMatch[1].trim();
+      const secondSkill = compoundMatch[2].trim();
+
+      // For compound skills, we'll return the first skill as base and note it's compound
+      // The caller should handle this by processing both skills separately
+      return {
+        baseSkill: firstSkill,
+        details: `compound with ${secondSkill}`,
+        confidence: 0.8,
+        pattern: "compound",
+      };
+    }
+
     // Check against known patterns
     for (const { pattern, baseSkill } of this.SKILL_PATTERNS) {
       if (pattern.test(trimmedSkill)) {
@@ -466,6 +495,29 @@ export class SkillNormalizationService {
       }
     }
 
+    // Check for exact matches with common aliases (before parentheses check)
+    const exactAliasMatches = [
+      { aliases: ["React.js", "ReactJS", "React JS"], baseSkill: "React" },
+      { aliases: ["Next.js", "NextJS", "Next JS"], baseSkill: "Next.js" },
+      { aliases: ["Node.js", "NodeJS", "Node JS"], baseSkill: "Node.js" },
+      { aliases: ["Vue.js", "VueJS", "Vue JS"], baseSkill: "Vue.js" },
+      { aliases: ["Express.js", "ExpressJS"], baseSkill: "Express.js" },
+    ];
+
+    for (const { aliases, baseSkill } of exactAliasMatches) {
+      if (
+        aliases.some(
+          (alias) => alias.toLowerCase() === trimmedSkill.toLowerCase(),
+        )
+      ) {
+        return {
+          baseSkill,
+          confidence: 1.0,
+          pattern: "exact_alias",
+        };
+      }
+    }
+
     // Check for parenthetical details without known patterns
     const parenthesesMatch = /^([^(]+)\s*\(([^)]+)\)$/.exec(trimmedSkill);
     if (parenthesesMatch?.[1] && parenthesesMatch[2]) {
@@ -477,9 +529,9 @@ export class SkillNormalizationService {
       };
     }
 
-    // Check for common separators (comma, dash, etc.)
+    // Check for common separators (comma, dash, etc.) - but not for compound skills
     const separatorMatch = /^([^,-]+)[,-]\s*(.+)$/.exec(trimmedSkill);
-    if (separatorMatch?.[1] && separatorMatch[2]) {
+    if (separatorMatch?.[1] && separatorMatch[2] && !compoundMatch) {
       return {
         baseSkill: separatorMatch[1].trim(),
         details: separatorMatch[2].trim(),
@@ -494,6 +546,25 @@ export class SkillNormalizationService {
       confidence: 1.0,
       pattern: "exact",
     };
+  }
+
+  /**
+   * Parse compound skills and return multiple skills
+   * e.g., "React/Next.js" -> ["React", "Next.js"]
+   */
+  public parseCompoundSkill(skillName: string): string[] {
+    const trimmedSkill = skillName.trim();
+
+    // Handle compound skills separated by slash, comma, or "and"
+    const compoundMatch = /^([^/,&]+)(?:\/|,|\s+and\s+)([^/,&]+)$/.exec(
+      trimmedSkill,
+    );
+    if (compoundMatch?.[1] && compoundMatch[2]) {
+      return [compoundMatch[1].trim(), compoundMatch[2].trim()];
+    }
+
+    // Not a compound skill, return as single skill
+    return [trimmedSkill];
   }
 
   /**
@@ -710,11 +781,41 @@ export class SkillNormalizationService {
 
   /**
    * Normalize a skill name and return the base skill information
+   * Now handles compound skills by splitting them
    */
   public async normalizeSkill(
     skillName: string,
     defaultCategory?: SkillCategory,
-  ): Promise<NormalizedSkill> {
+  ): Promise<NormalizedSkill[]> {
+    // First check if this is a compound skill
+    const skillComponents = this.parseCompoundSkill(skillName);
+
+    if (skillComponents.length > 1) {
+      // Process each component separately
+      const normalizedSkills: NormalizedSkill[] = [];
+
+      for (const component of skillComponents) {
+        const results = await this.processSingleSkill(
+          component,
+          defaultCategory,
+        );
+        normalizedSkills.push(...results);
+      }
+
+      return normalizedSkills;
+    } else {
+      // Single skill
+      return await this.processSingleSkill(skillName, defaultCategory);
+    }
+  }
+
+  /**
+   * Process a single skill (non-compound)
+   */
+  private async processSingleSkill(
+    skillName: string,
+    defaultCategory?: SkillCategory,
+  ): Promise<NormalizedSkill[]> {
     const parseResult = this.parseSkillName(skillName);
     const { baseSkill, details } = parseResult;
 
@@ -780,14 +881,16 @@ export class SkillNormalizationService {
       }
     }
 
-    return {
-      baseSkillId,
-      baseSkillName: baseSkill,
-      detailedVariant: details ? skillName : undefined,
-      category,
-      isNewBaseSkill,
-      isNewVariant,
-    };
+    return [
+      {
+        baseSkillId,
+        baseSkillName: baseSkill,
+        detailedVariant: details ? skillName : undefined,
+        category,
+        isNewBaseSkill,
+        isNewVariant,
+      },
+    ];
   }
 
   /**
@@ -836,6 +939,7 @@ export class SkillNormalizationService {
 
   /**
    * Bulk normalize skills for efficient processing
+   * Updated to handle compound skills
    */
   public async normalizeSkills(
     skillNames: string[],
@@ -850,41 +954,49 @@ export class SkillNormalizationService {
     const processedBaseSkills = new Set<string>();
 
     for (const skillName of uniqueSkills) {
-      const parseResult = this.parseSkillName(skillName);
-      const baseSkillLower = parseResult.baseSkill.toLowerCase();
+      // Handle compound skills by splitting them
+      const skillComponents = this.parseCompoundSkill(skillName);
 
-      // Skip if we've already processed this base skill in this batch
-      if (processedBaseSkills.has(baseSkillLower)) {
-        // Still need to handle the variant alias
-        if (parseResult.details && skillName !== parseResult.baseSkill) {
-          const existingSkill = await this.findExistingSkill(
-            parseResult.baseSkill,
-          );
-          if (existingSkill) {
-            // Check if alias exists
-            const existingAlias = await this.db.skillAlias.findFirst({
-              where: {
-                alias: { equals: skillName, mode: "insensitive" },
-                skillId: existingSkill.id,
-              },
-            });
+      for (const component of skillComponents) {
+        const parseResult = this.parseSkillName(component);
+        const baseSkillLower = parseResult.baseSkill.toLowerCase();
 
-            if (!existingAlias) {
-              await this.db.skillAlias.create({
-                data: {
-                  alias: skillName,
+        // Skip if we've already processed this base skill in this batch
+        if (processedBaseSkills.has(baseSkillLower)) {
+          // Still need to handle the variant alias
+          if (parseResult.details && component !== parseResult.baseSkill) {
+            const existingSkill = await this.findExistingSkill(
+              parseResult.baseSkill,
+            );
+            if (existingSkill) {
+              // Check if alias exists
+              const existingAlias = await this.db.skillAlias.findFirst({
+                where: {
+                  alias: { equals: component, mode: "insensitive" },
                   skillId: existingSkill.id,
                 },
               });
+
+              if (!existingAlias) {
+                await this.db.skillAlias.create({
+                  data: {
+                    alias: component,
+                    skillId: existingSkill.id,
+                  },
+                });
+              }
             }
           }
+          continue;
         }
-        continue;
-      }
 
-      const normalized = await this.normalizeSkill(skillName, defaultCategory);
-      results.push(normalized);
-      processedBaseSkills.add(baseSkillLower);
+        const normalized = await this.processSingleSkill(
+          component,
+          defaultCategory,
+        );
+        results.push(...normalized);
+        processedBaseSkills.add(baseSkillLower);
+      }
     }
 
     return results;

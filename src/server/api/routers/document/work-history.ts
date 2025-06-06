@@ -208,10 +208,23 @@ export const workHistoryRouter = createTRPCRouter({
       try {
         // Find or create the skill using normalization
         const skillNormalizer = new SkillNormalizationService(ctx.db);
-        const normalizedSkill = await skillNormalizer.normalizeSkill(
+        const normalizedSkills = await skillNormalizer.normalizeSkill(
           input.skillName,
           "OTHER", // Default category, will be properly categorized by normalization service
         );
+
+        // For work history skills, we only allow single skills (not compound)
+        if (normalizedSkills.length > 1) {
+          throw new Error(
+            "Please add compound skills (like 'React/Next.js') as separate skills",
+          );
+        }
+
+        if (normalizedSkills.length === 0) {
+          throw new Error("Failed to normalize skill");
+        }
+
+        const normalizedSkill = normalizedSkills[0]!;
 
         const proficiency = input.proficiency ?? "INTERMEDIATE";
 

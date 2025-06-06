@@ -48,10 +48,13 @@ export const skillsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const skillNormalizer = new SkillNormalizationService(ctx.db);
-      return await skillNormalizer.normalizeSkill(
+      const normalizedSkills = await skillNormalizer.normalizeSkill(
         input.skillName,
         input.category ?? "OTHER",
       );
+
+      // Return all normalized skills (could be multiple for compound skills)
+      return normalizedSkills;
     }),
 
   /**
