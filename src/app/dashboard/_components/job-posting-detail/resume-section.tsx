@@ -127,15 +127,6 @@ export function ResumeSection({ jobPosting }: ResumeSectionProps) {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link
-                      href={`/dashboard/job-postings/${jobPosting.id}/resume/preview`}
-                    >
-                      <Eye className="mr-1 h-4 w-4" />
-                      Preview
-                    </Link>
-                  </Button>
-
                   <Button size="sm" asChild>
                     <Link
                       href={`/dashboard/job-postings/${jobPosting.id}/resume/edit`}
