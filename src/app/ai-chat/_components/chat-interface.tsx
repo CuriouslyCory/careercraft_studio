@@ -88,16 +88,16 @@ export function ChatInterface() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-grow overflow-y-auto rounded-md border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-6 shadow-lg">
+      <div className="flex-grow overflow-y-auto p-3">
         {showIntro && messages.length === 0 && !isLoading && (
-          <div className="mb-6 rounded-md border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-8 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-blue-700">
+          <div className="mb-4 rounded-md border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 text-center sm:mb-6 sm:p-8">
+            <h2 className="mb-3 text-xl font-bold text-blue-700 sm:text-2xl">
               Welcome to CareerCraft Studio!
             </h2>
-            <p className="mb-4 text-gray-700">
+            <p className="mb-4 text-sm text-gray-700 sm:text-base">
               Your AI-powered career assistant can help you with:
             </p>
-            <ul className="mb-6 inline-block list-disc space-y-2 pl-6 text-left text-sm">
+            <ul className="mb-4 inline-block list-disc space-y-1 pl-6 text-left text-xs sm:mb-6 sm:space-y-2 sm:text-sm">
               <li className="text-gray-700">
                 Analyzing and optimizing your resume
               </li>
@@ -112,12 +112,12 @@ export function ChatInterface() {
                 Managing your work history and achievements
               </li>
             </ul>
-            <p className="mt-4 text-sm text-gray-600">
+            <p className="mt-4 text-xs text-gray-600 sm:text-sm">
               Try pasting your resume or a job description to get started!
             </p>
             <button
               onClick={() => setShowIntro(false)}
-              className="mt-4 text-sm font-medium text-blue-600 underline hover:text-blue-800"
+              className="mt-4 text-xs font-medium text-blue-600 underline hover:text-blue-800 sm:text-sm"
             >
               Dismiss
             </button>
@@ -129,15 +129,15 @@ export function ChatInterface() {
           .map((msg: UISimpleMessage) => (
             <div
               key={msg.id}
-              className={`mb-4 max-w-[85%] rounded-md border p-6 shadow-sm ${
+              className={`mb-3 max-w-[90%] rounded-md border p-3 shadow-sm sm:mb-4 sm:max-w-[85%] sm:p-6 ${
                 msg.role === "user"
                   ? "ml-auto border-blue-300 bg-gradient-to-r from-blue-50 to-blue-100"
                   : "mr-auto border-indigo-300 bg-gradient-to-r from-indigo-50 to-purple-50"
               }`}
             >
-              <div className="mb-3 flex items-center gap-3">
+              <div className="mb-2 flex items-center gap-2 sm:mb-3 sm:gap-3">
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold sm:h-8 sm:w-8 sm:text-sm ${
                     msg.role === "user"
                       ? "bg-blue-600 text-white"
                       : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
@@ -145,7 +145,7 @@ export function ChatInterface() {
                 >
                   {msg.role === "user" ? "U" : "AI"}
                 </div>
-                <span className="font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700 sm:text-base">
                   {msg.role === "user" ? "You" : "CareerCraft Studio AI"}
                 </span>
               </div>
@@ -167,30 +167,33 @@ export function ChatInterface() {
           ))}
 
         {isLoading && messages.length === 0 && (
-          <div className="p-6 text-center text-gray-600">
+          <div className="p-4 text-center text-gray-600 sm:p-6">
             <div className="mr-2 inline-block animate-bounce text-2xl">🤔</div>
-            <p className="font-medium">Thinking...</p>
+            <p className="text-sm font-medium sm:text-base">Thinking...</p>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-6 text-center text-red-600">
-            <p className="font-semibold">Error:</p>
-            <p className="text-sm">{error.message}</p>
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-center text-red-600 sm:mb-6 sm:p-6">
+            <p className="text-sm font-semibold sm:text-base">Error:</p>
+            <p className="text-xs sm:text-sm">{error.message}</p>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleFormSubmit} className="flex items-end gap-3">
+      <form
+        onSubmit={handleFormSubmit}
+        className="flex items-end gap-2 sm:gap-3"
+      >
         <Textarea
           ref={textareaRef}
           value={input}
           onChange={handleTextareaChange}
           placeholder="Ask about resume writing, job matching, or paste your resume or job description..."
           className={cn(
-            "max-h-[30vh] min-h-[48px] flex-1 resize-none overflow-y-auto rounded-md border-2 border-blue-200 bg-white px-4 py-3 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none",
+            "max-h-[30vh] min-h-[44px] flex-1 resize-none overflow-y-auto rounded-md border-2 border-blue-200 bg-white px-3 py-3 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none sm:min-h-[48px] sm:px-4",
           )}
           rows={1}
           onKeyDown={(e) => {
@@ -202,10 +205,10 @@ export function ChatInterface() {
         />
         <Button
           type="submit"
-          className="inline-flex h-12 w-12 items-center justify-center rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 sm:h-12 sm:w-12"
           disabled={isLoading || !input.trim()}
         >
-          <Send className="h-5 w-5" />
+          <Send className="h-4 w-4 sm:h-5 sm:w-5" />
           <span className="sr-only">Send message</span>
         </Button>
       </form>
@@ -220,31 +223,33 @@ export function ChatInterfaceWithHeader() {
   return (
     <div className="flex h-full flex-col">
       {/* Chat header */}
-      <div className="flex items-center justify-between border-b border-blue-200 p-4">
+      <div className="flex items-center justify-between border-b border-blue-200 p-3 sm:p-4">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-blue-600" />
-          <h3 className="font-semibold text-gray-900">AI Assistant</h3>
+          <MessageSquare className="h-4 w-4 text-blue-600 sm:h-5 sm:w-5" />
+          <h3 className="text-sm font-semibold text-gray-900 sm:text-base">
+            AI Assistant
+          </h3>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {conversationId && (
-            <p className="text-xs text-gray-500">
+            <p className="hidden text-xs text-gray-500 sm:block">
               ID: {conversationId.slice(0, 8)}...
             </p>
           )}
           <Button
             onClick={startNewChat}
             disabled={isLoading}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 p-0 text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 p-0 text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:w-8"
             title="Start new chat"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="sr-only">Start new chat</span>
           </Button>
         </div>
       </div>
 
       {/* Chat Interface */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-3 sm:p-6">
         <ChatInterface />
       </div>
     </div>

@@ -40,7 +40,7 @@ export function AiChatLayout({ children }: AiChatLayoutProps) {
       <div
         className={cn(
           "hidden h-full flex-col border-r border-blue-200 bg-white shadow-lg transition-all duration-300 ease-in-out md:flex",
-          isChatCollapsed ? "w-full" : "w-1/2",
+          isChatCollapsed ? "flex-1" : "min-w-0 flex-1",
         )}
       >
         {children}
@@ -50,7 +50,7 @@ export function AiChatLayout({ children }: AiChatLayoutProps) {
       <div
         className={cn(
           "relative hidden h-full flex-col bg-white shadow-lg transition-all duration-300 ease-in-out md:flex",
-          isChatCollapsed ? "w-0 overflow-hidden" : "w-1/2",
+          isChatCollapsed ? "w-0 overflow-hidden" : "min-w-0 flex-1",
         )}
       >
         {/* Chat Interface with Header */}
