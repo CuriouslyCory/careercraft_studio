@@ -106,7 +106,7 @@ export function DocumentEditorPanel() {
   return (
     <div className="h-full space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             {documentType === "resume" ? "Resume" : "Cover Letter"} Editor
@@ -123,16 +123,14 @@ export function DocumentEditorPanel() {
       </div>
 
       {/* Document Editor */}
-      <div className="h-full">
-        <DocumentEditor
-          jobPostingId={jobPostingId}
-          jobTitle={jobTitle}
-          documentType={documentType}
-          initialContent={documentContent}
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
-      </div>
+      <DocumentEditor
+        jobPostingId={jobPostingId}
+        jobTitle={jobTitle}
+        documentType={documentType}
+        initialContent={documentContent}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }

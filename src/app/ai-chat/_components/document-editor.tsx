@@ -352,114 +352,105 @@ export function DocumentEditor({
       role="main"
       aria-label={`${documentType === "resume" ? "Resume" : "Cover letter"} editor for ${jobTitle}`}
     >
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">
-          Edit {documentType === "resume" ? "Resume" : "Cover Letter"} for{" "}
-          {jobTitle}
-        </h2>
-        <div className="flex gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => void handleSave()}
-                disabled={isLoading}
-                size="icon"
-                className="bg-green-600 hover:bg-green-700"
-                aria-label={`Save ${documentType === "resume" ? "resume" : "cover letter"}`}
-              >
-                {updateDocumentMutation.isPending ? (
-                  <LoaderIcon className="h-4 w-4 animate-spin" />
-                ) : (
-                  <SaveIcon className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>
-                {updateDocumentMutation.isPending
-                  ? "Saving..."
-                  : "Save (Ctrl+S)"}
-              </p>
-            </TooltipContent>
-          </Tooltip>
+      <div className="flex gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => void handleSave()}
+              disabled={isLoading}
+              size="icon"
+              className="bg-green-600 hover:bg-green-700"
+              aria-label={`Save ${documentType === "resume" ? "resume" : "cover letter"}`}
+            >
+              {updateDocumentMutation.isPending ? (
+                <LoaderIcon className="h-4 w-4 animate-spin" />
+              ) : (
+                <SaveIcon className="h-4 w-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>
+              {updateDocumentMutation.isPending ? "Saving..." : "Save (Ctrl+S)"}
+            </p>
+          </TooltipContent>
+        </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={() => void handleExportToPDF()}
-                disabled={isLoading}
-                size="icon"
-                className="bg-blue-600 hover:bg-blue-700"
-                aria-label={`Export ${documentType === "resume" ? "resume" : "cover letter"} to PDF`}
-              >
-                {exportToPDFMutation.isPending ? (
-                  <LoaderIcon className="h-4 w-4 animate-spin" />
-                ) : (
-                  <DownloadIcon className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>
-                {exportToPDFMutation.isPending
-                  ? "Exporting..."
-                  : "Export to PDF"}
-              </p>
-            </TooltipContent>
-          </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => void handleExportToPDF()}
+              disabled={isLoading}
+              size="icon"
+              className="bg-blue-600 hover:bg-blue-700"
+              aria-label={`Export ${documentType === "resume" ? "resume" : "cover letter"} to PDF`}
+            >
+              {exportToPDFMutation.isPending ? (
+                <LoaderIcon className="h-4 w-4 animate-spin" />
+              ) : (
+                <DownloadIcon className="h-4 w-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>
+              {exportToPDFMutation.isPending ? "Exporting..." : "Export to PDF"}
+            </p>
+          </TooltipContent>
+        </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={handleDelete}
-                disabled={isLoading}
-                size="icon"
-                variant="destructive"
-                aria-label={`Delete ${documentType === "resume" ? "resume" : "cover letter"}`}
-              >
-                {deleteDocumentMutation.isPending ? (
-                  <LoaderIcon className="h-4 w-4 animate-spin" />
-                ) : (
-                  <TrashIcon className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>
-                {deleteDocumentMutation.isPending
-                  ? "Deleting..."
-                  : `Delete ${documentType === "resume" ? "Resume" : "Cover Letter"}`}
-              </p>
-            </TooltipContent>
-          </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={handleDelete}
+              disabled={isLoading}
+              size="icon"
+              variant="destructive"
+              aria-label={`Delete ${documentType === "resume" ? "resume" : "cover letter"}`}
+            >
+              {deleteDocumentMutation.isPending ? (
+                <LoaderIcon className="h-4 w-4 animate-spin" />
+              ) : (
+                <TrashIcon className="h-4 w-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>
+              {deleteDocumentMutation.isPending
+                ? "Deleting..."
+                : `Delete ${documentType === "resume" ? "Resume" : "Cover Letter"}`}
+            </p>
+          </TooltipContent>
+        </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                onClick={handleClose}
-                disabled={isLoading}
-                size="icon"
-                aria-label="Close editor"
-              >
-                <XIcon className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Close (Esc)</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              onClick={handleClose}
+              disabled={isLoading}
+              size="icon"
+              aria-label="Close editor"
+            >
+              <XIcon className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Close (Esc)</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
-      <div className="h-fit overflow-hidden rounded-lg border">
+      <div className="h-full">
         <Editor
           ref={(ref: EditorElement | null) => {
             editorRef.current = ref;
           }}
           initialValue={initialContent}
           previewStyle="vertical"
-          height="calc(100vh - 90px)"
+          height="100%"
+          minHeight="100%"
           initialEditType="wysiwyg"
           usageStatistics={false}
           placeholder={`Enter your ${documentType === "resume" ? "resume" : "cover letter"} content here...`}

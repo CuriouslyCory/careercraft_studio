@@ -181,8 +181,64 @@ export function JobPostingsPanel() {
     },
   );
 
+  const updateStatusMutation = api.document.updateJobPostingStatus.useMutation({
+    onMutate: async (updateData: { id: string; status: string }) => {
+      // Cancel any outgoing refetches
+      await queryClient.document.listJobPostings.cancel();
+
+      // Save the current state
+      const previousJobPostings = jobPostingsQuery.data ?? [];
+
+      // Optimistically update the status in the UI
+      queryClient.document.listJobPostings.setData(undefined, (old) => {
+        return old
+          ? old.map((job) =>
+              job.id === updateData.id
+                ? {
+                    ...job,
+                    status: updateData.status === "" ? null : updateData.status,
+                  }
+                : job,
+            )
+          : [];
+      });
+
+      // Return the previous state in case we need to revert
+      return { previousJobPostings };
+    },
+    onError: (
+      err: { message: string },
+      _updateData: { id: string; status: string },
+      context?: { previousJobPostings: typeof jobPostings },
+    ) => {
+      // If the mutation fails, restore the previous job postings
+      if (context?.previousJobPostings) {
+        queryClient.document.listJobPostings.setData(
+          undefined,
+          context.previousJobPostings,
+        );
+      }
+      toast.error(`Failed to update status: ${err.message}`);
+    },
+    onSettled: () => {
+      // Sync with server
+      void queryClient.document.listJobPostings.invalidate();
+    },
+  });
+
   const handleViewContent = (id: string, content: string, title: string) => {
     setViewContent({ id, content, title });
+  };
+
+  const handleStatusUpdate = (jobId: string, status: string) => {
+    updateStatusMutation.mutate({ id: jobId, status });
+  };
+
+  const isUpdatingStatus = (jobId: string) => {
+    return (
+      updateStatusMutation.isPending &&
+      updateStatusMutation.variables?.id === jobId
+    );
   };
 
   const handleDelete = (id: string) => {
@@ -720,6 +776,8 @@ export function JobPostingsPanel() {
               generateCoverLetterMutation.variables?.jobPostingId ===
                 jobPostingId,
             deleteMutation.isPending,
+            handleStatusUpdate,
+            isUpdatingStatus,
           )}
           data={jobPostings}
           isGeneratingResume={(jobPostingId: string) =>

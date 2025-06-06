@@ -13,13 +13,31 @@ export const educationRouter = createTRPCRouter({
 
   create: protectedProcedure
     .input(
-      z.object({
-        type: z.nativeEnum(EducationType),
-        institutionName: z.string(),
-        degreeOrCertName: z.string().optional(),
-        description: z.string(),
-        dateCompleted: z.string().optional(),
-      }),
+      z
+        .object({
+          type: z.nativeEnum(EducationType),
+          institutionName: z.string(),
+          degreeOrCertName: z.string().optional(),
+          description: z.string().optional(),
+          dateCompleted: z.string().optional(),
+        })
+        .refine(
+          (data) => {
+            // Institution name is required unless it's CPD or OTHER
+            if (
+              data.type !== "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+              data.type !== "OTHER" &&
+              !data.institutionName.trim()
+            ) {
+              return false;
+            }
+            return true;
+          },
+          {
+            message: "Institution name is required",
+            path: ["institutionName"],
+          },
+        ),
     )
     .mutation(async ({ ctx, input }) => {
       try {
@@ -30,9 +48,9 @@ export const educationRouter = createTRPCRouter({
           data: {
             ...input,
             type: validatedType,
-            dateCompleted: input.dateCompleted
+            dateCompleted: input.dateCompleted?.trim()
               ? new Date(input.dateCompleted)
-              : undefined,
+              : null,
             user: { connect: { id: ctx.session.user.id } },
           },
         });
@@ -52,14 +70,34 @@ export const educationRouter = createTRPCRouter({
 
   update: protectedProcedure
     .input(
-      z.object({
-        id: z.string(),
-        type: z.nativeEnum(EducationType).optional(),
-        institutionName: z.string().optional(),
-        degreeOrCertName: z.string().optional(),
-        description: z.string().optional(),
-        dateCompleted: z.string().optional(),
-      }),
+      z
+        .object({
+          id: z.string(),
+          type: z.nativeEnum(EducationType).optional(),
+          institutionName: z.string().optional(),
+          degreeOrCertName: z.string().optional(),
+          description: z.string().optional(),
+          dateCompleted: z.string().optional(),
+        })
+        .refine(
+          (data) => {
+            // Institution name is required unless it's CPD or OTHER (only validate if both type and institutionName are provided)
+            if (data.type && data.institutionName !== undefined) {
+              if (
+                data.type !== "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+                data.type !== "OTHER" &&
+                !data.institutionName.trim()
+              ) {
+                return false;
+              }
+            }
+            return true;
+          },
+          {
+            message: "Institution name is required",
+            path: ["institutionName"],
+          },
+        ),
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -75,9 +113,10 @@ export const educationRouter = createTRPCRouter({
           data: {
             ...data,
             ...(validatedType ? { type: validatedType } : {}),
-            ...(data.dateCompleted
-              ? { dateCompleted: new Date(data.dateCompleted) }
-              : {}),
+            // Only set dateCompleted if it's a non-empty string
+            dateCompleted: data.dateCompleted?.trim()
+              ? new Date(data.dateCompleted)
+              : null,
           },
         });
       } catch (error) {

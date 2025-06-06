@@ -4,20 +4,56 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useForm } from "@tanstack/react-form";
+import type { AnyFieldApi } from "@tanstack/react-form";
 
 // Import the EducationType enum from Prisma
 import { EducationType } from "@prisma/client";
 
-// Validation schema
-const educationSchema = z.object({
-  type: z.nativeEnum(EducationType),
-  institutionName: z.string().min(1, "Institution name is required"),
-  degreeOrCertName: z.string().optional(),
-  description: z.string().min(1, "Description is required"),
-  dateCompleted: z.string().optional(),
-});
+// Validation schema with conditional validation
+const educationSchema = z
+  .object({
+    type: z.nativeEnum(EducationType),
+    institutionName: z.string(),
+    degreeOrCertName: z.string().optional(),
+    description: z.string().optional(),
+    dateCompleted: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      // Institution name is required unless it's CPD or OTHER
+      if (
+        data.type !== "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+        data.type !== "OTHER" &&
+        !data.institutionName.trim()
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Institution name is required",
+      path: ["institutionName"],
+    },
+  );
 
 type EducationFormValues = z.infer<typeof educationSchema>;
+
+// Field info component for displaying validation errors
+function FieldInfo({ field }: { field: AnyFieldApi }) {
+  return (
+    <>
+      {field.state.meta.isTouched && !field.state.meta.isValid ? (
+        <div className="mt-1 text-sm text-red-600">
+          {field.state.meta.errors.join(", ")}
+        </div>
+      ) : null}
+      {field.state.meta.isValidating ? (
+        <div className="mt-1 text-sm text-blue-600">Validating...</div>
+      ) : null}
+    </>
+  );
+}
 
 export function EducationPanel() {
   const [editId, setEditId] = useState<string | null>(null);
@@ -30,11 +66,6 @@ export function EducationPanel() {
     description: "",
     dateCompleted: "",
   };
-
-  const [editValues, setEditValues] =
-    useState<EducationFormValues>(emptyEducation);
-  const [newEducation, setNewEducation] =
-    useState<EducationFormValues>(emptyEducation);
 
   const queryClient = api.useUtils();
   const educationQuery = api.document.listEducation.useQuery();
@@ -114,7 +145,7 @@ export function EducationPanel() {
         type: newData.type,
         institutionName: newData.institutionName,
         degreeOrCertName: newData.degreeOrCertName ?? null,
-        description: newData.description,
+        description: newData.description ?? null,
         dateCompleted: newData.dateCompleted
           ? new Date(newData.dateCompleted)
           : null,
@@ -129,7 +160,7 @@ export function EducationPanel() {
 
       // Hide the form and reset the form data
       setShowAddForm(false);
-      setNewEducation(emptyEducation);
+      addForm.reset();
 
       // Return the previous state in case we need to revert
       return { previousEducation };
@@ -155,83 +186,75 @@ export function EducationPanel() {
     },
   });
 
+  // TanStack Form for adding new education
+  const addForm = useForm({
+    defaultValues: emptyEducation,
+    onSubmit: async ({ value }) => {
+      // Validate with Zod
+      try {
+        educationSchema.parse(value);
+        createMutation.mutate(value);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          error.errors.forEach((err) => {
+            toast.error(`${String(err.path)}: ${err.message}`);
+          });
+        } else {
+          toast.error("Failed to validate input");
+        }
+      }
+    },
+  });
+
+  // TanStack Form for editing education
+  const editForm = useForm({
+    defaultValues: emptyEducation,
+    onSubmit: async ({ value }) => {
+      if (!editId) return;
+
+      // Validate with Zod
+      try {
+        educationSchema.parse(value);
+        updateMutation.mutate({
+          id: editId,
+          ...value,
+        });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          error.errors.forEach((err) => {
+            toast.error(`${String(err.path)}: ${err.message}`);
+          });
+        } else {
+          toast.error("Failed to validate input");
+        }
+      }
+    },
+  });
+
   const handleEdit = (education: {
     id: string;
     type: EducationType;
     institutionName: string;
     degreeOrCertName: string | null;
-    description: string;
+    description: string | null;
     dateCompleted: Date | null;
   }) => {
     setEditId(education.id);
-    setEditValues({
-      type: education.type,
-      institutionName: education.institutionName,
-      degreeOrCertName: education.degreeOrCertName ?? "",
-      description: education.description,
-      dateCompleted: education.dateCompleted
+    // Reset and populate the edit form with the education data
+    editForm.reset();
+    editForm.setFieldValue("type", education.type);
+    editForm.setFieldValue("institutionName", education.institutionName);
+    editForm.setFieldValue(
+      "degreeOrCertName",
+      education.degreeOrCertName ?? "",
+    );
+    editForm.setFieldValue("description", education.description ?? "");
+    editForm.setFieldValue(
+      "dateCompleted",
+      education.dateCompleted
         ? education.dateCompleted.toISOString().split("T")[0]
         : "",
-    });
-  };
-
-  const handleEditChange = (
-    field: keyof EducationFormValues,
-    value: string,
-  ) => {
-    setEditValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const handleNewEducationChange = (
-    field: keyof EducationFormValues,
-    value: string,
-  ) => {
-    setNewEducation((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const validateAndSave = () => {
-    if (!editId) return;
-
-    try {
-      // Validate the input
-      educationSchema.parse(editValues);
-
-      updateMutation.mutate({
-        id: editId,
-        ...editValues,
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        error.errors.forEach((err) => {
-          toast.error(`${String(err.path)}: ${err.message}`);
-        });
-      } else {
-        toast.error("Failed to validate input");
-      }
-    }
-  };
-
-  const validateAndAdd = () => {
-    try {
-      // Validate the input
-      educationSchema.parse(newEducation);
-
-      createMutation.mutate(newEducation);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        error.errors.forEach((err) => {
-          toast.error(`${String(err.path)}: ${err.message}`);
-        });
-      } else {
-        toast.error("Failed to validate input");
-      }
-    }
+    );
   };
 
   const handleDelete = (id: string) => {
@@ -278,96 +301,188 @@ export function EducationPanel() {
         <div className="mb-4 rounded border border-gray-200 bg-gray-50 p-4">
           <h3 className="mb-3 text-lg font-medium">Add New Education</h3>
 
-          <div className="mb-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">Type</label>
-              <select
-                value={newEducation.type}
-                onChange={(e) => {
-                  // Properly cast string to EducationType
-                  const selectedType = e.target
-                    .value as keyof typeof EducationType;
-                  handleNewEducationChange("type", EducationType[selectedType]);
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void addForm.handleSubmit();
+            }}
+          >
+            <div className="mb-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <addForm.Field
+                name="type"
+                validators={{
+                  onChange: ({ value }) =>
+                    !value ? "Education type is required" : undefined,
                 }}
-                className="w-full rounded border p-2"
               >
-                {Object.values(EducationType).map((type) => (
-                  <option key={type} value={type}>
-                    {formatEducationType(type)}
-                  </option>
-                ))}
-              </select>
-            </div>
+                {(field) => (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Type
+                    </label>
+                    <select
+                      value={field.state.value}
+                      onChange={(e) => {
+                        field.handleChange(e.target.value as EducationType);
+                      }}
+                      onBlur={field.handleBlur}
+                      className="w-full rounded border p-2"
+                    >
+                      {Object.values(EducationType).map((type) => (
+                        <option key={type} value={type}>
+                          {formatEducationType(type)}
+                        </option>
+                      ))}
+                    </select>
+                    <FieldInfo field={field} />
+                  </div>
+                )}
+              </addForm.Field>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Institution Name
-              </label>
-              <input
-                type="text"
-                value={newEducation.institutionName}
-                onChange={(e) =>
-                  handleNewEducationChange("institutionName", e.target.value)
+              <addForm.Subscribe selector={(state) => state.values.type}>
+                {(selectedType) => (
+                  <addForm.Field
+                    name="institutionName"
+                    validators={{
+                      onChange: ({ value }) =>
+                        selectedType !==
+                          "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+                        selectedType !== "OTHER" &&
+                        !value.trim()
+                          ? "Institution name is required"
+                          : undefined,
+                    }}
+                  >
+                    {(field) => (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          Institution Name{" "}
+                          {selectedType !==
+                            "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+                          selectedType !== "OTHER"
+                            ? "*"
+                            : "(Optional)"}
+                        </label>
+                        <input
+                          type="text"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border p-2"
+                          placeholder={
+                            selectedType ===
+                              "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" ||
+                            selectedType === "OTHER"
+                              ? "Enter institution name (optional)"
+                              : "Enter institution name"
+                          }
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </addForm.Field>
+                )}
+              </addForm.Subscribe>
+
+              <addForm.Subscribe selector={(state) => state.values.type}>
+                {(selectedType) => (
+                  <addForm.Field name="degreeOrCertName">
+                    {(field) => (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium">
+                          Degree/Certification Name{" "}
+                          {selectedType ===
+                            "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" ||
+                          selectedType === "OTHER"
+                            ? "(Optional)"
+                            : ""}
+                        </label>
+                        <input
+                          type="text"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          onBlur={field.handleBlur}
+                          className="w-full rounded border p-2"
+                          placeholder={
+                            selectedType ===
+                              "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" ||
+                            selectedType === "OTHER"
+                              ? "Enter degree or certification name (optional)"
+                              : "Enter degree or certification name (optional)"
+                          }
+                        />
+                        <FieldInfo field={field} />
+                      </div>
+                    )}
+                  </addForm.Field>
+                )}
+              </addForm.Subscribe>
+
+              {/* Date Completed - only show if type is not CPD or OTHER */}
+              <addForm.Subscribe selector={(state) => state.values.type}>
+                {(type) =>
+                  type !== "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+                  type !== "OTHER" ? (
+                    <addForm.Field name="dateCompleted">
+                      {(field) => (
+                        <div>
+                          <label className="mb-1 block text-sm font-medium">
+                            Date Completed
+                          </label>
+                          <input
+                            type="date"
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            onBlur={field.handleBlur}
+                            className="w-full rounded border p-2"
+                          />
+                          <FieldInfo field={field} />
+                        </div>
+                      )}
+                    </addForm.Field>
+                  ) : null
                 }
-                className="w-full rounded border p-2"
-                placeholder="Enter institution name"
-              />
+              </addForm.Subscribe>
+
+              <addForm.Field name="description">
+                {(field) => (
+                  <div className="md:col-span-2">
+                    <label className="mb-1 block text-sm font-medium">
+                      Description
+                    </label>
+                    <textarea
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      className="w-full rounded border p-2"
+                      rows={3}
+                      placeholder="Enter description or field of study"
+                    />
+                    <FieldInfo field={field} />
+                  </div>
+                )}
+              </addForm.Field>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Degree/Certification Name
-              </label>
-              <input
-                type="text"
-                value={newEducation.degreeOrCertName}
-                onChange={(e) =>
-                  handleNewEducationChange("degreeOrCertName", e.target.value)
-                }
-                className="w-full rounded border p-2"
-                placeholder="Enter degree or certification name (optional)"
-              />
+            <div className="flex justify-end">
+              <addForm.Subscribe
+                selector={(state) => [state.canSubmit, state.isSubmitting]}
+              >
+                {([canSubmit, isSubmitting]) => (
+                  <button
+                    type="submit"
+                    disabled={!canSubmit || createMutation.isPending}
+                    className="rounded bg-blue-500 px-3 py-1 text-sm text-white disabled:bg-blue-300"
+                  >
+                    {createMutation.isPending || isSubmitting
+                      ? "Adding..."
+                      : "Add Education"}
+                  </button>
+                )}
+              </addForm.Subscribe>
             </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Date Completed
-              </label>
-              <input
-                type="date"
-                value={newEducation.dateCompleted}
-                onChange={(e) =>
-                  handleNewEducationChange("dateCompleted", e.target.value)
-                }
-                className="w-full rounded border p-2"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium">
-                Description
-              </label>
-              <textarea
-                value={newEducation.description}
-                onChange={(e) =>
-                  handleNewEducationChange("description", e.target.value)
-                }
-                className="w-full rounded border p-2"
-                rows={3}
-                placeholder="Enter description or field of study"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              onClick={validateAndAdd}
-              disabled={createMutation.isPending}
-              className="rounded bg-blue-500 px-3 py-1 text-sm text-white disabled:bg-blue-300"
-            >
-              {createMutation.isPending ? "Adding..." : "Add Education"}
-            </button>
-          </div>
+          </form>
         </div>
       )}
 
@@ -383,103 +498,205 @@ export function EducationPanel() {
               className="mb-4 rounded border border-gray-200 p-4"
             >
               {editId === edu.id ? (
-                <div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void editForm.handleSubmit();
+                  }}
+                >
                   <div className="mb-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        Type
-                      </label>
-                      <select
-                        value={editValues.type}
-                        onChange={(e) => {
-                          // Properly cast string to EducationType
-                          const selectedType = e.target
-                            .value as keyof typeof EducationType;
-                          handleEditChange("type", EducationType[selectedType]);
-                        }}
-                        className="w-full rounded border p-2"
-                      >
-                        {Object.values(EducationType).map((type) => (
-                          <option key={type} value={type}>
-                            {formatEducationType(type)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <editForm.Field
+                      name="type"
+                      validators={{
+                        onChange: ({ value }) =>
+                          !value ? "Education type is required" : undefined,
+                      }}
+                    >
+                      {(field) => (
+                        <div>
+                          <label className="mb-1 block text-sm font-medium">
+                            Type
+                          </label>
+                          <select
+                            value={field.state.value}
+                            onChange={(e) => {
+                              field.handleChange(
+                                e.target.value as EducationType,
+                              );
+                            }}
+                            onBlur={field.handleBlur}
+                            className="w-full rounded border p-2"
+                          >
+                            {Object.values(EducationType).map((type) => (
+                              <option key={type} value={type}>
+                                {formatEducationType(type)}
+                              </option>
+                            ))}
+                          </select>
+                          <FieldInfo field={field} />
+                        </div>
+                      )}
+                    </editForm.Field>
 
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        Institution Name
-                      </label>
-                      <input
-                        type="text"
-                        value={editValues.institutionName}
-                        onChange={(e) =>
-                          handleEditChange("institutionName", e.target.value)
-                        }
-                        className="w-full rounded border p-2"
-                      />
-                    </div>
+                    <editForm.Subscribe selector={(state) => state.values.type}>
+                      {(selectedType) => (
+                        <editForm.Field
+                          name="institutionName"
+                          validators={{
+                            onChange: ({ value }) =>
+                              selectedType !==
+                                "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+                              selectedType !== "OTHER" &&
+                              !value.trim()
+                                ? "Institution name is required"
+                                : undefined,
+                          }}
+                        >
+                          {(field) => (
+                            <div>
+                              <label className="mb-1 block text-sm font-medium">
+                                Institution Name{" "}
+                                {selectedType !==
+                                  "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+                                selectedType !== "OTHER"
+                                  ? "*"
+                                  : "(Optional)"}
+                              </label>
+                              <input
+                                type="text"
+                                value={field.state.value}
+                                onChange={(e) =>
+                                  field.handleChange(e.target.value)
+                                }
+                                onBlur={field.handleBlur}
+                                className="w-full rounded border p-2"
+                                placeholder={
+                                  selectedType ===
+                                    "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" ||
+                                  selectedType === "OTHER"
+                                    ? "Enter institution name (optional)"
+                                    : "Enter institution name"
+                                }
+                              />
+                              <FieldInfo field={field} />
+                            </div>
+                          )}
+                        </editForm.Field>
+                      )}
+                    </editForm.Subscribe>
 
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        Degree/Certification Name
-                      </label>
-                      <input
-                        type="text"
-                        value={editValues.degreeOrCertName}
-                        onChange={(e) =>
-                          handleEditChange("degreeOrCertName", e.target.value)
-                        }
-                        className="w-full rounded border p-2"
-                      />
-                    </div>
+                    <editForm.Subscribe selector={(state) => state.values.type}>
+                      {(selectedType) => (
+                        <editForm.Field name="degreeOrCertName">
+                          {(field) => (
+                            <div>
+                              <label className="mb-1 block text-sm font-medium">
+                                Degree/Certification Name{" "}
+                                {selectedType ===
+                                  "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" ||
+                                selectedType === "OTHER"
+                                  ? "(Optional)"
+                                  : ""}
+                              </label>
+                              <input
+                                type="text"
+                                value={field.state.value}
+                                onChange={(e) =>
+                                  field.handleChange(e.target.value)
+                                }
+                                onBlur={field.handleBlur}
+                                className="w-full rounded border p-2"
+                                placeholder={
+                                  selectedType ===
+                                    "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" ||
+                                  selectedType === "OTHER"
+                                    ? "Enter degree or certification name (optional)"
+                                    : "Enter degree or certification name (optional)"
+                                }
+                              />
+                              <FieldInfo field={field} />
+                            </div>
+                          )}
+                        </editForm.Field>
+                      )}
+                    </editForm.Subscribe>
 
-                    <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        Date Completed
-                      </label>
-                      <input
-                        type="date"
-                        value={editValues.dateCompleted}
-                        onChange={(e) =>
-                          handleEditChange("dateCompleted", e.target.value)
-                        }
-                        className="w-full rounded border p-2"
-                      />
-                    </div>
+                    {/* Date Completed - only show if type is not CPD or OTHER */}
+                    <editForm.Subscribe selector={(state) => state.values.type}>
+                      {(type) =>
+                        type !== "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
+                        type !== "OTHER" ? (
+                          <editForm.Field name="dateCompleted">
+                            {(field) => (
+                              <div>
+                                <label className="mb-1 block text-sm font-medium">
+                                  Date Completed
+                                </label>
+                                <input
+                                  type="date"
+                                  value={field.state.value}
+                                  onChange={(e) =>
+                                    field.handleChange(e.target.value)
+                                  }
+                                  onBlur={field.handleBlur}
+                                  className="w-full rounded border p-2"
+                                />
+                                <FieldInfo field={field} />
+                              </div>
+                            )}
+                          </editForm.Field>
+                        ) : null
+                      }
+                    </editForm.Subscribe>
 
-                    <div className="md:col-span-2">
-                      <label className="mb-1 block text-sm font-medium">
-                        Description
-                      </label>
-                      <textarea
-                        value={editValues.description}
-                        onChange={(e) =>
-                          handleEditChange("description", e.target.value)
-                        }
-                        className="w-full rounded border p-2"
-                        rows={3}
-                      />
-                    </div>
+                    <editForm.Field name="description">
+                      {(field) => (
+                        <div className="md:col-span-2">
+                          <label className="mb-1 block text-sm font-medium">
+                            Description
+                          </label>
+                          <textarea
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            onBlur={field.handleBlur}
+                            className="w-full rounded border p-2"
+                            rows={3}
+                          />
+                          <FieldInfo field={field} />
+                        </div>
+                      )}
+                    </editForm.Field>
                   </div>
 
                   <div className="flex justify-end space-x-2">
                     <button
+                      type="button"
                       onClick={() => setEditId(null)}
                       className="rounded bg-gray-300 px-2 py-1 text-xs"
                     >
                       Cancel
                     </button>
-                    <button
-                      onClick={validateAndSave}
-                      disabled={updateMutation.isPending}
-                      className="rounded bg-green-500 px-2 py-1 text-xs text-white"
+                    <editForm.Subscribe
+                      selector={(state) => [
+                        state.canSubmit,
+                        state.isSubmitting,
+                      ]}
                     >
-                      Save
-                    </button>
+                      {([canSubmit, isSubmitting]) => (
+                        <button
+                          type="submit"
+                          disabled={!canSubmit || updateMutation.isPending}
+                          className="rounded bg-green-500 px-2 py-1 text-xs text-white"
+                        >
+                          {updateMutation.isPending || isSubmitting
+                            ? "Saving..."
+                            : "Save"}
+                        </button>
+                      )}
+                    </editForm.Subscribe>
                   </div>
-                </div>
+                </form>
               ) : (
                 <div>
                   <div className="mb-2 flex items-start justify-between">
