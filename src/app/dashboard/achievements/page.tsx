@@ -1,4 +1,4 @@
-import { KeyAchievementsPanel } from "~/app/ai-chat/_components/key-achievements-panel";
+import { KeyAchievementsPanel } from "~/app/dashboard/_components/key-achievements-panel";
 
 export default function AchievementsPage() {
   return (

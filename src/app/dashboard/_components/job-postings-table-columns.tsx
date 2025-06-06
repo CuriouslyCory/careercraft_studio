@@ -141,6 +141,7 @@ export function JobPostingContextMenu({
   isGeneratingResume,
   isGeneratingCoverLetter,
   isDeleting,
+  onViewDetails,
   children,
 }: {
   job: JobPosting;
@@ -159,12 +160,21 @@ export function JobPostingContextMenu({
   isGeneratingResume: (jobPostingId: string) => boolean;
   isGeneratingCoverLetter: (jobPostingId: string) => boolean;
   isDeleting: boolean;
+  onViewDetails?: (jobPostingId: string) => void;
   children: React.ReactNode;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuItem
+          onClick={() => onViewDetails?.(job.id)}
+          className="cursor-pointer"
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          View Details
+        </DropdownMenuItem>
+
         <DropdownMenuItem
           onClick={() => onEdit(job)}
           className="cursor-pointer"
@@ -299,6 +309,7 @@ export const createJobPostingsColumns = (
   isDeleting: boolean,
   onStatusUpdate: (jobId: string, status: string) => void,
   isUpdatingStatus: (jobId: string) => boolean,
+  onViewDetails?: (jobPostingId: string) => void,
 ): ColumnDef<JobPosting>[] => [
   {
     accessorKey: "title",
@@ -329,6 +340,7 @@ export const createJobPostingsColumns = (
           isGeneratingResume={isGeneratingResume}
           isGeneratingCoverLetter={isGeneratingCoverLetter}
           isDeleting={isDeleting}
+          onViewDetails={onViewDetails}
         >
           <div className="cursor-pointer space-y-1">
             <div className="font-medium text-gray-900">{job.title}</div>
@@ -370,6 +382,7 @@ export const createJobPostingsColumns = (
           isGeneratingResume={isGeneratingResume}
           isGeneratingCoverLetter={isGeneratingCoverLetter}
           isDeleting={isDeleting}
+          onViewDetails={onViewDetails}
         >
           <div className="cursor-pointer font-medium">{company as string}</div>
         </JobPostingContextMenu>
@@ -406,6 +419,7 @@ export const createJobPostingsColumns = (
           isGeneratingResume={isGeneratingResume}
           isGeneratingCoverLetter={isGeneratingCoverLetter}
           isDeleting={isDeleting}
+          onViewDetails={onViewDetails}
         >
           <div className="cursor-pointer text-sm">{location as string}</div>
         </JobPostingContextMenu>
@@ -469,6 +483,7 @@ export const createJobPostingsColumns = (
           isGeneratingResume={isGeneratingResume}
           isGeneratingCoverLetter={isGeneratingCoverLetter}
           isDeleting={isDeleting}
+          onViewDetails={onViewDetails}
         >
           <div className="cursor-pointer text-sm text-gray-600">
             {(date as Date).toLocaleDateString()}

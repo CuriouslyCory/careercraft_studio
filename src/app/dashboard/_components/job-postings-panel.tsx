@@ -16,7 +16,7 @@ import type { Prisma } from "@prisma/client";
 import { Plus } from "lucide-react";
 import { JobPostingsDataTable } from "./job-postings-data-table";
 import { createJobPostingsColumns } from "./job-postings-table-columns";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 // Use Prisma generated type with includes
 type JobPosting = Prisma.JobPostingGetPayload<{
@@ -44,7 +44,20 @@ function FieldInfo({ field }: { field: AnyFieldApi }) {
 
 export function JobPostingsPanel() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  // Determine if we're in dashboard context to route document editor correctly
+  const isDashboard = pathname.startsWith("/dashboard");
+
+  // Helper function to generate the correct document editor URL based on context
+  const getDocumentEditorUrl = (params: URLSearchParams) => {
+    const baseRoute = isDashboard
+      ? "/dashboard/document-editor"
+      : "/ai-chat/document-editor";
+    return `${baseRoute}?${params.toString()}`;
+  };
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewContent, setViewContent] = useState<{
     id: string;
@@ -114,7 +127,7 @@ export function JobPostingsPanel() {
                 params.set("jobPostingId", result.jobPostingId);
                 params.set("documentType", "resume");
                 params.set("jobTitle", jobPosting.title);
-                router.push(`/ai-chat/document-editor?${params.toString()}`);
+                router.push(getDocumentEditorUrl(params));
               }
             },
           },
@@ -150,7 +163,7 @@ export function JobPostingsPanel() {
                 params.set("jobPostingId", result.jobPostingId);
                 params.set("documentType", "coverLetter");
                 params.set("jobTitle", jobPosting.title);
-                router.push(`/ai-chat/document-editor?${params.toString()}`);
+                router.push(getDocumentEditorUrl(params));
               }
             },
           },
@@ -269,13 +282,20 @@ export function JobPostingsPanel() {
     params.set("jobPostingId", jobPostingId);
     params.set("documentType", type);
     params.set("jobTitle", jobTitle);
-    router.push(`/ai-chat/document-editor?${params.toString()}`);
+    router.push(getDocumentEditorUrl(params));
   };
 
   const handleGenerateCoverLetter = (jobPostingId: string) => {
     generateCoverLetterMutation.mutate({
       jobPostingId,
     });
+  };
+
+  const handleViewDetails = (jobPostingId: string) => {
+    const detailPath = isDashboard
+      ? `/dashboard/job-postings/${jobPostingId}`
+      : `/ai-chat/job-postings/${jobPostingId}`;
+    router.push(detailPath);
   };
 
   const parseAndStoreMutation =
@@ -688,6 +708,7 @@ export function JobPostingsPanel() {
             deleteMutation.isPending,
             handleStatusUpdate,
             isUpdatingStatus,
+            handleViewDetails,
           )}
           data={jobPostings}
           isGeneratingResume={(jobPostingId: string) =>

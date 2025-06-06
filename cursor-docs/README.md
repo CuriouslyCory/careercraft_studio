@@ -40,6 +40,7 @@ Below is an index of the documented features. Each link will take you to a more 
 - **[AI Chat](./ai-chat.md)**: Describes the architecture and capabilities of the AI-powered chat interface, including its agent team and available tools.
 - **[Job Posting Import & Analysis](./job-posting-import.md)**: Explains how job postings are imported, parsed, stored, and analyzed against user profiles.
 - **[Job Posting Data Table](./job-posting-data-table.md)**: Documents the sortable, searchable data table interface for managing job postings with advanced filtering and action capabilities.
+- **[Job Posting Detail Page](./job-posting-detail-page.md)**: ✅ **NEW!** Comprehensive job posting detail view with editable fields, compatibility analysis, resume/cover letter generation, and document management integration.
 - **[User Profile Management](./user-profile-management.md)**: Describes the user profile system for managing professional contact information separate from authentication provider data.
 - **[Profile Management](./profile-management.md)**: Details the CRUD (Create, Read, Update, Delete) operations for user profile information such as work history, skills, and personal links.
 - **[Work History Merge](./work-history-merge.md)**: Describes the utility for merging multiple work history records into a single consolidated record, including skills and achievements consolidation.

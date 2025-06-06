@@ -3,7 +3,7 @@ import { SidebarProvider } from "~/components/ui/sidebar";
 import { SidebarTrigger } from "~/components/ui/sidebar";
 import { BioSidebar } from "../_components/bio-sidebar";
 import { auth } from "~/server/auth";
-import { AiChatLayout } from "./_components/ai-chat-layout";
+import { AiChatLayout } from "../dashboard/_components/ai-chat-layout";
 
 export default async function AiChatLayoutWrapper({
   children,

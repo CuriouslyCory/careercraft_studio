@@ -1,4 +1,4 @@
-import { JobPostingsPanel } from "~/app/ai-chat/_components/job-postings-panel";
+import { JobPostingsPanel } from "~/app/dashboard/_components/job-postings-panel";
 
 export default function JobPostingsPage() {
   return (

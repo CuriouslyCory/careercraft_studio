@@ -1,4 +1,4 @@
-import { LinksPanel } from "~/app/ai-chat/_components/links-panel";
+import { LinksPanel } from "~/app/dashboard/_components/links-panel";
 
 export default function LinksPage() {
   return (

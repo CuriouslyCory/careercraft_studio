@@ -1,5 +1,5 @@
-import { DocumentsPanel } from "../_components/documents-panel";
-import { PanelPageWrapper } from "../_components/panel-page-wrapper";
+import { DocumentsPanel } from "../../dashboard/_components/documents-panel";
+import { PanelPageWrapper } from "../../dashboard/_components/panel-page-wrapper";
 
 export default function DocumentsPage() {
   return (

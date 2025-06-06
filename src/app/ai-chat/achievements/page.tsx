@@ -1,5 +1,5 @@
-import { KeyAchievementsPanel } from "../_components/key-achievements-panel";
-import { PanelPageWrapper } from "../_components/panel-page-wrapper";
+import { KeyAchievementsPanel } from "../../dashboard/_components/key-achievements-panel";
+import { PanelPageWrapper } from "../../dashboard/_components/panel-page-wrapper";
 
 export default function AchievementsPage() {
   return (

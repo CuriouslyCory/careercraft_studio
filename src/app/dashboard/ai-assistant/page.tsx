@@ -7,8 +7,8 @@ import {
   SidebarProvider,
   SidebarInset,
 } from "~/components/ui/sidebar";
-import { ConversationsPanel } from "~/app/ai-chat/_components/conversations-panel";
-import { ChatInterfaceWithHeader } from "~/app/ai-chat/_components/chat-interface";
+import { ConversationsPanel } from "~/app/dashboard/_components/conversations-panel";
+import { ChatInterfaceWithHeader } from "~/app/dashboard/_components/chat-interface";
 
 export default function AIAssistantPage() {
   return (

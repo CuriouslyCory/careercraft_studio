@@ -1,4 +1,4 @@
-import { SubscriptionPanel } from "~/app/ai-chat/_components/subscription-panel";
+import { SubscriptionPanel } from "~/app/dashboard/_components/subscription-panel";
 
 export default function SubscriptionPage() {
   return (

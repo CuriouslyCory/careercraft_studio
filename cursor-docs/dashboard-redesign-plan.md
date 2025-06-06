@@ -238,6 +238,7 @@ const calculateCompletion = (sections: ProfileSection[]) => {
 - `/dashboard/links` - User links
 - `/dashboard/subscription` - Subscription management
 - `/dashboard/ai-assistant` - AI chat interface
+- `/dashboard/document-editor` - Resume and cover letter editor
 
 ## Success Metrics
 
@@ -318,6 +319,7 @@ const calculateCompletion = (sections: ProfileSection[]) => {
    - Job postings page with full functionality
    - All profile section pages (work-history, contact-info, achievements, skills, education, links)
    - Subscription management page
+   - Document editor for resumes and cover letters
    - Proper navigation and breadcrumbs
 
 4. **AI Assistant Integration**

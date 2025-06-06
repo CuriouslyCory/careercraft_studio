@@ -1,5 +1,5 @@
-import { EducationPanel } from "../_components/education-panel";
-import { PanelPageWrapper } from "../_components/panel-page-wrapper";
+import { EducationPanel } from "../../dashboard/_components/education-panel";
+import { PanelPageWrapper } from "../../dashboard/_components/panel-page-wrapper";
 
 export default function EducationPage() {
   return (

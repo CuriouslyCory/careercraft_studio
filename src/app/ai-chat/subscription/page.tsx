@@ -1,4 +1,4 @@
-import { SubscriptionPanel } from "../_components/subscription-panel";
+import { SubscriptionPanel } from "../../dashboard/_components/subscription-panel";
 
 export default function SubscriptionPage() {
   return (

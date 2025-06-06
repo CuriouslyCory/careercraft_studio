@@ -1,4 +1,4 @@
-import { ProfilePanel } from "../_components/profile-panel";
+import { ProfilePanel } from "../../dashboard/_components/profile-panel";
 
 export default function ProfilePage() {
   return (

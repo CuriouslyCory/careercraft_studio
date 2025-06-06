@@ -1,4 +1,4 @@
-import { WorkHistoryPanel } from "~/app/ai-chat/_components/work-history-panel";
+import { WorkHistoryPanel } from "~/app/dashboard/_components/work-history-panel";
 
 export default function WorkHistoryPage() {
   return (

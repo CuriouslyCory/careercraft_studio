@@ -1,4 +1,4 @@
-import { ProfilePanel } from "~/app/ai-chat/_components/profile-panel";
+import { ProfilePanel } from "~/app/dashboard/_components/profile-panel";
 
 export default function ContactInfoPage() {
   return (

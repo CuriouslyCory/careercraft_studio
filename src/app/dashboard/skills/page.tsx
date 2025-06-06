@@ -1,4 +1,4 @@
-import { UserSkillsPanel } from "~/app/ai-chat/_components/user-skills-panel";
+import { UserSkillsPanel } from "~/app/dashboard/_components/user-skills-panel";
 
 export default function SkillsPage() {
   return (

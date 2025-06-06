@@ -1,4 +1,4 @@
-import { EducationPanel } from "~/app/ai-chat/_components/education-panel";
+import { EducationPanel } from "~/app/dashboard/_components/education-panel";
 
 export default function EducationPage() {
   return (
