@@ -43,13 +43,20 @@ export function LandingPageStatic() {
 
         <h2>Master Your Career Journey with AI</h2>
         <p>
-          AI-powered resume and cover letter generation that adapts to every job
-          opportunity. Stop sending generic applications—start landing
-          interviews with personalized documents optimized for Applicant
-          Tracking Systems.
+          Professional dashboard with AI-powered tools that adapt to every job
+          opportunity. Track your profile completion and create tailored
+          documents that land interviews with ATS-optimized content.
         </p>
 
         <h2>Key Features and Benefits</h2>
+
+        <h3>Professional Dashboard</h3>
+        <p>
+          Modern interface with top navigation and comprehensive profile
+          completion tracking. Visualize your career progress with completion
+          percentages, summary cards, and quick access to all professional tools
+          and features.
+        </p>
 
         <h3>AI Chat Assistant</h3>
         <p>

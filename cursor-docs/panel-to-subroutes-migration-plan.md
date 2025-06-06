@@ -4,6 +4,8 @@
 
 This document outlines the comprehensive plan to convert all panel components from the current URL parameter-based system (`?bio=panelName`) to proper Next.js app router sub-routes (`/ai-chat/panelName`). This migration will improve SEO, enable better navigation, and provide cleaner URLs.
 
+**Note**: This migration was completed for the AI Chat interface. Additionally, CareerCraft Studio now features a modern Dashboard interface at `/dashboard` with the same functionality but a different layout approach. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
+
 ## Current Architecture
 
 ### Current System

@@ -4,6 +4,8 @@
 
 The job posting data table provides a modern, sortable, and searchable interface for managing job postings. It replaces the previous basic HTML table with a feature-rich data table built using TanStack Table and shadcn/ui components.
 
+**Availability**: This data table is available in both the AI Chat interface (`/ai-chat/job-postings`) and the Dashboard interface (`/dashboard/job-postings`). See [Dashboard Redesign](./dashboard-redesign-plan.md) for the dashboard implementation.
+
 ## Features
 
 ### Core Functionality

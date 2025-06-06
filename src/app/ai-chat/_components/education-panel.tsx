@@ -23,8 +23,8 @@ const educationSchema = z
     (data) => {
       // Institution name is required unless it's CPD or OTHER
       if (
-        data.type !== "CONTINUOUS_PROFESSIONAL_DEVELOPMENT" &&
-        data.type !== "OTHER" &&
+        data.type !== EducationType.CONTINUOUS_PROFESSIONAL_DEVELOPMENT &&
+        data.type !== EducationType.OTHER &&
         !data.institutionName.trim()
       ) {
         return false;

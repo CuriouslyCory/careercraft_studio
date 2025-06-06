@@ -104,15 +104,15 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             </h1>
 
             <p className="hero-subtitle mx-auto mt-6 max-w-3xl text-xl text-blue-100 sm:text-2xl">
-              AI-powered resume and cover letter generation that adapts to every
-              job opportunity. Stop sending generic applications—start landing
-              interviews.
+              Professional dashboard with AI-powered tools that adapt to every
+              job opportunity. Track your profile completion and create tailored
+              documents that land interviews.
             </p>
 
             <div className="hero-cta mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               {session?.user ? (
                 <Link
-                  href="/ai-chat"
+                  href="/dashboard"
                   className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"
                 >
                   Launch CareerCraft Studio
@@ -176,6 +176,32 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
           </div>
 
           <div className="mt-20 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {/* Professional Dashboard Feature */}
+            <div className="feature-card group rounded-2xl bg-white p-8 shadow-lg transition-all hover:shadow-xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100 group-hover:bg-indigo-200">
+                <BarChart3 className="h-6 w-6 text-indigo-600" />
+              </div>
+              <h3 className="mt-6 text-xl font-semibold text-gray-900">
+                Professional Dashboard
+              </h3>
+              <p className="mt-2 text-gray-600">
+                Modern interface with profile completion tracking. Visualize
+                your progress with completion percentages and quick access to
+                all career tools.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
+                  Progress Tracking
+                </span>
+                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
+                  Quick Actions
+                </span>
+                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs text-indigo-700">
+                  Clean Layout
+                </span>
+              </div>
+            </div>
+
             {/* AI Chat Feature */}
             <div className="feature-card group rounded-2xl bg-white p-8 shadow-lg transition-all hover:shadow-xl">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 group-hover:bg-blue-200">
@@ -619,7 +645,7 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
             </p>
             {session?.user ? (
               <Link
-                href="/ai-chat"
+                href="/dashboard"
                 className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"
               >
                 Try It Now
@@ -769,13 +795,22 @@ export function LandingPageClient({ session }: LandingPageClientProps) {
 
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               {session?.user ? (
-                <Link
-                  href="/ai-chat"
-                  className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-indigo-900 shadow-lg transition-all hover:bg-gray-50 hover:shadow-xl"
-                >
-                  Continue to Dashboard
-                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </Link>
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="group flex items-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-indigo-900 shadow-lg transition-all hover:bg-gray-50 hover:shadow-xl"
+                  >
+                    Continue to Dashboard
+                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                  <Link
+                    href="/dashboard/ai-assistant"
+                    className="group flex items-center gap-2 rounded-full border-2 border-white px-8 py-4 text-lg font-semibold text-white transition-all hover:bg-white hover:text-indigo-900"
+                  >
+                    Try AI Chat
+                    <MessageSquare className="h-5 w-5" />
+                  </Link>
+                </>
               ) : (
                 <Link
                   href="/api/auth/signin"

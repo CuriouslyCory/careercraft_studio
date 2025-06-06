@@ -2,7 +2,7 @@
 
 Welcome to the feature documentation for CareerCraft Studio. This collection of documents aims to provide a comprehensive understanding of the application's architecture, features, and functionalities.
 
-CareerCraft Studio is designed to assist users in creating tailored resumes and cover letters by leveraging AI for parsing, generation, and analysis.
+CareerCraft Studio is designed to assist users in creating tailored resumes and cover letters by leveraging AI for parsing, generation, and analysis. The application features a modern dashboard interface with profile completion tracking as the primary experience, complemented by an AI-first chat interface for conversational interactions.
 
 ## 🚀 Features
 
@@ -36,6 +36,7 @@ Below is an index of the documented features. Each link will take you to a more 
 
 - **[Landing Page](./landing-page.md)**: Documents the design decisions, architecture, and user experience strategy for the main marketing page.
 - **[Style Guidelines](./style-guidelines.md)**: Establishes the design system and style guidelines for consistent branding and user experience.
+- **[Dashboard Redesign](./dashboard-redesign-plan.md)**: Documents the new professional dashboard interface with top navigation, profile completion tracking, and streamlined user experience as an alternative to the AI chat layout.
 - **[AI Chat](./ai-chat.md)**: Describes the architecture and capabilities of the AI-powered chat interface, including its agent team and available tools.
 - **[Job Posting Import & Analysis](./job-posting-import.md)**: Explains how job postings are imported, parsed, stored, and analyzed against user profiles.
 - **[Job Posting Data Table](./job-posting-data-table.md)**: Documents the sortable, searchable data table interface for managing job postings with advanced filtering and action capabilities.
@@ -80,6 +81,8 @@ To contribute to or update this documentation, please follow the established str
 - **Education Records**: Academic background and certifications
 - **Achievement Portfolio**: Key accomplishments and milestones
 - **Professional Links**: LinkedIn, GitHub, portfolio, and other professional profiles
+- **Profile Completion Tracking**: Visual progress indicators and completion percentage (Dashboard interface)
+- **Multiple Interface Options**: Choose between AI Chat layout or modern Dashboard with top navigation
 
 ### Document Management
 

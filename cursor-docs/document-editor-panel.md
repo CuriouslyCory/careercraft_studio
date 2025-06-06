@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Document Editor Panel provides a dedicated interface for editing job-specific resumes and cover letters. It's accessible through the new sub-route structure and uses URL parameters to maintain state and allow direct linking to specific documents.
+The Document Editor Panel provides a dedicated interface for editing job-specific resumes and cover letters. It's accessible through the sub-route structure and uses URL parameters to maintain state and allow direct linking to specific documents.
+
+**Availability**: The Document Editor Panel is available in both the AI Chat interface (`/ai-chat/document-editor`) and can be accessed from the Dashboard interface (`/dashboard`) job postings section. Both interfaces provide the same editing functionality. See [Dashboard Redesign](./dashboard-redesign-plan.md) for dashboard details.
 
 ## Features
 

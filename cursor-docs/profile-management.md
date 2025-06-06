@@ -2,6 +2,8 @@
 
 This document outlines how user profile data is managed within CareerCraft Studio, typically through the AI Chat interface facilitated by the `Data Manager` and `User Profile` agents. These agents and their tools are defined in `src/server/langchain/agentTeam.ts`.
 
+**Interface Options**: Profile data can be managed through either the AI Chat interface (`/ai-chat/*`) or the modern Dashboard interface (`/dashboard`) which provides visual profile completion tracking and dedicated pages for each profile section. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
+
 ## Overview
 
 Users can create, read, update, and delete various components of their professional profile. This data forms the foundation for resume and cover letter generation, as well as for comparison against job postings.
@@ -130,7 +132,8 @@ All profile data is persisted in the application's database. The agents' tools i
 
 ## Integration with Other Features
 
-- **[AI Chat](./ai-chat.md)**: The primary interface for managing profile data.
+- **[AI Chat](./ai-chat.md)**: The primary conversational interface for managing profile data.
+- **[Dashboard Redesign](./dashboard-redesign-plan.md)**: The modern dashboard interface providing visual profile completion tracking and dedicated management pages for each profile section.
 - **[Resume Import & Parsing](./resume-import.md)**: The `parse_and_store_resume` tool, used by the `Data Manager` agent, is central to this.
 - **[Skill Normalization](./skill-normalization.md)**: Applied when skills are extracted and stored.
 - **[Work Achievement Management](./work-achievement-management.md)**: A specialized subset of profile management focused on achievements within work experiences.

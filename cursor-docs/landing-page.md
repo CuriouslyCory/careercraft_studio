@@ -65,6 +65,7 @@ export default async function Home() {
 // src/app/_components/landing-page-client.tsx (Client Component)
 export function LandingPageClient({ session }: LandingPageClientProps) {
   // Animation logic and interactive elements
+  // Routes authenticated users to /dashboard as primary interface
 }
 ```
 
@@ -134,6 +135,7 @@ animate(
    - **Purpose**: Detailed capability overview with feature-benefit mapping
    - **Organization**: 6 core features with visual icons and benefit tags
    - **Features Highlighted**:
+     - Professional Dashboard (progress tracking and modern interface)
      - AI Chat Assistant (conversational interface)
      - Smart Resume Import (automated parsing)
      - Job Posting Analysis (compatibility scoring)
@@ -163,6 +165,7 @@ animate(
 **Alignment with Core Features:**
 Each landing page feature section directly corresponds to documented functionality:
 
+- **Professional Dashboard** → [Dashboard Redesign](./dashboard-redesign-plan.md)
 - **AI Chat Assistant** → [AI Chat](./ai-chat.md)
 - **Smart Resume Import** → [Resume Import & Parsing](./resume-import.md)
 - **Job Posting Analysis** → [Job Posting Import & Analysis](./job-posting-import.md)
@@ -176,14 +179,14 @@ Each landing page feature section directly corresponds to documented functionali
 
 **Unauthenticated Users:**
 
-- Primary CTA: "Get Started Free" → Sign-in flow
+- Primary CTA: "Get Started Free" → Sign-in flow → Direct to Dashboard
 - Secondary messaging: Trust signals and feature exploration
-- Goal: Reduce friction to trial
+- Goal: Reduce friction to trial and immediate value demonstration
 
 **Authenticated Users:**
 
-- Primary CTA: "Launch CareerCraft Studio" → Direct to AI Chat
-- Secondary CTA: "Continue to Dashboard" in footer
+- Primary CTA: "Launch CareerCraft Studio" → Direct to Professional Dashboard
+- Secondary CTA: "Continue to AI Chat" → Direct to AI Chat interface (alternative layout)
 - Personalized welcome message with user name
 
 ### Conversion Optimization

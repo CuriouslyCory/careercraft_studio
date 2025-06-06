@@ -55,12 +55,6 @@ export function JobPostingsPanel() {
     jobPostingId: string;
     jobTitle: string;
   } | null>(null);
-  const [viewingDocument, setViewingDocument] = useState<{
-    jobPostingId: string;
-    jobTitle: string;
-    content: string;
-    type: "resume" | "coverLetter";
-  } | null>(null);
 
   // Track if URL parameters have been processed to prevent infinite loops
   const processedParamsRef = useRef<string | null>(null);
@@ -173,7 +167,6 @@ export function JobPostingsPanel() {
       onSuccess: (result) => {
         void jobPostingsQuery.refetch();
         toast.success(result.message);
-        setViewingDocument(null); // Close the viewing modal
       },
       onError: (error) => {
         toast.error(`Failed to delete document: ${error.message}`);
@@ -265,10 +258,6 @@ export function JobPostingsPanel() {
     });
   };
 
-  const handleCloseDocument = () => {
-    setViewingDocument(null);
-  };
-
   const handleEditDocument = (
     jobPostingId: string,
     jobTitle: string,
@@ -281,40 +270,6 @@ export function JobPostingsPanel() {
     params.set("documentType", type);
     params.set("jobTitle", jobTitle);
     router.push(`/ai-chat/document-editor?${params.toString()}`);
-  };
-
-  const handleDownloadDocument = () => {
-    if (!viewingDocument) return;
-
-    const blob = new Blob([viewingDocument.content], {
-      type: "text/markdown",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${viewingDocument.type}-${viewingDocument.jobTitle.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success(`${viewingDocument.type} downloaded!`);
-  };
-
-  const handleDeleteDocument = () => {
-    if (!viewingDocument) return;
-
-    const documentName =
-      viewingDocument.type === "resume" ? "resume" : "cover letter";
-    if (
-      confirm(
-        `Are you sure you want to delete this ${documentName}? This action cannot be undone.`,
-      )
-    ) {
-      deleteDocumentMutation.mutate({
-        jobPostingId: viewingDocument.jobPostingId,
-        documentType: viewingDocument.type,
-      });
-    }
   };
 
   const handleGenerateCoverLetter = (jobPostingId: string) => {
@@ -478,51 +433,6 @@ export function JobPostingsPanel() {
         jobTitle={compatibilityReport.jobTitle}
         onBack={handleCloseCompatibility}
       />
-    );
-  }
-
-  // Show document if one is being viewed
-  if (viewingDocument) {
-    return (
-      <div className="h-full space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">
-            {viewingDocument.type === "resume" ? "Resume" : "Cover Letter"} for{" "}
-            {viewingDocument.jobTitle}
-          </h2>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleDownloadDocument}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Download{" "}
-              {viewingDocument.type === "resume" ? "Resume" : "Cover Letter"}
-            </Button>
-            <Button
-              onClick={handleDeleteDocument}
-              disabled={deleteDocumentMutation.isPending}
-              variant="destructive"
-            >
-              {deleteDocumentMutation.isPending
-                ? "Deleting..."
-                : `Delete ${viewingDocument.type === "resume" ? "Resume" : "Cover Letter"}`}
-            </Button>
-            <Button variant="outline" onClick={handleCloseDocument}>
-              Back to Job Postings
-            </Button>
-          </div>
-        </div>
-        <div className="h-full overflow-y-auto rounded-lg border bg-white p-6">
-          <div className="prose prose-sm max-w-none">
-            <ReactMarkdown
-              components={markdownComponents}
-              rehypePlugins={[rehypeRaw]}
-            >
-              {viewingDocument.content}
-            </ReactMarkdown>
-          </div>
-        </div>
-      </div>
     );
   }
 
