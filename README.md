@@ -160,3 +160,13 @@ The achievement management tools interact directly with the database through:
 ```
 
 ```
+
+### Development
+
+To install a compatable chromium browser for puppeteer, run the following command:
+
+`npx puppeteer browsers install chromium@latest --path /tmp/localChromium`
+
+Then set the `LOCAL_CHROME_EXECUTABLE_PATH` environment variable to the path of the installed browser.
+
+`LOCAL_CHROME_EXECUTABLE_PATH=/tmp/localChromium/chrome-linux/chrome`

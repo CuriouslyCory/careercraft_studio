@@ -737,7 +737,7 @@ export const documentOpsRouter = createTRPCRouter({
         // await chromium.font('https://raw.githack.com/googlei18n/noto-emoji/master/fonts/NotoColorEmoji.ttf');
 
         const executablePath = isLocal
-          ? (process.env.LOCAL_CHROME_EXECUTABLE_PATH ?? "/tmp/chromium") // Example for linux
+          ? (env.LOCAL_CHROME_EXECUTABLE_PATH ?? "/tmp/chromium") // Example for linux
           : await chromium.executablePath(chromiumPackUrl);
 
         const viewport = {
@@ -756,7 +756,7 @@ export const documentOpsRouter = createTRPCRouter({
         const browser = await puppeteer.launch({
           args: browserArgs,
           defaultViewport: viewport,
-          executablePath: executablePath,
+          executablePath,
           headless: isLocal ? false : "shell", // Use "shell" for new headless on Vercel
         });
 
