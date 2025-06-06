@@ -10,10 +10,36 @@ The `TailoredResumeGenerator` creates professional, ATS-friendly resumes that ar
 
 - **Data-Driven**: Uses existing user profile data (work history, education, skills, achievements)
 - **Job-Specific**: Tailors content based on specific job posting requirements
+- **10-Year Work Experience Rule**: Automatically includes all work experience from the last 10 years in detail, plus any older experience that's specifically relevant to the job posting
+- **Smart Work Experience Classification**: Categorizes work experience into "detailed" (recent/relevant) and "brief" (older/irrelevant) sections
 - **ATS-Friendly**: Generates resumes optimized for Applicant Tracking Systems
 - **Keyword Integration**: Naturally incorporates relevant keywords from job descriptions
 - **Professional Formatting**: Consistent markdown formatting with clear sections
 - **Safety**: Never fabricates skills or experiences - only uses provided user data
+
+## Work Experience Logic
+
+### 10-Year Rule Implementation
+
+The service automatically classifies work experience into two categories:
+
+1. **Detailed Experience** (Full treatment):
+
+   - All work experience from the last 10 years
+   - Older work experience that's specifically relevant to the job posting (based on skills, job title keywords, or industry match)
+
+2. **Brief Experience** (Single line summary):
+   - Work experience older than 10 years that's not specifically relevant to the job posting
+   - Includes only job title, company, dates, and brief role description
+
+### Relevance Detection
+
+The system determines relevance by analyzing:
+
+- Job title keywords matching the target position
+- Skills used in the role that match job requirements
+- Industry alignment with the target job
+- Technical skills and frameworks that overlap with job requirements
 
 ## Usage
 
@@ -79,7 +105,7 @@ Returns a `TailoredResume` object with these sections:
 type TailoredResume = {
   header: string; // Contact information and links
   summary: string; // Professional summary tailored to the job
-  workExperience: string; // Chronological work experience with keywords
+  workExperience: string; // Work experience with detailed/brief formatting
   skills: string; // Technical and soft skills organized by category
   education?: string; // Education section (if available)
   achievements?: string; // Awards and notable achievements (if available)
@@ -106,6 +132,17 @@ Experienced Software Engineer with 3+ years...
 **January 2022 - Present**
 
 - Led React development team...
+- Implemented microservices architecture...
+
+### Junior Developer | StartupCo
+
+**June 2020 - December 2021**
+
+- Developed frontend components...
+
+**Previous Experience:**
+
+- Software Intern at BigCorp (2019-2020) - Assisted with legacy system maintenance
 
 ## Skills
 
@@ -123,7 +160,9 @@ Experienced Software Engineer with 3+ years...
 
 ## Work Experience Template
 
-The service uses a consistent template for work experience entries:
+### Detailed Experience (Recent/Relevant)
+
+The service uses a comprehensive template for recent or relevant work experience:
 
 ```markdown
 ### [Job Title] | [Company Name]
@@ -133,6 +172,19 @@ The service uses a consistent template for work experience entries:
 - [Achievement/responsibility with quantified impact when possible]
 - [Achievement/responsibility incorporating relevant keywords]
 - [Achievement/responsibility demonstrating skills needed for target job]
+- [Additional achievements and responsibilities]
+
+**Skills Used:** [Relevant skills with proficiency levels]
+```
+
+### Brief Experience (Older/Irrelevant)
+
+For older, less relevant positions:
+
+```markdown
+**Previous Experience:**
+
+- [Job Title] at [Company] ([Start Date] - [End Date]) - [Brief role description]
 ```
 
 ## LLM Prompt Strategy
@@ -140,10 +192,33 @@ The service uses a consistent template for work experience entries:
 The service uses a comprehensive prompt that includes:
 
 1. **System Instructions**: Expert resume writer persona with ATS optimization focus
-2. **Critical Rules**: Never fabricate information, only use provided data
-3. **Formatting Requirements**: Markdown structure with consistent formatting
-4. **Keyword Integration**: Natural incorporation of job description keywords
-5. **Section Templates**: Specific formatting for each resume section
+2. **Work Experience Rules**: Specific formatting guidelines for detailed vs. brief experience
+3. **Critical Rules**: Never fabricate information, only use provided data
+4. **Formatting Requirements**: Markdown structure with consistent formatting
+5. **Keyword Integration**: Natural incorporation of job description keywords
+6. **Section Templates**: Specific formatting for each resume section
+
+## Classification Algorithm
+
+### Work Experience Classification Process
+
+1. **Date Analysis**: Calculate if work experience is within the last 10 years
+2. **Keyword Extraction**: Extract relevant keywords from job posting (skills, industry, job title words)
+3. **Relevance Scoring**: Check if older work experience matches job keywords through:
+   - Job title analysis
+   - Skills overlap
+   - Industry alignment
+4. **Classification**: Assign to detailed or brief category based on recency and relevance
+
+### Keyword Sources
+
+The system extracts keywords from:
+
+- Job skill requirements (technical and soft skills)
+- Job posting structured details
+- Industry information
+- Job title and company information
+- Experience requirements and categories
 
 ## Error Handling
 
@@ -153,6 +228,7 @@ The service includes robust error handling for:
 - Job posting not found or access denied
 - LLM processing errors
 - Data validation failures
+- Work history classification errors
 
 ## Security
 
@@ -168,6 +244,7 @@ The service includes robust error handling for:
 - `User` profile data via `resume-data-generator`
 - `JobPostingDetails` for structured requirements
 - `SkillRequirement`, `ExperienceRequirement`, `EducationRequirement`
+- `WorkHistory` with achievements and skills
 
 ### Dependencies
 
@@ -179,10 +256,11 @@ The service includes robust error handling for:
 ## Example Workflow
 
 1. **Data Retrieval**: Fetch user profile and job posting data
-2. **Requirement Analysis**: Extract and format job requirements
-3. **LLM Generation**: Generate tailored content using structured prompts
-4. **Validation**: Ensure output matches expected schema
-5. **Formatting**: Return in requested format (structured or markdown)
+2. **Work Experience Classification**: Analyze and categorize work history based on 10-year rule and relevance
+3. **Requirement Analysis**: Extract and format job requirements
+4. **LLM Generation**: Generate tailored content using structured prompts with classified work experience
+5. **Validation**: Ensure output matches expected schema
+6. **Formatting**: Return in requested format (structured or markdown)
 
 ## Performance Considerations
 
@@ -190,6 +268,7 @@ The service includes robust error handling for:
 - Single LLM call for complete resume generation
 - Structured output for faster processing
 - Minimal data transformation overhead
+- Smart work experience filtering reduces prompt size
 
 ## Future Enhancements
 
@@ -198,3 +277,5 @@ The service includes robust error handling for:
 - A/B testing for different prompt strategies
 - Integration with external job boards
 - Resume scoring and optimization suggestions
+- Configurable time ranges (beyond 10 years)
+- Machine learning-based relevance scoring

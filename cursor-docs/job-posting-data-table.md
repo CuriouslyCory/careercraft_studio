@@ -220,7 +220,8 @@ A new modal interface for editing job postings that includes:
 
 ### Context Menu Interaction
 
-- **Click anywhere** on a table row (except status column) to open the context menu
+- **Right-click anywhere** on a table row (except status column) to open the context menu
+- **Left-click anywhere** on a table row (except status column) to open the job posting details page
 - **No dedicated actions column** - cleaner table layout
 - **Contextual actions** based on job posting state (e.g., "View Resume" vs "Generate Resume")
 - **External links** open in new tabs when available
@@ -238,6 +239,8 @@ A new modal interface for editing job postings that includes:
 - **Hover effects** for better interactivity
 - **Loading states** within context menu items and status dropdowns
 - **Color-coded status badges** for quick identification
+- **Right-click context menu** activation with visual feedback
+- **Left-click navigation** to job posting details page
 - **Row Loading Animation**: Animated progress bar at the bottom of table rows during resume generation
   - Blue progress line that fills from left to right
   - Continuous animation until generation completes
@@ -317,10 +320,11 @@ const isUpdatingStatus = (jobId: string) => {
 
 Users can:
 
-1. Click anywhere on a table row (except status column) to open the context menu
-2. Select from available actions based on the job posting state
-3. Access external job URLs directly from the context menu
-4. Perform all CRUD operations through the context menu
+1. **Right-click** anywhere on a table row (except status column) to open the context menu
+2. **Left-click** anywhere on a table row (except status column) to open the job posting details page
+3. Select from available actions based on the job posting state
+4. Access external job URLs directly from the context menu
+5. Perform all CRUD operations through the context menu
 
 ### Status Editing Usage
 
@@ -387,7 +391,7 @@ Click any column header to sort:
 - [ ] Server-side pagination and filtering
 - [ ] Keyboard navigation
 - [ ] Accessibility improvements (ARIA labels, screen reader support)
-- [ ] Right-click context menu support
+- [x] Right-click context menu support
 - [ ] **Drag and drop status updates** (drag job postings between status columns)
 - [ ] **Status change notifications** via email or push notifications
 

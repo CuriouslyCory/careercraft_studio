@@ -163,128 +163,151 @@ export function JobPostingContextMenu({
   onViewDetails?: (jobPostingId: string) => void;
   children: React.ReactNode;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsOpen(true);
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Regular click opens job posting details
+    onViewDetails?.(job.id);
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuItem
-          onClick={() => onViewDetails?.(job.id)}
-          className="cursor-pointer"
-        >
-          <Eye className="mr-2 h-4 w-4" />
-          View Details
-        </DropdownMenuItem>
+    <div className="relative">
+      <div
+        onContextMenu={handleContextMenu}
+        onClick={handleClick}
+        className="cursor-pointer"
+      >
+        {children}
+      </div>
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuTrigger asChild>
+          <div className="hidden" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuItem
+            onClick={() => onViewDetails?.(job.id)}
+            className="cursor-pointer"
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            View Details
+          </DropdownMenuItem>
 
-        <DropdownMenuItem
-          onClick={() => onEdit(job)}
-          className="cursor-pointer"
-        >
-          <EditIcon className="mr-2 h-4 w-4" />
-          Edit Job Posting
-        </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => onEdit(job)}
+            className="cursor-pointer"
+          >
+            <EditIcon className="mr-2 h-4 w-4" />
+            Edit Job Posting
+          </DropdownMenuItem>
 
-        <DropdownMenuItem
-          onClick={() => onViewContent(job.id, job.content ?? "", job.title)}
-          className="cursor-pointer"
-        >
-          <Eye className="mr-2 h-4 w-4" />
-          View Content
-        </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => onViewContent(job.id, job.content ?? "", job.title)}
+            className="cursor-pointer"
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            View Content
+          </DropdownMenuItem>
 
-        {job.url && (
-          <DropdownMenuItem asChild>
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cursor-pointer"
+          {job.url && (
+            <DropdownMenuItem asChild>
+              <a
+                href={job.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="cursor-pointer"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open Job URL
+              </a>
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onClick={() => onViewCompatibility(job.id, job.title)}
+            className="cursor-pointer text-blue-600"
+          >
+            <FileTextIcon className="mr-2 h-4 w-4" />
+            Compatibility Report
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          {job.document?.resumeContent ? (
+            <DropdownMenuItem
+              onClick={() =>
+                onEditDocument(
+                  job.id,
+                  job.title,
+                  job.document?.resumeContent ?? "",
+                  "resume",
+                )
+              }
+              className="cursor-pointer text-green-600"
             >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Open Job URL
-            </a>
-          </DropdownMenuItem>
-        )}
+              <FileTextIcon className="mr-2 h-4 w-4" />
+              View Resume
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => onGenerateResume(job.id)}
+              disabled={isGeneratingResume(job.id)}
+              className="cursor-pointer text-green-600"
+            >
+              <FileTextIcon className="mr-2 h-4 w-4" />
+              {isGeneratingResume(job.id)
+                ? "Generating Resume..."
+                : "Generate Resume"}
+            </DropdownMenuItem>
+          )}
 
-        <DropdownMenuSeparator />
+          {job.document?.coverLetterContent ? (
+            <DropdownMenuItem
+              onClick={() =>
+                onEditDocument(
+                  job.id,
+                  job.title,
+                  job.document?.coverLetterContent ?? "",
+                  "coverLetter",
+                )
+              }
+              className="cursor-pointer text-purple-600"
+            >
+              <MailIcon className="mr-2 h-4 w-4" />
+              View Cover Letter
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => onGenerateCoverLetter(job.id)}
+              disabled={isGeneratingCoverLetter(job.id)}
+              className="cursor-pointer text-purple-600"
+            >
+              <MailIcon className="mr-2 h-4 w-4" />
+              {isGeneratingCoverLetter(job.id)
+                ? "Generating Cover Letter..."
+                : "Generate Cover Letter"}
+            </DropdownMenuItem>
+          )}
 
-        <DropdownMenuItem
-          onClick={() => onViewCompatibility(job.id, job.title)}
-          className="cursor-pointer text-blue-600"
-        >
-          <FileTextIcon className="mr-2 h-4 w-4" />
-          Compatibility Report
-        </DropdownMenuItem>
+          <DropdownMenuSeparator />
 
-        <DropdownMenuSeparator />
-
-        {job.document?.resumeContent ? (
           <DropdownMenuItem
-            onClick={() =>
-              onEditDocument(
-                job.id,
-                job.title,
-                job.document?.resumeContent ?? "",
-                "resume",
-              )
-            }
-            className="cursor-pointer text-green-600"
+            onClick={() => onDelete(job.id)}
+            disabled={isDeleting}
+            className="cursor-pointer text-red-600 focus:text-red-600"
           >
-            <FileTextIcon className="mr-2 h-4 w-4" />
-            View Resume
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Job Posting
           </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem
-            onClick={() => onGenerateResume(job.id)}
-            disabled={isGeneratingResume(job.id)}
-            className="cursor-pointer text-green-600"
-          >
-            <FileTextIcon className="mr-2 h-4 w-4" />
-            {isGeneratingResume(job.id)
-              ? "Generating Resume..."
-              : "Generate Resume"}
-          </DropdownMenuItem>
-        )}
-
-        {job.document?.coverLetterContent ? (
-          <DropdownMenuItem
-            onClick={() =>
-              onEditDocument(
-                job.id,
-                job.title,
-                job.document?.coverLetterContent ?? "",
-                "coverLetter",
-              )
-            }
-            className="cursor-pointer text-purple-600"
-          >
-            <MailIcon className="mr-2 h-4 w-4" />
-            View Cover Letter
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem
-            onClick={() => onGenerateCoverLetter(job.id)}
-            disabled={isGeneratingCoverLetter(job.id)}
-            className="cursor-pointer text-purple-600"
-          >
-            <MailIcon className="mr-2 h-4 w-4" />
-            {isGeneratingCoverLetter(job.id)
-              ? "Generating Cover Letter..."
-              : "Generate Cover Letter"}
-          </DropdownMenuItem>
-        )}
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem
-          onClick={() => onDelete(job.id)}
-          disabled={isDeleting}
-          className="cursor-pointer text-red-600 focus:text-red-600"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete Job Posting
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -342,7 +365,7 @@ export const createJobPostingsColumns = (
           isDeleting={isDeleting}
           onViewDetails={onViewDetails}
         >
-          <div className="cursor-pointer space-y-1">
+          <div className="space-y-1">
             <div className="font-medium text-gray-900">{job.title}</div>
             {job.industry && (
               <div className="text-xs text-gray-500">{job.industry}</div>
@@ -384,7 +407,7 @@ export const createJobPostingsColumns = (
           isDeleting={isDeleting}
           onViewDetails={onViewDetails}
         >
-          <div className="cursor-pointer font-medium">{company as string}</div>
+          <div className="font-medium">{company as string}</div>
         </JobPostingContextMenu>
       );
     },
@@ -421,7 +444,7 @@ export const createJobPostingsColumns = (
           isDeleting={isDeleting}
           onViewDetails={onViewDetails}
         >
-          <div className="cursor-pointer text-sm">{location as string}</div>
+          <div className="text-sm">{location as string}</div>
         </JobPostingContextMenu>
       );
     },
@@ -485,7 +508,7 @@ export const createJobPostingsColumns = (
           isDeleting={isDeleting}
           onViewDetails={onViewDetails}
         >
-          <div className="cursor-pointer text-sm text-gray-600">
+          <div className="text-sm text-gray-600">
             {(date as Date).toLocaleDateString()}
           </div>
         </JobPostingContextMenu>

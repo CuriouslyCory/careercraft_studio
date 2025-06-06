@@ -1,11 +1,12 @@
 import { JobPostingDetailLayout } from "../../_components/job-posting-detail/job-posting-detail-layout";
 
 interface JobPostingDetailPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function JobPostingDetailPage({
+export default async function JobPostingDetailPage({
   params,
 }: JobPostingDetailPageProps) {
-  return <JobPostingDetailLayout jobPostingId={params.id} />;
+  const { id } = await params;
+  return <JobPostingDetailLayout jobPostingId={id} />;
 }
