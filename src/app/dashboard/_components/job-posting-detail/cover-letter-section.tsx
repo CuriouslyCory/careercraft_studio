@@ -124,7 +124,7 @@ export function CoverLetterSection({ jobPosting }: CoverLetterSectionProps) {
                 <div className="flex items-center space-x-2">
                   <Button size="sm" asChild>
                     <Link
-                      href={`/dashboard/job-postings/${jobPosting.id}/cover-letter/edit`}
+                      href={`/dashboard/document-editor?jobPostingId=${jobPosting.id}&documentType=coverLetter&jobTitle=${encodeURIComponent(jobPosting.title)}`}
                     >
                       Edit Cover Letter
                       <ChevronRight className="ml-1 h-4 w-4" />
@@ -186,7 +186,7 @@ export function CoverLetterSection({ jobPosting }: CoverLetterSectionProps) {
 
               <Button variant="outline" asChild>
                 <Link
-                  href={`/dashboard/job-postings/${jobPosting.id}/cover-letter/edit`}
+                  href={`/dashboard/document-editor?jobPostingId=${jobPosting.id}&documentType=coverLetter&jobTitle=${encodeURIComponent(jobPosting.title)}`}
                 >
                   Write Manually
                 </Link>
