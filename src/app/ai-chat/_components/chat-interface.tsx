@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Plus } from "lucide-react";
+import { Send, Plus, MessageSquare } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { useTrpcChat, type UISimpleMessage } from "~/lib/hooks/useTrpcChat";
@@ -88,35 +88,7 @@ export function ChatInterface() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-6 flex items-center gap-4">
-        <div className="flex-grow border-b border-blue-200 pb-3 text-center">
-          <div className="flex items-center justify-center gap-4">
-            <h2 className="text-2xl font-bold text-gray-900">
-              CareerCraft{" "}
-              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Studio
-              </span>{" "}
-              AI
-            </h2>
-            <Button
-              onClick={startNewChat}
-              disabled={isLoading}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 p-0 text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
-              title="Start new chat"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="sr-only">Start new chat</span>
-            </Button>
-          </div>
-          {conversationId && (
-            <p className="mt-1 text-xs text-gray-500">
-              Conversation ID: {conversationId.slice(0, 8)}...
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="mb-6 flex-grow overflow-y-auto rounded-md border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-6 shadow-lg">
+      <div className="flex-grow overflow-y-auto rounded-md border border-blue-200 bg-gradient-to-br from-white to-blue-50 p-6 shadow-lg">
         {showIntro && messages.length === 0 && !isLoading && (
           <div className="mb-6 rounded-md border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-8 text-center">
             <h2 className="mb-3 text-2xl font-bold text-blue-700">
@@ -237,6 +209,44 @@ export function ChatInterface() {
           <span className="sr-only">Send message</span>
         </Button>
       </form>
+    </div>
+  );
+}
+
+// New component that includes the header with new chat functionality
+export function ChatInterfaceWithHeader() {
+  const { startNewChat, conversationId, isLoading } = useTrpcChat();
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Chat header */}
+      <div className="flex items-center justify-between border-b border-blue-200 p-4">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-5 w-5 text-blue-600" />
+          <h3 className="font-semibold text-gray-900">AI Assistant</h3>
+        </div>
+        <div className="flex items-center gap-3">
+          {conversationId && (
+            <p className="text-xs text-gray-500">
+              ID: {conversationId.slice(0, 8)}...
+            </p>
+          )}
+          <Button
+            onClick={startNewChat}
+            disabled={isLoading}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 p-0 text-white shadow-md transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+            title="Start new chat"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="sr-only">Start new chat</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Chat Interface */}
+      <div className="flex-1 p-6">
+        <ChatInterface />
+      </div>
     </div>
   );
 }

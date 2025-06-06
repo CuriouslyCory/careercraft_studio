@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { ChatInterface } from "./chat-interface";
+import { ChevronLeft, ChevronRight, MessageSquare, Plus } from "lucide-react";
+import { ChatInterfaceWithHeader } from "./chat-interface";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
@@ -53,18 +53,8 @@ export function AiChatLayout({ children }: AiChatLayoutProps) {
           isChatCollapsed ? "w-0 overflow-hidden" : "w-1/2",
         )}
       >
-        {/* Chat header */}
-        <div className="flex items-center border-b border-blue-200 p-4">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-blue-600" />
-            <h3 className="font-semibold text-gray-900">AI Assistant</h3>
-          </div>
-        </div>
-
-        {/* Chat Interface */}
-        <div className="flex-1 p-6">
-          <ChatInterface />
-        </div>
+        {/* Chat Interface with Header */}
+        <ChatInterfaceWithHeader />
 
         {/* Collapse button on left boundary */}
         <Button
@@ -94,7 +84,7 @@ export function AiChatLayout({ children }: AiChatLayoutProps) {
             children
           ) : (
             <div className="flex flex-col p-4">
-              <ChatInterface />
+              <ChatInterfaceWithHeader />
             </div>
           )}
         </div>
