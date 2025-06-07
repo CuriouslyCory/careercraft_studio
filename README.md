@@ -157,9 +157,105 @@ The achievement management tools interact directly with the database through:
 - **Atomic transactions** for batch operations to ensure consistency
 - **Optimistic handling** of concurrent edits and missing records
 
+## Subscription System
+
+CareerCraft Studio includes a comprehensive subscription system with tiered access to features. The system supports flexible tier management with status-based visibility controls.
+
+### Subscription Tiers
+
+- **Free Tier**: Basic features with monthly usage limits
+- **Pro Tier**: Unlimited access to all features
+- **Enterprise Tier**: Advanced features for teams and organizations (configurable)
+
+### Tier Status System
+
+The subscription system includes a flexible status system for managing tier availability:
+
+- **ACTIVE**: Tier is fully available for subscription
+- **COMING_SOON**: Tier is visible in the UI as a teaser but cannot be subscribed to
+- **DISABLED**: Tier is completely hidden from the user interface
+
+### Management Scripts
+
+Several scripts are available for managing subscription tiers:
+
+#### Initialize Default Tiers
+
+Sets up the basic Free and Pro tiers with ACTIVE status:
+
+```bash
+node scripts/init-subscription-tiers.js
 ```
 
+This script creates or updates:
+
+- **Free Tier**: 1 resume upload, 5 job postings, 5 resume generations, 5 cover letters per month
+- **Pro Tier**: Unlimited access to all features ($9.99/month)
+
+#### Create Enterprise Tier
+
+Creates an Enterprise tier with "COMING_SOON" status as a teaser:
+
+```bash
+node scripts/create-enterprise-tier.js
 ```
+
+This creates an Enterprise tier that appears in the UI with:
+
+- "Coming Soon" badge
+- "TBD" pricing display
+- Disabled upgrade button
+- Clock icon indicating future availability
+
+#### Manage Tier Status
+
+Change the status of any subscription tier:
+
+```bash
+node scripts/manage-tier-status.js <tierName> <newStatus>
+```
+
+**Available statuses**: `ACTIVE`, `COMING_SOON`, `DISABLED`
+
+**Examples:**
+
+```bash
+# Make Enterprise tier available for subscription
+node scripts/manage-tier-status.js Enterprise ACTIVE
+
+# Set Enterprise tier as coming soon teaser
+node scripts/manage-tier-status.js Enterprise COMING_SOON
+
+# Hide a tier completely from the UI
+node scripts/manage-tier-status.js Enterprise DISABLED
+
+# Temporarily disable Pro tier
+node scripts/manage-tier-status.js Pro DISABLED
+```
+
+### Usage Tracking
+
+The system automatically tracks user usage across all features:
+
+- Resume uploads
+- Job posting imports
+- Resume generations
+- Cover letter generations
+- AI chat messages (future)
+
+Usage limits are enforced in real-time, with clear UI indicators showing current usage vs. limits.
+
+### UI Features
+
+The subscription panel provides:
+
+- **Current subscription status** with tier information
+- **Real-time usage tracking** with visual progress bars
+- **Tier comparison** with feature highlights
+- **Status-aware display** for coming soon and disabled tiers
+- **One-click upgrades/downgrades** for active tiers
+
+For detailed technical documentation, see [Subscription System Documentation](./cursor-docs/subscription-system.md).
 
 ### Development
 
