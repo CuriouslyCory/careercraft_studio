@@ -14,9 +14,6 @@ import { ZodError } from "zod";
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 
-//All trpc functions can be run max for 90 seconds
-export const maxDuration = 90;
-
 /**
  * 1. CONTEXT
  *
