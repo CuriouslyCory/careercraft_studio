@@ -391,5 +391,5 @@ export const withErrorHandling = async <T>(
   }
 
   // Throw the last error
-  throw lastError;
+  throw lastError ?? new Error("Operation failed after all retries");
 };

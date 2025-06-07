@@ -2,6 +2,8 @@
  * Custom error types for structured error handling in the agent system
  */
 
+import type { ZodError } from "zod";
+
 /**
  * Base error class for agent-related errors
  * Provides context about which agent encountered the error
@@ -25,7 +27,7 @@ export class AgentError extends Error {
 export class ValidationError extends Error {
   constructor(
     message: string,
-    public readonly validationErrors: import("zod").ZodError,
+    public readonly validationErrors: ZodError,
     public readonly input?: unknown,
   ) {
     super(message);

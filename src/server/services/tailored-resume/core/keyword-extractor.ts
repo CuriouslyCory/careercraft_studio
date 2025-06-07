@@ -442,7 +442,7 @@ export class KeywordExtractor {
     const wordCount = new Map<string, number>();
     words.forEach((word) => {
       if (this.isValidKeyword(word)) {
-        wordCount.set(word, (wordCount.get(word) || 0) + 1);
+        wordCount.set(word, (wordCount.get(word) ?? 0) + 1);
       }
     });
 
