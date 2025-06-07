@@ -72,15 +72,15 @@ export class SubscriptionService {
       currentPeriodEnd?: Date;
     },
   ) {
-    // Get the tier
+    // Get the tier - only allow ACTIVE tiers for subscription creation
     const tier = await this.db.subscriptionTier.findFirst({
-      where: { type: tierType, isActive: true },
+      where: { type: tierType, status: "ACTIVE" },
     });
 
     if (!tier) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: `Subscription tier ${tierType} not found`,
+        message: `Active subscription tier ${tierType} not found`,
       });
     }
 
@@ -134,15 +134,15 @@ export class SubscriptionService {
       currentPeriodEnd?: Date;
     },
   ) {
-    // Get the new tier
+    // Get the new tier - only allow ACTIVE tiers for subscription updates
     const newTier = await this.db.subscriptionTier.findFirst({
-      where: { type: newTierType, isActive: true },
+      where: { type: newTierType, status: "ACTIVE" },
     });
 
     if (!newTier) {
       throw new TRPCError({
         code: "NOT_FOUND",
-        message: `Subscription tier ${newTierType} not found`,
+        message: `Active subscription tier ${newTierType} not found`,
       });
     }
 
@@ -211,7 +211,7 @@ export class SubscriptionService {
     if (!cancelAtPeriodEnd) {
       // Cancel immediately - downgrade to free tier
       const freeTier = await this.db.subscriptionTier.findFirst({
-        where: { type: "FREE", isActive: true },
+        where: { type: "FREE", status: "ACTIVE" },
       });
 
       if (freeTier) {
@@ -277,7 +277,18 @@ export class SubscriptionService {
    */
   async getAvailableTiers() {
     return await this.db.subscriptionTier.findMany({
-      where: { isActive: true },
+      where: { status: { in: ["ACTIVE", "COMING_SOON"] } },
+      orderBy: { monthlyPriceCents: "asc" },
+    });
+  }
+
+  /**
+   * Get only active subscription tiers (for actual subscription creation)
+   * @returns Array of active subscription tiers only
+   */
+  async getActiveSubscriptionTiers() {
+    return await this.db.subscriptionTier.findMany({
+      where: { status: "ACTIVE" },
       orderBy: { monthlyPriceCents: "asc" },
     });
   }
@@ -339,7 +350,7 @@ export class SubscriptionService {
 
       // Downgrade to free tier
       const freeTier = await this.db.subscriptionTier.findFirst({
-        where: { type: "FREE", isActive: true },
+        where: { type: "FREE", status: "ACTIVE" },
       });
 
       if (freeTier) {
@@ -421,6 +432,7 @@ export class SubscriptionService {
       create: {
         name: "Free",
         type: "FREE",
+        status: "ACTIVE",
         description: "Basic features with monthly limits",
         resumeUploadLimit: 1,
         jobPostingLimit: 5,
@@ -431,6 +443,7 @@ export class SubscriptionService {
         yearlyPriceCents: null,
       },
       update: {
+        status: "ACTIVE",
         description: "Basic features with monthly limits",
         resumeUploadLimit: 1,
         jobPostingLimit: 5,
@@ -447,6 +460,7 @@ export class SubscriptionService {
       create: {
         name: "Pro",
         type: "PRO",
+        status: "ACTIVE",
         description: "Unlimited access to all features",
         resumeUploadLimit: null, // Unlimited
         jobPostingLimit: null, // Unlimited
@@ -457,6 +471,7 @@ export class SubscriptionService {
         yearlyPriceCents: 9999, // $99.99
       },
       update: {
+        status: "ACTIVE",
         description: "Unlimited access to all features",
         resumeUploadLimit: null, // Unlimited
         jobPostingLimit: null, // Unlimited

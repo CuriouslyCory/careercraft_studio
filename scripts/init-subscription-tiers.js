@@ -19,6 +19,7 @@ async function main() {
       create: {
         name: "Free",
         type: "FREE",
+        status: "ACTIVE",
         description: "Basic features with monthly limits",
         resumeUploadLimit: 1,
         jobPostingLimit: 5,
@@ -29,6 +30,7 @@ async function main() {
         yearlyPriceCents: null,
       },
       update: {
+        status: "ACTIVE",
         description: "Basic features with monthly limits",
         resumeUploadLimit: 1,
         jobPostingLimit: 5,
@@ -47,6 +49,7 @@ async function main() {
       create: {
         name: "Pro",
         type: "PRO",
+        status: "ACTIVE",
         description: "Unlimited access to all features",
         resumeUploadLimit: null, // Unlimited
         jobPostingLimit: null, // Unlimited
@@ -57,6 +60,7 @@ async function main() {
         yearlyPriceCents: 9999, // $99.99
       },
       update: {
+        status: "ACTIVE",
         description: "Unlimited access to all features",
         resumeUploadLimit: null, // Unlimited
         jobPostingLimit: null, // Unlimited
@@ -72,12 +76,12 @@ async function main() {
     console.log("✅ Successfully initialized subscription tiers:");
     
     const tiers = await db.subscriptionTier.findMany({
-      where: { isActive: true },
+      where: { status: { in: ["ACTIVE", "COMING_SOON"] } },
       orderBy: { monthlyPriceCents: 'asc' },
     });
     
     tiers.forEach(tier => {
-      console.log(`  - ${tier.name} (${tier.type})`);
+      console.log(`  - ${tier.name} (${tier.type}) - Status: ${tier.status}`);
       console.log(`    Resume uploads: ${tier.resumeUploadLimit ?? 'Unlimited'}`);
       console.log(`    Job postings: ${tier.jobPostingLimit ?? 'Unlimited'}`);
       console.log(`    Resume generations: ${tier.resumeGenerationLimit ?? 'Unlimited'}`);

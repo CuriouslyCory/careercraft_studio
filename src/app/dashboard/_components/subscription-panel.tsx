@@ -14,14 +14,20 @@ import {
   Star,
   Infinity,
   TrendingUp,
+  Clock,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { SubscriptionTierType } from "@prisma/client";
+import type {
+  SubscriptionTierType,
+  SubscriptionTierStatus,
+} from "@prisma/client";
 
 interface SubscriptionTier {
   id: string;
   name: string;
   type: SubscriptionTierType;
+  status: SubscriptionTierStatus;
   description: string | null;
   resumeUploadLimit: number | null;
   jobPostingLimit: number | null;
@@ -57,6 +63,24 @@ const TIER_BUTTON_COLORS = {
   FREE: "bg-gray-600 hover:bg-gray-700",
   PRO: "bg-blue-600 hover:bg-blue-700",
   ENTERPRISE: "bg-purple-600 hover:bg-purple-700",
+} as const;
+
+const STATUS_CONFIG = {
+  ACTIVE: {
+    badge: null,
+    icon: null,
+    canSubscribe: true,
+  },
+  COMING_SOON: {
+    badge: "Coming Soon",
+    icon: Clock,
+    canSubscribe: false,
+  },
+  DISABLED: {
+    badge: "Unavailable",
+    icon: Lock,
+    canSubscribe: false,
+  },
 } as const;
 
 export function SubscriptionPanel() {
@@ -283,14 +307,23 @@ export function SubscriptionPanel() {
             const Icon = TIER_ICONS[tier.type];
             const isCurrentTier = currentTier?.id === tier.id;
             const isSelected = selectedTier === tier.id;
+            const statusConfig = STATUS_CONFIG[tier.status];
+            const canSubscribe = statusConfig.canSubscribe && !isCurrentTier;
+            const isDisabledTier = tier.status !== "ACTIVE";
 
             return (
               <Card
                 key={tier.id}
-                className={`relative cursor-pointer transition-all ${
-                  isSelected ? "shadow-lg ring-2 ring-blue-500" : ""
+                className={`relative transition-all ${
+                  isDisabledTier
+                    ? "cursor-not-allowed opacity-75"
+                    : "cursor-pointer"
+                } ${
+                  isSelected && canSubscribe
+                    ? "shadow-lg ring-2 ring-blue-500"
+                    : ""
                 } ${isCurrentTier ? "border-green-500 bg-green-50" : ""}`}
-                onClick={() => setSelectedTier(tier.id)}
+                onClick={() => canSubscribe && setSelectedTier(tier.id)}
               >
                 {isCurrentTier && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 transform">
@@ -300,15 +333,38 @@ export function SubscriptionPanel() {
                   </div>
                 )}
 
+                {statusConfig.badge && !isCurrentTier && (
+                  <div className="absolute -top-3 right-4 transform">
+                    <Badge
+                      className={`${
+                        tier.status === "COMING_SOON"
+                          ? "bg-yellow-600 text-white"
+                          : "bg-gray-600 text-white"
+                      }`}
+                    >
+                      {statusConfig.badge}
+                    </Badge>
+                  </div>
+                )}
+
                 <CardHeader className="pb-3 text-center">
-                  <div className="mb-2 flex justify-center">
+                  <div className="mb-2 flex items-center justify-center gap-2">
                     <Icon className="h-6 w-6" />
+                    {statusConfig.icon && (
+                      <statusConfig.icon className="h-4 w-4 text-gray-500" />
+                    )}
                   </div>
                   <CardTitle className="text-lg">{tier.name}</CardTitle>
                   <div className="text-2xl font-bold">
-                    {formatPrice(tier.monthlyPriceCents)}
-                    {tier.monthlyPriceCents && (
-                      <span className="text-sm font-normal">/month</span>
+                    {tier.status === "COMING_SOON" ? (
+                      <span className="text-lg text-gray-600">TBD</span>
+                    ) : (
+                      <>
+                        {formatPrice(tier.monthlyPriceCents)}
+                        {tier.monthlyPriceCents && (
+                          <span className="text-sm font-normal">/month</span>
+                        )}
+                      </>
                     )}
                   </div>
                   {tier.description && (
@@ -417,11 +473,17 @@ export function SubscriptionPanel() {
                   </div>
 
                   <Button
-                    className={`w-full ${TIER_BUTTON_COLORS[tier.type]}`}
-                    disabled={isCurrentTier || isUpgrading}
+                    className={`w-full ${
+                      tier.status === "COMING_SOON"
+                        ? "bg-yellow-600 hover:bg-yellow-700"
+                        : tier.status === "DISABLED"
+                          ? "bg-gray-400 hover:bg-gray-400"
+                          : TIER_BUTTON_COLORS[tier.type]
+                    }`}
+                    disabled={!canSubscribe || isUpgrading}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!isCurrentTier) {
+                      if (canSubscribe) {
                         void handleUpgrade(tier.type);
                       }
                     }}
@@ -433,6 +495,16 @@ export function SubscriptionPanel() {
                       </>
                     ) : isCurrentTier ? (
                       "Current Plan"
+                    ) : tier.status === "COMING_SOON" ? (
+                      <>
+                        <Clock className="mr-2 h-4 w-4" />
+                        Coming Soon
+                      </>
+                    ) : tier.status === "DISABLED" ? (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        Unavailable
+                      </>
                     ) : tier.type === "FREE" ? (
                       "Downgrade to Free"
                     ) : (

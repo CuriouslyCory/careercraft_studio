@@ -65,9 +65,10 @@ Each integration includes:
 
 ```prisma
 model SubscriptionTier {
-  id          String               @id @default(cuid())
-  name        String               @unique
-  type        SubscriptionTierType // FREE, PRO, ENTERPRISE
+  id          String                 @id @default(cuid())
+  name        String                 @unique
+  type        SubscriptionTierType   // FREE, PRO, ENTERPRISE
+  status      SubscriptionTierStatus @default(ACTIVE) // ACTIVE, COMING_SOON, DISABLED
   description String?
 
   // Monthly limits (null = unlimited)
@@ -85,7 +86,7 @@ model SubscriptionTier {
   stripeMonthlyPriceId String?
   stripeYearlyPriceId  String?
 
-  isActive  Boolean @default(true)
+  isActive  Boolean @default(true) // Deprecated: use status instead
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -148,6 +149,12 @@ enum SubscriptionTierType {
   FREE
   PRO
   ENTERPRISE
+}
+
+enum SubscriptionTierStatus {
+  ACTIVE      // Tier is available for subscription
+  COMING_SOON // Tier is visible but not available for subscription
+  DISABLED    // Tier is hidden from users
 }
 
 enum SubscriptionStatus {
@@ -497,4 +504,75 @@ The subscription panel provides a comprehensive interface for users to:
 // 2. Compare available plans
 // 3. Click upgrade/downgrade buttons
 // 4. Receive immediate feedback on changes
+```
+
+## Subscription Tier Status System
+
+The subscription system includes a flexible status system for managing tier availability:
+
+### Status Types
+
+- **ACTIVE**: Tier is fully available for subscription. Users can upgrade/downgrade to this tier.
+- **COMING_SOON**: Tier is visible in the UI as a teaser but cannot be subscribed to. Shows "Coming Soon" badge and disabled upgrade button.
+- **DISABLED**: Tier is completely hidden from the user interface.
+
+### Status Behavior
+
+#### UI Display
+
+- **ACTIVE tiers**: Display normally with functional upgrade/downgrade buttons
+- **COMING_SOON tiers**:
+  - Show with yellow "Coming Soon" badge
+  - Display "TBD" for pricing if not set
+  - Show clock icon in tier header
+  - Button displays "Coming Soon" with clock icon and is disabled
+  - Card has reduced opacity and is not clickable for selection
+- **DISABLED tiers**: Not shown in the UI at all
+
+#### API Behavior
+
+- `getAvailableTiers()`: Returns ACTIVE and COMING_SOON tiers for UI display
+- `getActiveSubscriptionTiers()`: Returns only ACTIVE tiers for actual subscription operations
+- Subscription creation/updates only work with ACTIVE tiers
+- Attempting to subscribe to COMING_SOON or DISABLED tiers returns an error
+
+### Managing Tier Status
+
+#### Creating a Coming Soon Tier
+
+```javascript
+// Example: Create Enterprise tier as coming soon
+await db.subscriptionTier.create({
+  name: "Enterprise",
+  type: "ENTERPRISE",
+  status: "COMING_SOON",
+  description: "Advanced features for teams and organizations",
+  // Set limits but leave pricing as null for "TBD"
+  monthlyPriceCents: null,
+  yearlyPriceCents: null,
+});
+```
+
+#### Activating a Coming Soon Tier
+
+```javascript
+// When ready to launch, update status to ACTIVE and set pricing
+await db.subscriptionTier.update({
+  where: { name: "Enterprise" },
+  data: {
+    status: "ACTIVE",
+    monthlyPriceCents: 4999, // $49.99
+    yearlyPriceCents: 49999, // $499.99
+  },
+});
+```
+
+#### Disabling a Tier
+
+```javascript
+// Hide tier from UI completely
+await db.subscriptionTier.update({
+  where: { name: "OldTier" },
+  data: { status: "DISABLED" },
+});
 ```

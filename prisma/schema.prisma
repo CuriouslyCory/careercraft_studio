@@ -153,6 +153,12 @@ enum SubscriptionTierType {
     ENTERPRISE // For future expansion
 }
 
+enum SubscriptionTierStatus {
+    ACTIVE
+    COMING_SOON
+    DISABLED
+}
+
 enum SubscriptionStatus {
     ACTIVE
     CANCELED
@@ -568,9 +574,10 @@ model JobPostDocument {
 
 // Subscription and Usage Tracking Models
 model SubscriptionTier {
-    id          String               @id @default(cuid())
-    name        String               @unique // "Free", "Pro", "Enterprise"
+    id          String                 @id @default(cuid())
+    name        String                 @unique // "Free", "Pro", "Enterprise"
     type        SubscriptionTierType
+    status      SubscriptionTierStatus @default(ACTIVE)
     description String?
 
     // Monthly limits (null = unlimited)
@@ -588,13 +595,14 @@ model SubscriptionTier {
     stripeMonthlyPriceId String? // Stripe price ID for monthly billing
     stripeYearlyPriceId  String? // Stripe price ID for yearly billing
 
-    isActive  Boolean  @default(true)
+    isActive  Boolean  @default(true) // Deprecated: use status instead
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
     subscriptions Subscription[]
 
     @@index([type])
+    @@index([status])
     @@index([isActive])
 }
 
