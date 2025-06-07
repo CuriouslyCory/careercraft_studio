@@ -4,7 +4,12 @@ export default function LinksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Professional Links</h1>
+        <h2 className="text-2xl font-bold text-gray-900">
+          Professional{" "}
+          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Links
+          </span>
+        </h2>
         <p className="mt-2 text-gray-600">
           Manage your professional links and online presence.
         </p>

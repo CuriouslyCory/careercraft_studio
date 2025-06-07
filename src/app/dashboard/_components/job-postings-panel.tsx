@@ -54,7 +54,7 @@ export function JobPostingsPanel() {
   const getDocumentEditorUrl = (params: URLSearchParams) => {
     const baseRoute = isDashboard
       ? "/dashboard/document-editor"
-      : "/ai-chat/document-editor";
+      : "/dashboard/document-editor";
     return `${baseRoute}?${params.toString()}`;
   };
 
@@ -294,7 +294,7 @@ export function JobPostingsPanel() {
   const handleViewDetails = (jobPostingId: string) => {
     const detailPath = isDashboard
       ? `/dashboard/job-postings/${jobPostingId}`
-      : `/ai-chat/job-postings/${jobPostingId}`;
+      : `/dashboard/job-postings/${jobPostingId}`;
     router.push(detailPath);
   };
 
@@ -484,12 +484,6 @@ export function JobPostingsPanel() {
 
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Job{" "}
-          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Postings
-          </span>
-        </h2>
         <div className="flex gap-3">
           <Button
             onClick={() => {

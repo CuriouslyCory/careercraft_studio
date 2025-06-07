@@ -237,7 +237,6 @@ export function KeyAchievementsPanel() {
   return (
     <div className="h-full">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Key Achievements</h2>
         <div className="flex space-x-2">
           {achievements.length > 1 && (
             <button
@@ -246,7 +245,9 @@ export function KeyAchievementsPanel() {
               className="rounded bg-orange-500 px-3 py-1 text-sm text-white hover:bg-orange-600 disabled:bg-orange-300"
               title="Remove duplicates and merge similar achievements"
             >
-              {deduplicateMutation.isPending ? "Processing..." : "Clean Up"}
+              {deduplicateMutation.isPending
+                ? "Processing..."
+                : "AI Assisted Clean Up"}
             </button>
           )}
           <button

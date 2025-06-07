@@ -4,7 +4,7 @@ This document describes the common supporting files found in the `src/server/lan
 
 While the specific content of these files has not been inspected for this documentation effort, their purpose can be inferred from their names and common practices in such architectures. The descriptions below are based on these typical roles.
 
-References to these files are made in the [AI Chat](./ai-chat.md) documentation.
+References to these files are made in the [AI Chat](./ai-chat.md) documentation, which describes the AI system now integrated into the dashboard interface at `/dashboard/ai-assistant`.
 
 ## Core Infrastructure Files
 

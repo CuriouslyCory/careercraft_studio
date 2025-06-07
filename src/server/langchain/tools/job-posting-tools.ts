@@ -68,7 +68,7 @@ export function createParseAndStoreJobPostingTool(
 The job posting has been saved to your profile and is ready for skill comparison analysis. You can now ask me to compare your skills against this job posting!
 
 **Next Steps:**
-[Check job posting compatibility](@navigate:/ai-chat/job-postings?action=compatibility&jobId=${result.jobPosting.id})`;
+[Check job posting compatibility](@navigate:/dashboard/job-postings?action=compatibility&jobId=${result.jobPosting.id})`;
         } catch (error) {
           if (error instanceof Error) {
             throw new DatabaseError("parse and store job posting", error);

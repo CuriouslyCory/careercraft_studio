@@ -270,35 +270,5 @@ import { jobPostingRouter } from "~/server/api/routers/job-posting";
 
 ### Documentation Files
 
-- [ ] `cursor-docs/ai-chat.md`
+- [ ] `cursor-docs/ai-chat.md` - Update to reflect dashboard integration
 - [ ] `cursor-docs/profile-management.md`
-- [ ] `cursor-docs/work-achievement-management.md`
-- [ ] `cursor-docs/job-posting-import.md`
-- [ ] `cursor-docs/skill-normalization.md`
-- [ ] Any other docs referencing the old router structure
-
-## Risk Mitigation
-
-1. **Backward Compatibility**: Consider keeping old router exports temporarily with deprecation warnings
-2. **Incremental Migration**: Migrate one router at a time to minimize risk
-3. **Testing**: Comprehensive testing after each router migration
-4. **Documentation**: Update docs immediately after each change
-
-## Success Criteria
-
-- [ ] All existing functionality works exactly as before
-- [ ] API calls use the new router structure
-- [ ] Code is more organized and maintainable
-- [ ] Documentation is updated and accurate
-- [ ] No breaking changes for end users
-- [ ] Improved developer experience with logical grouping
-
-## Timeline
-
-- **Phase 1**: ✅ Completed
-- **Phase 2**: 2-3 days (router creation and migration)
-- **Phase 3**: 1 day (root router and import updates)
-- **Phase 4**: 1 day (testing and validation)
-- **Phase 5**: 1 day (documentation updates)
-
-**Total Estimated Time**: 5-6 days

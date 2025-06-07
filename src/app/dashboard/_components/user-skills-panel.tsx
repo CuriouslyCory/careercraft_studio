@@ -77,12 +77,6 @@ export function UserSkillsPanel() {
     <div className="h-full space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Your{" "}
-          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Skills
-          </span>
-        </h2>
         <Button
           onClick={handleAddSkill}
           className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg hover:from-blue-700 hover:to-indigo-700"

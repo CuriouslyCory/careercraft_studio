@@ -6,20 +6,20 @@ This document outlines the architecture and components of the AI Chat feature in
 
 The AI chat is a core interactive feature, enabling users to communicate with an AI assistant to manage their resume data, generate documents, analyze job postings, and get information about their profile. It is powered by a LangChain agent team orchestrated via a tRPC router (`src/server/api/routers/ai.ts`).
 
-**Note**: CareerCraft Studio also offers a modern dashboard interface at `/dashboard` with top navigation and profile completion tracking as an alternative to the AI chat layout. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
+**Primary Interface**: CareerCraft Studio features a modern dashboard interface at `/dashboard` with top navigation and profile completion tracking. The AI Assistant is available at `/dashboard/ai-assistant` and provides the same conversational capabilities within the dashboard layout. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
 
 ## Architecture
 
 The AI chat system is designed with a clear separation of concerns across three main layers:
 
-1.  **Frontend (AI Chat Layout & Sub-routes)**:
+1.  **Frontend (Dashboard Interface)**:
 
-    - Provides the User Interface (UI) for chat interactions across all sub-routes.
-    - The chat interface is persistent across all `/ai-chat/*` routes via the shared layout.
-    - Dynamically renders chat messages alongside different panel views (documents, work history, etc.).
+    - Provides the User Interface (UI) for chat interactions at `/dashboard/ai-assistant`.
+    - The chat interface includes conversation management and persistent chat history.
+    - Dynamically renders chat messages alongside the dashboard navigation.
     - Manages basic UI state (e.g., input fields, message lists).
     - Communicates with the backend tRPC router to send user messages and receive AI responses.
-    - **Alternative Interface**: The same AI functionality is also accessible through the modern dashboard interface at `/dashboard/ai-assistant` with a different layout (see [Dashboard Redesign](./dashboard-redesign-plan.md)).
+    - **Dashboard Integration**: The AI Assistant is fully integrated into the dashboard interface with access to all profile management features.
 
 2.  **Backend tRPC Router (`src/server/api/routers/ai.ts`)**:
 

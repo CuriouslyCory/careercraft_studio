@@ -6,7 +6,7 @@ This document describes the Resume Generation feature within CareerCraft Studio,
 
 CareerCraft Studio can generate complete resume documents based on the user's stored profile information. This feature aims to simplify the resume creation process, allowing users to quickly produce a well-structured resume that can be further refined or tailored, potentially for specific job applications.
 
-Reference: This feature is primarily handled by the `Resume Generator` agent, as outlined in the [AI Chat](./ai-chat.md) documentation.
+Reference: This feature is primarily handled by the `Resume Generator` agent within the AI Chat system, which is now integrated into the dashboard interface at `/dashboard/ai-assistant`. See [AI Chat](./ai-chat.md) documentation for details.
 
 ## Core Functionality & Tools
 
@@ -66,7 +66,7 @@ This feature relies heavily on well-structured and comprehensive data in the use
   - Responsible for all tasks related to creating and modifying resume documents.
   - Receives tasks from the Supervisor Agent based on user requests like "Generate my resume" or "Help me improve my resume for this job."
 
-- **Potential Tools for `Resume Generator` Agent** (as conceptualized in `ai-chat.md`):
+- **Potential Tools for `Resume Generator` Agent**:
   - `generate_resume_from_profile (template_choice?)`:
     - **Purpose**: The core tool to assemble the resume from the user's profile data.
     - **Input**: Optionally, a template choice if multiple resume styles are supported.

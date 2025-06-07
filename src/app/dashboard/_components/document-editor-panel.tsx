@@ -33,7 +33,7 @@ export function DocumentEditorPanel() {
 
   const handleCancel = () => {
     // Navigate back to job postings
-    router.push("/ai-chat/job-postings");
+    router.push("/dashboard/job-postings");
   };
 
   // Show loading state while fetching job posting

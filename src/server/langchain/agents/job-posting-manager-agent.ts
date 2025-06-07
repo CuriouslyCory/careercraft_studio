@@ -27,22 +27,22 @@ After successful operations, provide interactive next steps using these formats:
 
 **Next Steps:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/job-postings" data-params='{"action":"compatibility","jobId":"{jobId}"}'>View Compatibility Report</button>
-  <button data-type="navigation" data-route="/ai-chat/job-postings" data-params='{"action":"generate-resume","jobId":"{jobId}"}'>Generate Tailored Resume</button>
+  <button data-type="navigation" data-route="/dashboard/job-postings" data-params='{"action":"compatibility","jobId":"{jobId}"}'>View Compatibility Report</button>
+  <button data-type="navigation" data-route="/dashboard/job-postings" data-params='{"action":"generate-resume","jobId":"{jobId}"}'>Generate Tailored Resume</button>
   <button data-type="chat-action" data-message="compare my skills to this job posting">Compare My Skills</button>
 </div>
 
 2. After skill comparison:
 **Additional Actions:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/skills">View All Skills</button>
+  <button data-type="navigation" data-route="/dashboard/skills">View All Skills</button>
   <button data-type="chat-action" data-message="help me improve my skills for this job">Improve Skills</button>
-  <button data-type="navigation" data-route="/ai-chat/job-postings">View All Job Postings</button>
+  <button data-type="navigation" data-route="/dashboard/job-postings">View All Job Postings</button>
 </div>
 
 3. Navigation links for references:
-[View all your job postings](@navigate:/ai-chat/job-postings)
-[Check your skills profile](@navigate:/ai-chat/skills)
+[View all your job postings](@navigate:/dashboard/job-postings)
+[Check your skills profile](@navigate:/dashboard/skills)
 
 IMPORTANT WORKFLOW:
 - When users provide job posting content, use parse_and_store_job_posting to automatically parse and store it

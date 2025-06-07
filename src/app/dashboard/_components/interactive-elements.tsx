@@ -153,7 +153,7 @@ export function InteractiveButton({
 
               // Validate route is within the app
               if (
-                finalRoute.startsWith("/ai-chat/") ||
+                finalRoute.startsWith("/dashboard/") ||
                 finalRoute.startsWith("/")
               ) {
                 router.push(finalRoute);
@@ -244,7 +244,7 @@ export function InteractiveLink({
           const route = href.replace("@navigate:", "");
 
           // Validate route is within the app
-          if (route.startsWith("/ai-chat/") || route.startsWith("/")) {
+          if (route.startsWith("/dashboard/") || route.startsWith("/")) {
             router.push(route);
           } else {
             console.warn("Invalid navigation route:", route);

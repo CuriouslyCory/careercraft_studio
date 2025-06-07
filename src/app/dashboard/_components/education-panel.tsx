@@ -288,7 +288,6 @@ export function EducationPanel() {
   return (
     <div className="h-full">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Education</h2>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className="rounded bg-blue-500 px-3 py-1 text-sm text-white"

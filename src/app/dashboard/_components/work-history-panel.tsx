@@ -481,12 +481,6 @@ export function WorkHistoryPanel() {
   return (
     <div className="h-full">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Work{" "}
-          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            History
-          </span>
-        </h2>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 font-semibold text-white shadow-lg transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"

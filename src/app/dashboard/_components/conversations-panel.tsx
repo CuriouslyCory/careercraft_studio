@@ -113,7 +113,7 @@ export function ConversationsPanel() {
     // Navigate to chat interface with this conversation loaded
     const params = new URLSearchParams(searchParams);
     params.set("conversation", conversationId);
-    router.push(`/ai-chat?${params.toString()}`);
+    router.push(`/dashboard/ai-assistant?${params.toString()}`);
   };
 
   const handleCreateNew = () => {

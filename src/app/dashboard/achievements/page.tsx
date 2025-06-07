@@ -4,7 +4,12 @@ export default function AchievementsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Key Achievements</h1>
+        <h2 className="text-2xl font-bold text-gray-900">
+          Key{" "}
+          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Achievements
+          </span>
+        </h2>
         <p className="mt-2 text-gray-600">
           Highlight your most important professional accomplishments.
         </p>

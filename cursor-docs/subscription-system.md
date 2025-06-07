@@ -440,10 +440,9 @@ node scripts/init-subscription-tiers.js
 
 ### Subscription Panel
 
-**Location**: `src/app/ai-chat/_components/subscription-panel.tsx`
+**Location**: `src/app/dashboard/_components/subscription-panel.tsx`
 **Pages**:
 
-- AI Chat Interface: `src/app/ai-chat/subscription/page.tsx`
 - Dashboard Interface: `src/app/dashboard/subscription/page.tsx`
 
 The subscription panel provides a comprehensive interface for users to:
@@ -454,7 +453,7 @@ The subscription panel provides a comprehensive interface for users to:
 - **Upgrade/Downgrade**: One-click subscription tier changes
 - **Visual Indicators**: Color-coded usage status (green/yellow/red for usage levels)
 
-**Interface Availability**: The subscription panel is available in both the AI Chat interface and the modern Dashboard interface. The dashboard provides the same functionality with a cleaner top navigation layout. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
+**Interface Availability**: The subscription panel is available in the Dashboard interface at `/dashboard/subscription`. The dashboard provides the same functionality with a cleaner top navigation layout. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
 
 #### Key Features
 

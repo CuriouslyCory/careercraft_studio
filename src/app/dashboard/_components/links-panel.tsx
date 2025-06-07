@@ -136,7 +136,6 @@ export function LinksPanel() {
     <div className="h-full space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">User Links</h2>
         <Button
           onClick={() => setShowAddForm(true)}
           size="sm"

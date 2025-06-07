@@ -108,7 +108,13 @@ await api.document.deleteUserProfile.mutate();
 
 ### ProfilePanel Component
 
-**Location**: `src/app/ai-chat/_components/profile-panel.tsx`
+**Location**: `src/app/dashboard/_components/profile-panel.tsx`
+
+**Pages**:
+
+- Dashboard Interface: `src/app/dashboard/contact-info/page.tsx`
+
+**Route**: `/dashboard/contact-info`
 
 **Features**:
 
@@ -131,9 +137,9 @@ export default function ProfilePage() {
 
 ### Profile Page
 
-**Location**: `src/app/ai-chat/profile/page.tsx`
+**Location**: `src/app/dashboard/contact-info/page.tsx`
 
-**Route**: `/ai-chat/profile`
+**Route**: `/dashboard/contact-info`
 
 **Features**:
 
@@ -191,7 +197,7 @@ The profile management feature is integrated into the main navigation sidebar:
 
 ## Data Flow
 
-1. **User Access**: User navigates to `/ai-chat/profile`
+1. **User Access**: User navigates to `/dashboard/contact-info`
 2. **Data Fetching**: ProfilePanel component queries current profile via `getUserProfile`
 3. **Display**: Profile information is displayed in view mode
 4. **Editing**: User clicks "Edit" to enter edit mode
@@ -216,3 +222,9 @@ Potential future improvements could include:
 - **Profile Templates**: Pre-defined profile templates for different career stages
 - **Social Media Integration**: Optional integration with professional social media profiles
 - **Profile Validation**: Enhanced validation and suggestions for profile optimization
+
+## User Workflows
+
+### Profile Information Management
+
+1. **User Access**: User navigates to `/dashboard/contact-info`

@@ -25,8 +25,8 @@ Here's your profile information:
 
 **Explore Your Data:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/skills">View Skills Detail</button>
-  <button data-type="navigation" data-route="/ai-chat/work-history">View Work History</button>
+  <button data-type="navigation" data-route="/dashboard/skills">View Skills Detail</button>
+  <button data-type="navigation" data-route="/dashboard/work-history">View Work History</button>
   <button data-type="chat-action" data-message="help me update my profile">Update Profile</button>
 </div>
 
@@ -35,13 +35,13 @@ Here's your profile information:
 <div data-interactive="action-group">
   <button data-type="chat-action" data-message="generate a resume from this data">Create Resume</button>
   <button data-type="chat-action" data-message="find jobs that match my skills">Find Matching Jobs</button>
-  <button data-type="navigation" data-route="/ai-chat/job-postings">Browse Job Postings</button>
+  <button data-type="navigation" data-route="/dashboard/job-postings">Browse Job Postings</button>
 </div>
 
 3. Navigation links for data management:
-[Edit your skills](@navigate:/ai-chat/skills)
-[Update work history](@navigate:/ai-chat/work-history)
-[Manage documents](@navigate:/ai-chat/documents)
+[Edit your skills](@navigate:/dashboard/skills)
+[Update work history](@navigate:/dashboard/work-history)
+[Manage documents](@navigate:/dashboard/documents)
 
 You can retrieve different types of profile data using the get_user_profile tool. Simply specify which data type you need: work_history, education, skills, achievements, preferences, or all.`;
 

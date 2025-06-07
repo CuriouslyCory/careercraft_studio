@@ -4,7 +4,7 @@
 
 The job posting data table provides a modern, sortable, and searchable interface for managing job postings. It replaces the previous basic HTML table with a feature-rich data table built using TanStack Table and shadcn/ui components.
 
-**Availability**: This data table is available in both the AI Chat interface (`/ai-chat/job-postings`) and the Dashboard interface (`/dashboard/job-postings`). See [Dashboard Redesign](./dashboard-redesign-plan.md) for the dashboard implementation.
+**Availability**: This data table is available in the Dashboard interface at `/dashboard/job-postings`. See [Dashboard Redesign](./dashboard-redesign-plan.md) for the dashboard implementation details.
 
 ## Features
 
@@ -52,7 +52,7 @@ The job posting data table provides a modern, sortable, and searchable interface
 
 ### JobPostingsDataTable
 
-**Location**: `src/app/ai-chat/_components/job-postings-data-table.tsx`
+**Location**: `src/app/dashboard/_components/job-postings-data-table.tsx`
 
 Reusable data table component with the following features:
 
@@ -72,7 +72,7 @@ interface DataTableProps<TData, TValue> {
 
 ### InlineStatusDropdown
 
-**Location**: `src/app/ai-chat/_components/job-postings-table-columns.tsx`
+**Location**: `src/app/dashboard/_components/job-postings-table-columns.tsx`
 
 New component for inline status editing:
 
@@ -100,7 +100,7 @@ export function InlineStatusDropdown({
 
 ### JobPostingsTableColumns
 
-**Location**: `src/app/ai-chat/_components/job-postings-table-columns.tsx`
+**Location**: `src/app/dashboard/_components/job-postings-table-columns.tsx`
 
 Column definitions factory function that creates sortable columns with:
 
@@ -128,7 +128,7 @@ export const createJobPostingsColumns = (
 
 ### JobPostingContextMenu
 
-**Location**: `src/app/ai-chat/_components/job-postings-table-columns.tsx`
+**Location**: `src/app/dashboard/_components/job-postings-table-columns.tsx`
 
 A reusable context menu component that wraps table cells and provides:
 
@@ -151,7 +151,7 @@ The main job postings panel has been updated to:
 
 ### Status Update Mutation
 
-**Location**: `src/app/ai-chat/_components/job-postings-panel.tsx`
+**Location**: `src/app/dashboard/_components/job-postings-panel.tsx`
 
 New mutation handling for status updates:
 

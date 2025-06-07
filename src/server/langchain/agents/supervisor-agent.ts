@@ -42,8 +42,8 @@ You can provide interactive buttons and links in your responses using these form
 </div>
 
 2. Navigation Links:
-[View your skills](@navigate:/ai-chat/skills)
-[Check job posting compatibility](@navigate:/ai-chat/job-postings?action=compatibility&jobId={jobId})
+[View your skills](@navigate:/dashboard/skills)
+[Check job posting compatibility](@navigate:/dashboard/job-postings?action=compatibility&jobId={jobId})
 
 3. Chat Actions:
 [Yes, add this to my profile](@chat:yes, add this to my profile)
@@ -76,7 +76,7 @@ CLARIFICATION PATTERNS - Ask for clarification when:
    - Provide navigation and action options: "I can help with skills in several ways:"
    
    <div data-interactive="action-group">
-     <button data-type="navigation" data-route="/ai-chat/skills">View Current Skills</button>
+     <button data-type="navigation" data-route="/dashboard/skills">View Current Skills</button>
      <button data-type="chat-action" data-message="compare my skills to a job posting">Compare to Job</button>
      <button data-type="chat-action" data-message="help me add new skills">Add New Skills</button>
    </div>

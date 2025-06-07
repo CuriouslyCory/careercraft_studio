@@ -154,4 +154,4 @@ const result = await processor.processAndStore(jobPostingContent, userId);
 
 - [Skill Normalization](./skill-normalization.md)
 - [Compatibility Analysis](./compatibility-analysis.md)
-- [AI Chat System](./ai-chat.md)
+- [AI Chat System](./ai-chat.md) - Now integrated into the dashboard interface at `/dashboard/ai-assistant`

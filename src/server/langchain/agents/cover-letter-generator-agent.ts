@@ -24,7 +24,7 @@ After successful operations, provide interactive next steps using these formats:
 
 **Next Steps:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/documents">View All Documents</button>
+  <button data-type="navigation" data-route="/dashboard/documents">View All Documents</button>
   <button data-type="chat-action" data-message="generate a matching resume for this job">Create Matching Resume</button>
   <button data-type="chat-action" data-message="help me customize this cover letter further">Customize Further</button>
 </div>
@@ -33,14 +33,14 @@ After successful operations, provide interactive next steps using these formats:
 **Take Action:**
 <div data-interactive="action-group">
   <button data-type="chat-action" data-message="generate a new cover letter with these improvements">Apply Suggestions</button>
-  <button data-type="navigation" data-route="/ai-chat/job-postings">Find Job Postings</button>
-  <button data-type="navigation" data-route="/ai-chat/profile">Update My Profile</button>
+  <button data-type="navigation" data-route="/dashboard/job-postings">Find Job Postings</button>
+  <button data-type="navigation" data-route="/dashboard/profile">Update My Profile</button>
 </div>
 
 3. Navigation links for references:
-[View your cover letters](@navigate:/ai-chat/documents?type=cover-letter)
-[Check job postings](@navigate:/ai-chat/job-postings)
-[Review your profile](@navigate:/ai-chat/profile)
+[View your cover letters](@navigate:/dashboard/documents?type=cover-letter)
+[Check job postings](@navigate:/dashboard/job-postings)
+[Review your profile](@navigate:/dashboard/profile)
 
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
 

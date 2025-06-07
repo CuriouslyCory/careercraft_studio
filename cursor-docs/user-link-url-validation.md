@@ -123,4 +123,4 @@ Tested with various URL formats:
 
 - [User Profile Management](./user-profile-management.md) - Links are part of user profiles
 - [Resume Parser Optimization](./resume-parser-optimization.md) - Resume parsing uses URL validation
-- [AI Chat](./ai-chat.md) - AI tools can create user links
+- [AI Chat](./ai-chat.md) - AI tools can create user links (now integrated into dashboard at `/dashboard/ai-assistant`)

@@ -1,12 +1,12 @@
 # Work Achievement Management
 
-This document details the system for managing work achievements associated with a user's work history entries in CareerCraft Studio. This functionality is primarily handled by the `Data Manager` agent via specialized tools.
+This document details the work achievement management functionality in CareerCraft Studio, including tools for managing, editing, and merging work achievements with AI-powered enhancements.
 
 ## Overview
 
-CareerCraft Studio allows for fine-grained management of work achievements (often bullet points in a resume detailing accomplishments and responsibilities for a specific role). Users can add, retrieve, update, delete, and even merge achievements using AI-powered tools. This ensures that achievements are accurately captured, well-phrased, and effectively deduplicated.
+Work achievements are detailed accomplishments and responsibilities associated with specific work history entries. The system provides comprehensive tools for managing these achievements, including AI-powered merging and deduplication capabilities.
 
-**Interface Availability**: Work achievement management is available through both the AI Chat interface (`/ai-chat/work-history`) and the modern Dashboard interface (`/dashboard/work-history` and `/dashboard/achievements`). The dashboard provides dedicated pages for both work history management and key achievements. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
+**Interface Availability**: Work achievement management is available through the Dashboard interface at `/dashboard/work-history` and `/dashboard/achievements`. The dashboard provides dedicated pages for both work history management and key achievements management. See [Dashboard Redesign](./dashboard-redesign-plan.md) for details.
 
 This functionality is an extension of [Profile Management](./profile-management.md), focusing specifically on the achievements linked to each work experience.
 

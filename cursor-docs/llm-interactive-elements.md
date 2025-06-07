@@ -33,7 +33,7 @@ This document outlines the implementation plan for adding interactive elements (
 
 ### 1. Custom Link Transformation ✅ **FINAL SOLUTION**
 
-**File**: `src/app/ai-chat/_components/chat-interface.tsx`
+**File**: `src/app/dashboard/_components/chat-interface.tsx`
 
 The key breakthrough was implementing a custom link transformer that converts AI-generated `@navigate:` and `@chat:` links to proper HTML buttons before markdown processing:
 
@@ -58,7 +58,7 @@ function transformCustomLinks(content: string): string {
 
 ### 2. Interactive Components ✅ **WORKING PERFECTLY**
 
-**File**: `src/app/ai-chat/_components/interactive-elements.tsx`
+**File**: `src/app/dashboard/_components/interactive-elements.tsx`
 
 ```typescript
 // Context-based architecture for sharing chat state
@@ -84,8 +84,8 @@ The AI uses special markdown syntax that gets transformed to interactive element
 ```markdown
 <!-- Navigation Links (gets transformed to buttons) -->
 
-[Check job posting compatibility](@navigate:/ai-chat/job-postings?action=compatibility&jobId=abc123)
-[View your skills](@navigate:/ai-chat/skills)
+[Check job posting compatibility](@navigate:/dashboard/job-postings?action=compatibility&jobId=abc123)
+[View your skills](@navigate:/dashboard/skills)
 
 <!-- Chat Actions (gets transformed to buttons) -->
 
@@ -95,13 +95,13 @@ The AI uses special markdown syntax that gets transformed to interactive element
 <!-- Action Button Groups (HTML) -->
 <div data-interactive="action-group">
   <button data-type="chat-action" data-message="parse and store this job posting">Parse and Store</button>
-  <button data-type="navigation" data-route="/ai-chat/job-postings" data-params='{"action":"compatibility","jobId":"123"}'>View Compatibility</button>
+  <button data-type="navigation" data-route="/dashboard/job-postings" data-params='{"action":"compatibility","jobId":"123"}'>View Compatibility</button>
 </div>
 ```
 
 ### 4. URL Parameter Handling ✅ **WORKING PERFECTLY**
 
-**File**: `src/app/ai-chat/_components/job-postings-panel.tsx`
+**File**: `src/app/dashboard/_components/job-postings-panel.tsx`
 
 Implemented smart URL parameter detection with infinite loop prevention:
 
@@ -242,11 +242,11 @@ useEffect(() => {
    The job posting has been saved to your profile and is ready for skill comparison analysis.
 
    **Next Steps:**
-   [Check job posting compatibility](@navigate:/ai-chat/job-postings?action=compatibility&jobId=cmb6245rn002kpqcxf4z2dssk)
+   [Check job posting compatibility](@navigate:/dashboard/job-postings?action=compatibility&jobId=cmb6245rn002kpqcxf4z2dssk)
    ```
 
 3. **User Clicks**: "Check job posting compatibility" button ✅
-4. **System**: Navigates to `/ai-chat/job-postings?action=compatibility&jobId=cmb6245rn002kpqcxf4z2dssk` ✅
+4. **System**: Navigates to `/dashboard/job-postings?action=compatibility&jobId=cmb6245rn002kpqcxf4z2dssk` ✅
 5. **Auto-Action**: Compatibility report loads automatically ✅
 6. **Result**: Full compatibility analysis displayed with preserved conversation context ✅
 
@@ -262,7 +262,7 @@ useEffect(() => {
    - **Advanced**: Python, PostgreSQL, AWS
    - **Intermediate**: Docker, Kubernetes
 
-   [View detailed skills breakdown](@navigate:/ai-chat/skills)
+   [View detailed skills breakdown](@navigate:/dashboard/skills)
 
    Would you like me to compare these to a specific job posting or help you add new skills?
    ```

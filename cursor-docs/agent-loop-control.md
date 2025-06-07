@@ -351,7 +351,7 @@ All planned features have been successfully implemented:
 
 1. **`src/server/langchain/agentTeam.ts`** - Main agent logic
 2. **`src/server/langchain/tools/`** - Tool implementations
-3. **`cursor-docs/ai-chat.md`** - Update documentation
+3. **`cursor-docs/ai-chat.md`** - Update documentation to reflect dashboard integration
 4. **`cursor-docs/job-posting-import.md`** - Update workflow documentation
 
 ## Risk Mitigation

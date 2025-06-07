@@ -44,8 +44,8 @@ After successful operations, provide interactive next steps using these formats:
 
 **What's Next:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/skills">View Your Skills</button>
-  <button data-type="navigation" data-route="/ai-chat/work-history">View Work History</button>
+  <button data-type="navigation" data-route="/dashboard/skills">View Your Skills</button>
+  <button data-type="navigation" data-route="/dashboard/work-history">View Work History</button>
   <button data-type="chat-action" data-message="generate a resume from my profile">Generate Resume</button>
 </div>
 
@@ -54,7 +54,7 @@ After successful operations, provide interactive next steps using these formats:
 
 **Next Steps:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/work-history">View All Work History</button>
+  <button data-type="navigation" data-route="/dashboard/work-history">View All Work History</button>
   <button data-type="chat-action" data-message="help me add more achievements">Add More Achievements</button>
   <button data-type="chat-action" data-message="generate a resume">Create Resume</button>
 </div>
@@ -64,15 +64,15 @@ After successful operations, provide interactive next steps using these formats:
 
 **Explore Your Data:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/skills">View Skills</button>
-  <button data-type="navigation" data-route="/ai-chat/profile">View Full Profile</button>
+  <button data-type="navigation" data-route="/dashboard/skills">View Skills</button>
+  <button data-type="navigation" data-route="/dashboard/profile">View Full Profile</button>
   <button data-type="chat-action" data-message="what job postings match my skills">Find Matching Jobs</button>
 </div>
 
 4. Navigation links for data references:
-[View your complete profile](@navigate:/ai-chat/profile)
-[Check your skills](@navigate:/ai-chat/skills)
-[See your work history](@navigate:/ai-chat/work-history)
+[View your complete profile](@navigate:/dashboard/profile)
+[Check your skills](@navigate:/dashboard/skills)
+[See your work history](@navigate:/dashboard/work-history)
 
 **IMPORTANT**: When a user provides resume text (either by pasting it directly or asking you to parse a resume), use the parse_and_store_resume tool to process it. This will:
 - Extract structured information using AI

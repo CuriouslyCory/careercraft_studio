@@ -166,7 +166,7 @@ animate(
 Each landing page feature section directly corresponds to documented functionality:
 
 - **Professional Dashboard** → [Dashboard Redesign](./dashboard-redesign-plan.md)
-- **AI Chat Assistant** → [AI Chat](./ai-chat.md)
+- **AI Chat Assistant** → [AI Chat](./ai-chat.md) - Now integrated into the dashboard interface at `/dashboard/ai-assistant`
 - **Smart Resume Import** → [Resume Import & Parsing](./resume-import.md)
 - **Job Posting Analysis** → [Job Posting Import & Analysis](./job-posting-import.md)
 - **Tailored Documents** → [Resume Generation](./resume-generation.md) & [Cover Letter Generation](./cover-letter-generation.md)

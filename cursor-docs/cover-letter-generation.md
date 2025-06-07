@@ -6,7 +6,7 @@ This document describes the Cover Letter Generation feature in CareerCraft Studi
 
 CareerCraft Studio can generate tailored cover letters for specific job applications. This feature leverages the user's profile data and the details of a target job posting to create a relevant and persuasive cover letter.
 
-Reference: This feature is primarily handled by the `Cover Letter Generator` agent, as outlined in the [AI Chat](./ai-chat.md) documentation.
+Reference: This feature is primarily handled by the `Cover Letter Generator` agent within the AI Chat system, which is now integrated into the dashboard interface at `/dashboard/ai-assistant`. See [AI Chat](./ai-chat.md) documentation for details.
 
 ## Core Functionality & Tools
 

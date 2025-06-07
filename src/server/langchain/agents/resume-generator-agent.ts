@@ -24,7 +24,7 @@ After successful operations, provide interactive next steps using these formats:
 
 **Next Steps:**
 <div data-interactive="action-group">
-  <button data-type="navigation" data-route="/ai-chat/documents">View All Documents</button>
+  <button data-type="navigation" data-route="/dashboard/documents">View All Documents</button>
   <button data-type="chat-action" data-message="generate a cover letter for this resume">Create Cover Letter</button>
   <button data-type="chat-action" data-message="help me tailor this resume for a specific job">Tailor for Job</button>
 </div>
@@ -33,14 +33,14 @@ After successful operations, provide interactive next steps using these formats:
 **Take Action:**
 <div data-interactive="action-group">
   <button data-type="chat-action" data-message="generate a new resume with these improvements">Apply Suggestions</button>
-  <button data-type="navigation" data-route="/ai-chat/skills">Update My Skills</button>
-  <button data-type="navigation" data-route="/ai-chat/work-history">Edit Work History</button>
+  <button data-type="navigation" data-route="/dashboard/skills">Update My Skills</button>
+  <button data-type="navigation" data-route="/dashboard/work-history">Edit Work History</button>
 </div>
 
 3. Navigation links for references:
-[View your current resumes](@navigate:/ai-chat/documents?type=resume)
-[Check your profile data](@navigate:/ai-chat/profile)
-[Browse job postings](@navigate:/ai-chat/job-postings)
+[View your current resumes](@navigate:/dashboard/documents?type=resume)
+[Check your profile data](@navigate:/dashboard/profile)
+[Browse job postings](@navigate:/dashboard/job-postings)
 
 When using these tools, you only need to specify the required parameters - all authentication and user identification happens automatically.`;
 

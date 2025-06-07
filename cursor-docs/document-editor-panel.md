@@ -2,15 +2,15 @@
 
 ## Overview
 
-The Document Editor Panel provides a dedicated interface for editing job-specific resumes and cover letters. It's accessible through the sub-route structure and uses URL parameters to maintain state and allow direct linking to specific documents.
+The Document Editor Panel provides a dedicated interface for editing job-specific resumes and cover letters. It's accessible through the dashboard interface and uses URL parameters to maintain state and allow direct linking to specific documents.
 
-**Availability**: The Document Editor Panel is available in both the AI Chat interface (`/ai-chat/document-editor`) and can be accessed from the Dashboard interface (`/dashboard`) job postings section. Both interfaces provide the same editing functionality. See [Dashboard Redesign](./dashboard-redesign-plan.md) for dashboard details.
+**Availability**: The Document Editor Panel is available in the Dashboard interface at `/dashboard/document-editor`. See [Dashboard Redesign](./dashboard-redesign-plan.md) for dashboard details.
 
 ## Features
 
 ### URL-Based Navigation
 
-- **Route**: `/ai-chat/document-editor?jobPostingId={id}&documentType={type}&jobTitle={title}`
+- **Route**: `/dashboard/document-editor?jobPostingId={id}&documentType={type}&jobTitle={title}`
 - **Parameters**:
   - `jobPostingId`: The ID of the job posting
   - `documentType`: Either "resume" or "coverLetter"
@@ -25,9 +25,9 @@ The Document Editor Panel provides a dedicated interface for editing job-specifi
 - **Success Toasts**: After generation, clickable toasts provide "Open Resume"/"Open Cover Letter" buttons
 - **Extended Toast Duration**: 10 seconds to allow user interaction
 
-#### From Sidebar
+#### From Dashboard Navigation
 
-- **Document Editor**: Available as a dedicated sub-route in the navigation sidebar
+- **Document Editor**: Available as a dedicated page in the dashboard navigation
 - **State Management**: URL parameters preserve the editing context
 
 ### Document Loading
@@ -40,14 +40,14 @@ The Document Editor Panel provides a dedicated interface for editing job-specifi
 
 - **Full Document Editor**: Uses the existing DocumentEditor component
 - **Save Functionality**: Auto-refreshes job posting data after saves
-- **Cancel Navigation**: Returns to Job Postings panel
+- **Cancel Navigation**: Returns to Job Postings page
 - **All Editor Features**: Markdown editing, PDF export, document deletion, etc.
 
 ## Component Structure
 
 ### DocumentEditorPanel
 
-**Location**: `src/app/ai-chat/_components/document-editor-panel.tsx`
+**Location**: `src/app/dashboard/_components/document-editor-panel.tsx`
 
 ```typescript
 interface DocumentEditorPanelProps {
@@ -81,10 +81,10 @@ const params = new URLSearchParams();
 params.set("jobPostingId", jobPostingId);
 params.set("documentType", "resume");
 params.set("jobTitle", jobTitle);
-router.push(`/ai-chat/document-editor?${params.toString()}`);
+router.push(`/dashboard/document-editor?${params.toString()}`);
 
 // Return to job postings
-router.push("/ai-chat/job-postings");
+router.push("/dashboard/job-postings");
 ```
 
 ## API Dependencies
@@ -126,17 +126,17 @@ router.push("/ai-chat/job-postings");
 1. User generates resume/cover letter
 2. Success toast appears with "Open Resume"/"Open Cover Letter" button
 3. User clicks button within 10-second window
-4. Navigates to Document Editor sub-route with document loaded
+4. Navigates to Document Editor with document loaded
 
 ### From Context Menu
 
 1. User right-clicks on job posting row
 2. Selects "View Resume" or "View Cover Letter"
-3. Navigates to Document Editor sub-route with document loaded
+3. Navigates to Document Editor with document loaded
 
 ### Direct Access
 
-1. User clicks "Document Editor" in navigation sidebar
+1. User navigates to "Document Editor" in dashboard
 2. If no URL parameters, shows parameter requirement message
 3. If valid parameters, loads and displays document
 
@@ -144,7 +144,7 @@ router.push("/ai-chat/job-postings");
 
 1. User clicks "Cancel" or "Back to Job Postings"
 2. URL parameters are cleaned up
-3. Returns to Job Postings sub-route
+3. Returns to Job Postings page
 
 ## Benefits
 
