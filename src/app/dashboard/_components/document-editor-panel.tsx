@@ -32,8 +32,8 @@ export function DocumentEditorPanel() {
   };
 
   const handleCancel = () => {
-    // Navigate back to job postings
-    router.push("/dashboard/job-postings");
+    // Navigate back using browser history
+    router.back();
   };
 
   // Show loading state while fetching job posting
@@ -70,7 +70,7 @@ export function DocumentEditorPanel() {
         </div>
         <Button onClick={handleCancel} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Job Postings
+          Back
         </Button>
       </div>
     );
@@ -97,7 +97,7 @@ export function DocumentEditorPanel() {
         </div>
         <Button onClick={handleCancel} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Job Postings
+          Back
         </Button>
       </div>
     );
@@ -118,7 +118,7 @@ export function DocumentEditorPanel() {
         </div>
         <Button onClick={handleCancel} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Job Postings
+          Back
         </Button>
       </div>
 
