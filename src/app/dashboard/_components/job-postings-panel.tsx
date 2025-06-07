@@ -9,11 +9,7 @@ import rehypeRaw from "rehype-raw";
 import { markdownComponents } from "./markdown-components";
 import { CompatibilityReportContent } from "./compatibility-report";
 import { Button } from "~/components/ui/button";
-import { Textarea } from "~/components/ui/textarea";
-import { useForm } from "@tanstack/react-form";
-import type { AnyFieldApi } from "@tanstack/react-form";
 import type { Prisma } from "@prisma/client";
-import { Plus } from "lucide-react";
 import { JobPostingsDataTable } from "./job-postings-data-table";
 import { createJobPostingsColumns } from "./job-postings-table-columns";
 import { useRouter, usePathname } from "next/navigation";
@@ -25,22 +21,6 @@ type JobPosting = Prisma.JobPostingGetPayload<{
     document: true;
   };
 }>;
-
-// Field info component for displaying validation errors
-function FieldInfo({ field }: { field: AnyFieldApi }) {
-  return (
-    <>
-      {field.state.meta.isTouched && !field.state.meta.isValid ? (
-        <div className="mt-1 text-sm text-red-600">
-          {field.state.meta.errors.join(", ")}
-        </div>
-      ) : null}
-      {field.state.meta.isValidating ? (
-        <div className="mt-1 text-sm text-blue-600">Validating...</div>
-      ) : null}
-    </>
-  );
-}
 
 export function JobPostingsPanel() {
   const router = useRouter();
@@ -58,7 +38,6 @@ export function JobPostingsPanel() {
     return `${baseRoute}?${params.toString()}`;
   };
 
-  const [showAddForm, setShowAddForm] = useState(false);
   const [viewContent, setViewContent] = useState<{
     id: string;
     content: string;
@@ -74,38 +53,6 @@ export function JobPostingsPanel() {
 
   const queryClient = api.useUtils();
   const jobPostingsQuery = api.document.listJobPostings.useQuery();
-
-  // Job posting form for pasting content and AI parsing
-  const jobPostingForm = useForm({
-    defaultValues: {
-      content: "",
-      url: "",
-      status: "",
-      notes: "",
-    },
-    onSubmit: async ({ value }) => {
-      // Validate required field
-      if (!value.content.trim()) {
-        toast.error("Job posting content is required");
-        return;
-      }
-
-      // Only send fields that have values
-      const dataToSubmit = Object.fromEntries(
-        Object.entries(value).filter(
-          ([_, fieldValue]) =>
-            typeof fieldValue === "string" && fieldValue.trim() !== "",
-        ),
-      ) as {
-        content: string;
-        url?: string;
-        status?: string;
-        notes?: string;
-      };
-
-      parseAndStoreMutation.mutate(dataToSubmit);
-    },
-  });
 
   const generateResumeMutation =
     api.document.generateTailoredResume.useMutation({
@@ -298,35 +245,6 @@ export function JobPostingsPanel() {
     router.push(detailPath);
   };
 
-  const parseAndStoreMutation =
-    api.document.parseAndStoreJobPosting.useMutation({
-      onSuccess: (result: {
-        success: boolean;
-        message: string;
-        jobPosting: {
-          id: string;
-          title: string;
-          company: string;
-          location: string;
-          industry: string | null;
-        };
-        skillCounts: {
-          requiredSkills: number;
-          bonusSkills: number;
-          educationRequirements: number;
-          experienceRequirements: number;
-        };
-      }) => {
-        void jobPostingsQuery.refetch();
-        setShowAddForm(false);
-        jobPostingForm.reset();
-        toast.success(result.message);
-      },
-      onError: (error: { message: string }) => {
-        toast.error(`Failed to parse and store job posting: ${error.message}`);
-      },
-    });
-
   const deleteMutation = api.document.deleteJobPosting.useMutation({
     onMutate: async (deleteData) => {
       // Cancel any outgoing refetches
@@ -482,180 +400,6 @@ export function JobPostingsPanel() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex gap-3">
-          <Button
-            onClick={() => {
-              setShowAddForm(!showAddForm);
-            }}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg hover:from-blue-700 hover:to-indigo-700"
-          >
-            {showAddForm ? "Cancel" : <Plus />}
-          </Button>
-        </div>
-      </div>
-
-      {/* Add New Job Posting Form */}
-      {showAddForm && (
-        <div className="mb-6 rounded-md border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
-          <h3 className="mb-6 text-xl font-bold text-gray-900">
-            Add New Job Posting
-          </h3>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void jobPostingForm.handleSubmit();
-            }}
-          >
-            <div className="space-y-4">
-              <jobPostingForm.Field
-                name="content"
-                validators={{
-                  onChange: ({ value }) =>
-                    !value.trim()
-                      ? "Job posting content is required"
-                      : undefined,
-                }}
-              >
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-2 block text-sm font-medium"
-                    >
-                      Job Posting Content *
-                    </label>
-                    <p className="mb-2 text-sm text-gray-600">
-                      Paste the job posting content here. Our AI will
-                      automatically extract the title, company, location, and
-                      requirements.
-                    </p>
-                    <Textarea
-                      id={field.name}
-                      name={field.name}
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="min-h-[200px] w-full"
-                      placeholder="Paste the job posting content here..."
-                    />
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </jobPostingForm.Field>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <jobPostingForm.Field name="url">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor={field.name}
-                        className="mb-1 block text-sm font-medium"
-                      >
-                        URL (Optional)
-                      </label>
-                      <input
-                        id={field.name}
-                        name={field.name}
-                        type="url"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className="w-full rounded border px-3 py-2 text-sm"
-                        placeholder="https://company.com/jobs/123"
-                      />
-                      <FieldInfo field={field} />
-                    </div>
-                  )}
-                </jobPostingForm.Field>
-                <jobPostingForm.Field name="status">
-                  {(field) => (
-                    <div>
-                      <label
-                        htmlFor={field.name}
-                        className="mb-1 block text-sm font-medium"
-                      >
-                        Status (Optional)
-                      </label>
-                      <select
-                        id={field.name}
-                        name={field.name}
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        className="w-full rounded border px-3 py-2 text-sm"
-                      >
-                        <option value="">Select status</option>
-                        <option value="Saved">Saved</option>
-                        <option value="Applied">Applied</option>
-                        <option value="Interview">Interview</option>
-                        <option value="Rejected">Rejected</option>
-                        <option value="Offer">Offer</option>
-                      </select>
-                      <FieldInfo field={field} />
-                    </div>
-                  )}
-                </jobPostingForm.Field>
-                <div></div> {/* Empty div for grid spacing */}
-              </div>
-
-              <jobPostingForm.Field name="notes">
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor={field.name}
-                      className="mb-1 block text-sm font-medium"
-                    >
-                      Notes (Optional)
-                    </label>
-                    <Textarea
-                      id={field.name}
-                      name={field.name}
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      className="min-h-[60px] w-full"
-                      placeholder="Your notes about this job posting..."
-                    />
-                    <FieldInfo field={field} />
-                  </div>
-                )}
-              </jobPostingForm.Field>
-
-              <div className="flex gap-2">
-                <jobPostingForm.Subscribe
-                  selector={(state) => [state.canSubmit, state.isSubmitting]}
-                >
-                  {([canSubmit, isSubmitting]) => (
-                    <Button
-                      type="submit"
-                      disabled={!canSubmit || parseAndStoreMutation.isPending}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {parseAndStoreMutation.isPending || isSubmitting
-                        ? "Processing..."
-                        : "Parse & Store Job Posting"}
-                    </Button>
-                  )}
-                </jobPostingForm.Subscribe>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    jobPostingForm.reset();
-                    setShowAddForm(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
-
       {/* Job Postings List */}
       {jobPostings.length === 0 ? (
         <div className="rounded-md border border-gray-200 bg-gray-50 p-8 text-center">
@@ -709,6 +453,7 @@ export function JobPostingsPanel() {
             generateResumeMutation.isPending &&
             generateResumeMutation.variables?.jobPostingId === jobPostingId
           }
+          onJobPostingAdded={() => void jobPostingsQuery.refetch()}
         />
       )}
     </div>

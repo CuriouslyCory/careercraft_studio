@@ -30,11 +30,13 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { AddJobPostingForm } from "./add-job-posting-form";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isGeneratingResume?: (id: string) => boolean;
+  onJobPostingAdded?: () => void;
 }
 
 /**
@@ -45,6 +47,7 @@ export function JobPostingsDataTable<TData, TValue>({
   columns,
   data,
   isGeneratingResume,
+  onJobPostingAdded,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -132,6 +135,7 @@ export function JobPostingsDataTable<TData, TValue>({
             ))}
           </SelectContent>
         </Select>
+        <AddJobPostingForm onJobPostingAdded={onJobPostingAdded} />
       </div>
 
       {/* Table */}

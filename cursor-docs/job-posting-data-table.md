@@ -17,6 +17,7 @@ The job posting data table provides a modern, sortable, and searchable interface
 - **Responsive Design**: Optimized for both desktop and mobile viewing
 - **Loading Animation**: Visual progress indicator during resume generation operations
 - **Inline Status Editing**: Click on any status badge to update it directly via dropdown
+- **Integrated Add Form**: Add new job postings directly from the data table interface with AI-powered parsing
 
 ### Data Display
 
@@ -61,12 +62,45 @@ Reusable data table component with the following features:
 - Pagination controls
 - Responsive layout
 - Empty state handling
+- Integrated add job posting form with AI parsing
+
+### AddJobPostingForm
+
+**Location**: `src/app/dashboard/_components/add-job-posting-form.tsx`
+
+Standalone form component for adding new job postings:
+
+- **AI-Powered Parsing**: Automatically extracts job title, company, location, and requirements from pasted content
+- **Optional Metadata**: URL, status, and notes fields for additional context
+- **Form Validation**: Client-side validation with real-time feedback
+- **Callback Integration**: Notifies parent components when new job postings are added
+- **Modal Dialog**: Uses shadcn/ui Dialog component to prevent page layout deformation
+- **Responsive Design**: Optimized for both desktop and mobile interfaces
+
+```typescript
+interface AddJobPostingFormProps {
+  onJobPostingAdded?: () => void;
+}
+```
+
+**Features:**
+
+- **Dialog Modal Interface**: Clean button that opens a modal dialog to prevent page layout deformation
+- **Content Parsing**: Large textarea for pasting job posting content
+- **Status Selection**: Dropdown for initial application status
+- **URL Input**: Optional field for job posting links
+- **Notes Field**: Free-text area for personal notes
+- **Loading States**: Visual feedback during AI parsing operations
+- **Error Handling**: Toast notifications for validation and API errors
+- **Responsive Design**: Modal adapts to screen size with scrollable content for long forms
+- **Accessible**: Proper dialog semantics with focus management and keyboard navigation
 
 ```typescript
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isGeneratingResume?: (id: string) => boolean;
+  onJobPostingAdded?: () => void;
 }
 ```
 
@@ -145,9 +179,18 @@ The main job postings panel has been updated to:
 
 - Import and use the new data table components
 - Replace the old HTML table with `JobPostingsDataTable`
-- Add an edit modal for job posting modifications
+- **Remove embedded add form**: The add job posting functionality has been moved to the data table component
 - **Add status update functionality** with optimistic updates and error handling
+- **Simplified interface**: Cleaner layout with form integrated into the data table
 - Maintain all existing functionality while improving UX
+
+### Architecture Changes
+
+**Form Extraction**: The add job posting form has been extracted from `JobPostingsPanel` into a standalone `AddJobPostingForm` component for better modularity and reusability.
+
+**Integration Point**: The form is now integrated directly into the data table's filter bar, positioned after the company filter dropdown for logical workflow progression. The form opens in a modal dialog to prevent page layout issues.
+
+**Callback Pattern**: Uses a callback pattern to notify the parent panel when new job postings are added, triggering a data refresh.
 
 ### Status Update Mutation
 

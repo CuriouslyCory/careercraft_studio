@@ -39,7 +39,7 @@ Below is an index of the documented features. Each link will take you to a more 
 - **[Dashboard Redesign](./dashboard-redesign-plan.md)**: Documents the new professional dashboard interface with top navigation, profile completion tracking, and streamlined user experience as an alternative to the AI chat layout.
 - **[AI Chat](./ai-chat.md)**: Describes the architecture and capabilities of the AI-powered chat interface, including its agent team and available tools. The AI Assistant is now integrated into the dashboard interface at `/dashboard/ai-assistant`.
 - **[Job Posting Import & Analysis](./job-posting-import.md)**: Explains how job postings are imported, parsed, stored, and analyzed against user profiles.
-- **[Job Posting Data Table](./job-posting-data-table.md)**: Documents the sortable, searchable data table interface for managing job postings with advanced filtering and action capabilities.
+- **[Job Posting Data Table](./job-posting-data-table.md)**: Documents the sortable, searchable data table interface for managing job postings with advanced filtering, integrated add form, and action capabilities.
 - **[Job Posting Detail Page](./job-posting-detail-page.md)**: ✅ **NEW!** Comprehensive job posting detail view with editable fields, compatibility analysis, resume/cover letter generation, and document management integration.
 - **[User Profile Management](./user-profile-management.md)**: Describes the user profile system for managing professional contact information separate from authentication provider data.
 - **[Profile Management](./profile-management.md)**: Details the CRUD (Create, Read, Update, Delete) operations for user profile information such as work history, skills, and personal links.
