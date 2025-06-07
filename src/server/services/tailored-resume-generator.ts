@@ -1,126 +1,33 @@
-import { type PrismaClient } from "@prisma/client";
+import { type PrismaClient, type WorkAchievement } from "@prisma/client";
 import { generateUserResumeData } from "./resume-data-generator";
 import { createLLM } from "~/server/langchain/agent";
-import { z } from "zod";
 
-// Schema for the generated resume sections
-const TailoredResumeSchema = z.object({
-  header: z.string().describe("Contact information and relevant links"),
-  summary: z
-    .string()
-    .describe("Professional summary/objective tailored to the job"),
-  workExperience: z
-    .string()
-    .describe(
-      "Work experience section with relevant keywords and achievements",
-    ),
-  skills: z.string().describe("Technical and soft skills relevant to the job"),
-  education: z.string().optional().describe("Education section if available"),
-  achievements: z
-    .string()
-    .optional()
-    .describe(
-      "Awards, speaking engagements, notable achievements if available",
-    ),
-});
-
-export type TailoredResume = z.infer<typeof TailoredResumeSchema>;
-
-// Schema for the generated cover letter
-const TailoredCoverLetterSchema = z.object({
-  content: z
-    .string()
-    .describe("The full cover letter content tailored to the job"),
-});
-
-export type TailoredCoverLetter = z.infer<typeof TailoredCoverLetterSchema>;
-
-// Type for work experience with relevance classification
-interface ClassifiedWorkExperience {
-  detailed: Array<{
-    jobTitle: string;
-    companyName: string;
-    startDate: Date;
-    endDate: Date | null;
-    achievements: Array<{ description: string }>;
-    userSkills: Array<{
-      skill: { name: string; category: string };
-      proficiency: string;
-      yearsExperience: number | null;
-    }>;
-  }>;
-  brief: Array<{
-    jobTitle: string;
-    companyName: string;
-    startDate: Date;
-    endDate: Date | null;
-    achievements: Array<{ description: string }>;
-    userSkills: Array<{
-      skill: { name: string; category: string };
-      proficiency: string;
-      yearsExperience: number | null;
-    }>;
-  }>;
-}
-
-interface JobPostingData {
-  id: string;
-  title: string;
-  company: string;
-  location: string;
-  industry: string | null;
-  content: string;
-  details?: {
-    technicalSkills: string[];
-    softSkills: string[];
-    educationRequirements: string[];
-    experienceRequirements: Array<{
-      years?: number;
-      description: string;
-      category: string;
-    }>;
-    industryKnowledge: string[];
-    bonusTechnicalSkills: string[];
-    bonusSoftSkills: string[];
-    bonusEducationRequirements: string[];
-    bonusExperienceRequirements: Array<{
-      years?: number;
-      description: string;
-      category: string;
-    }>;
-    bonusIndustryKnowledge: string[];
-  } | null;
-  skillRequirements: Array<{
-    id: string;
-    isRequired: boolean;
-    minimumLevel: string | null;
-    yearsRequired: number | null;
-    priority: number;
-    skill: {
-      id: string;
-      name: string;
-      category: string;
-      description: string | null;
-    };
-  }>;
-  experienceRequirements: Array<{
-    id: string;
-    years: number | null;
-    description: string;
-    category: string;
-    isRequired: boolean;
-  }>;
-  educationRequirements: Array<{
-    id: string;
-    level: string;
-    field: string | null;
-    description: string | null;
-    isRequired: boolean;
-  }>;
-}
+// Import new types and configuration
+import {
+  RESUME_CONFIG,
+  type ResumeGeneratorConfig,
+} from "./tailored-resume/config/resume-generator.config";
+import {
+  TailoredResumeSchema,
+  TailoredCoverLetterSchema,
+  type TailoredResume,
+  type TailoredCoverLetter,
+} from "./tailored-resume/types/resume.types";
+import { WorkExperienceClassifier } from "./tailored-resume/core/work-experience-classifier";
+import { KeywordExtractor } from "./tailored-resume/core/keyword-extractor";
+import { RelevanceDetector } from "./tailored-resume/core/relevance-detector";
+import type { ClassifiedWorkExperience as SchemaClassifiedWorkExperience } from "./tailored-resume/types/schemas";
+import type { JobPostingData } from "./tailored-resume/types/job-posting.types";
 
 export class TailoredResumeGenerator {
-  constructor(private db: PrismaClient) {}
+  private readonly workExperienceClassifier: WorkExperienceClassifier;
+
+  constructor(
+    private db: PrismaClient,
+    private config: ResumeGeneratorConfig = RESUME_CONFIG,
+  ) {
+    this.workExperienceClassifier = new WorkExperienceClassifier(db, config);
+  }
 
   async generateTailoredResume(
     userId: string,
@@ -215,14 +122,14 @@ export class TailoredResumeGenerator {
       skillRequirements: jobPosting.skillRequirements.map((req) => ({
         id: req.id,
         isRequired: req.isRequired,
-        minimumLevel: req.minimumLevel,
-        yearsRequired: req.yearsRequired,
+        minimumLevel: req.minimumLevel ?? null,
+        yearsRequired: req.yearsRequired ?? null,
         priority: req.priority,
         skill: {
           id: req.skill.id,
           name: req.skill.name,
           category: req.skill.category,
-          description: req.skill.description,
+          description: req.skill.description ?? null,
         },
       })),
       experienceRequirements: jobPosting.experienceRequirements.map((req) => ({
@@ -235,8 +142,8 @@ export class TailoredResumeGenerator {
       educationRequirements: jobPosting.educationRequirements.map((req) => ({
         id: req.id,
         level: req.level,
-        field: req.field,
-        description: req.description,
+        field: req.field ?? null,
+        description: req.description ?? null,
         isRequired: req.isRequired,
       })),
     };
@@ -248,158 +155,18 @@ export class TailoredResumeGenerator {
   private async classifyWorkExperience(
     userId: string,
     jobPostingData: JobPostingData,
-  ): Promise<ClassifiedWorkExperience> {
-    // Fetch user's work history
-    const userData = await this.db.user.findUnique({
-      where: { id: userId },
-      include: {
-        workHistories: {
-          include: {
-            achievements: true,
-            userSkills: {
-              include: {
-                skill: true,
-              },
-            },
-          },
-          orderBy: { startDate: "desc" },
-        },
-      },
-    });
-
-    if (!userData?.workHistories) {
-      return { detailed: [], brief: [] };
-    }
-
-    const tenYearsAgo = new Date();
-    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-
-    const detailed: ClassifiedWorkExperience["detailed"] = [];
-    const brief: ClassifiedWorkExperience["brief"] = [];
-
-    // Extract job-relevant keywords for relevance checking
-    const jobKeywords = this.extractJobKeywords(jobPostingData);
-
-    for (const job of userData.workHistories) {
-      const isWithinTenYears = (job?.endDate ?? new Date()) >= tenYearsAgo;
-      const isRelevant = this.isJobRelevant(job, jobKeywords);
-
-      // Include in detailed if within 10 years OR specifically relevant to the job
-      if (isWithinTenYears || isRelevant) {
-        detailed.push({
-          jobTitle: job.jobTitle,
-          companyName: job.companyName,
-          startDate: job.startDate,
-          endDate: job.endDate,
-          achievements: job.achievements,
-          userSkills: job.userSkills.map((us) => ({
-            skill: {
-              name: us.skill.name,
-              category: us.skill.category,
-            },
-            proficiency: us.proficiency,
-            yearsExperience: us.yearsExperience,
-          })),
-        });
-      } else {
-        // Include in brief if older than 10 years and not specifically relevant
-        brief.push({
-          jobTitle: job.jobTitle,
-          companyName: job.companyName,
-          startDate: job.startDate,
-          endDate: job.endDate,
-          achievements: job.achievements,
-          userSkills: job.userSkills.map((us) => ({
-            skill: {
-              name: us.skill.name,
-              category: us.skill.category,
-            },
-            proficiency: us.proficiency,
-            yearsExperience: us.yearsExperience,
-          })),
-        });
-      }
-    }
-
-    return { detailed, brief };
-  }
-
-  /**
-   * Extract relevant keywords from job posting for relevance checking
-   */
-  private extractJobKeywords(jobData: JobPostingData): Set<string> {
-    const keywords = new Set<string>();
-
-    // Add skills from requirements
-    jobData.skillRequirements.forEach((req) => {
-      keywords.add(req.skill.name.toLowerCase());
-      keywords.add(req.skill.category.toLowerCase());
-    });
-
-    // Add keywords from structured details
-    if (jobData.details) {
-      jobData.details.technicalSkills.forEach((skill) =>
-        keywords.add(skill.toLowerCase()),
-      );
-      jobData.details.softSkills.forEach((skill) =>
-        keywords.add(skill.toLowerCase()),
-      );
-      jobData.details.industryKnowledge.forEach((knowledge) =>
-        keywords.add(knowledge.toLowerCase()),
-      );
-    }
-
-    // Add industry if available
-    if (jobData.industry) {
-      keywords.add(jobData.industry.toLowerCase());
-    }
-
-    // Extract keywords from job title and company
-    const titleWords = jobData.title.toLowerCase().split(/\s+/);
-    titleWords.forEach((word) => {
-      if (word.length > 3) keywords.add(word);
-    });
-
-    return keywords;
-  }
-
-  /**
-   * Check if a job is relevant to the posting based on skills, industry, or role similarity
-   */
-  private isJobRelevant(
-    job: {
-      jobTitle: string;
-      companyName: string;
-      userSkills: Array<{
-        skill: { name: string; category: string };
-      }>;
-    },
-    jobKeywords: Set<string>,
-  ): boolean {
-    // Check job title for relevant keywords
-    const jobTitleWords = job.jobTitle.toLowerCase().split(/\s+/);
-    for (const word of jobTitleWords) {
-      if (jobKeywords.has(word)) return true;
-    }
-
-    // Check skills for relevance
-    for (const userSkill of job.userSkills) {
-      if (
-        jobKeywords.has(userSkill.skill.name.toLowerCase()) ||
-        jobKeywords.has(userSkill.skill.category.toLowerCase())
-      ) {
-        return true;
-      }
-    }
-
-    return false;
+  ): Promise<SchemaClassifiedWorkExperience> {
+    return this.workExperienceClassifier.classifyWorkExperience(
+      userId,
+      jobPostingData,
+    );
   }
 
   /**
    * Format classified work experience for LLM consumption
    */
   private formatClassifiedWorkExperience(
-    classified: ClassifiedWorkExperience,
+    classified: SchemaClassifiedWorkExperience,
   ): string {
     const sections: string[] = [];
 
@@ -473,7 +240,7 @@ export class TailoredResumeGenerator {
   private async generateResumeWithLLM(
     userProfileData: string,
     jobPostingData: JobPostingData,
-    classifiedWorkExperience: ClassifiedWorkExperience,
+    classifiedWorkExperience: SchemaClassifiedWorkExperience,
   ): Promise<TailoredResume> {
     // Create LLM with higher temperature to reduce repetition
     const llm = createLLM(); // Remove temperature parameter until we fix the function signature
@@ -491,25 +258,27 @@ RULES:
 WORK EXPERIENCE FORMATTING:
 - For "Recent/Relevant Work Experience (Detailed)": Include full details with multiple bullet points highlighting achievements, responsibilities, and skills used
 - For "Older Work Experience (Brief Summary Only)": Include only a single line per position with job title, company, dates, and brief role description
-- Always include ALL work experience from the last 10 years in detailed format
-- Include older work experience only if specifically relevant to the target job
+- Always include ALL jobs from the last 10 years in detailed format
+- Include older jobs only if specifically relevant to the target job
 
 FORMAT: Return valid JSON with these exact fields:
 - header: Contact information
 - summary: Brief professional summary (2-3 sentences)
 - workExperience: Work history with achievements (formatted according to the rules above)
 - skills: Relevant technical and soft skills
-- education: Educational background (empty string if none)
-- achievements: Notable accomplishments (empty string if none)`;
+- education: Educational background relevant to the job posting (empty string if none)
+- achievements: Notable accomplishments relevant to the job posting (empty string if none)
+- a single page contains about 40 lines of text, the resume should be a maxiumum of 3 pages, prioritize the most relevant experience and skills`;
 
     // Updated user prompt with classified work experience
-    const userPrompt = `Please generate a tailored resume that:
+    const userPrompt = `Please generate a resume tailored to the job posting that:
 1. Highlights the user's most relevant experiences for this specific role
 2. Incorporates relevant keywords from the job description naturally
 3. Emphasizes skills and achievements that align with the job requirements
 4. Follows the work experience formatting rules (detailed vs brief)
-5. Optimized entries for ATS compatibility
+5. Optimize entries for ATS compatibility (e.g. use bullet points, keep it concise, etc.)
 6. Only uses information provided in the user profile data
+7. If a keyword is often represented by an acronym or another term, use both if possible
 
 JOB: ${jobPostingData.title} at ${jobPostingData.company}
 LOCATION: ${jobPostingData.location}
@@ -708,7 +477,7 @@ Focus on relevant experience and skills. Use markdown formatting within each sec
   private async generateCoverLetterWithLLM(
     userProfileData: string,
     jobPostingData: JobPostingData,
-    classifiedWorkExperience: ClassifiedWorkExperience,
+    classifiedWorkExperience: SchemaClassifiedWorkExperience,
   ): Promise<TailoredCoverLetter> {
     const llm = createLLM(); // Remove temperature parameter until we fix the function signature
 
