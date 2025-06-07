@@ -1028,20 +1028,26 @@ export async function deduplicateAndMergeWorkAchievements(
   }
 
   // Step 4: Apply changes to database (quick transaction for DB operations only)
-  await db.$transaction(async (tx) => {
-    // Delete all existing achievements for this work history
-    await tx.workAchievement.deleteMany({
-      where: { workHistoryId },
-    });
+  await db.$transaction(
+    async (tx) => {
+      // Delete all existing achievements for this work history
+      await tx.workAchievement.deleteMany({
+        where: { workHistoryId },
+      });
 
-    // Create the merged achievements
-    await tx.workAchievement.createMany({
-      data: mergeResult.finalAchievements.map((achievement) => ({
-        description: achievement.description,
-        workHistoryId,
-      })),
-    });
-  });
+      // Create the merged achievements
+      await tx.workAchievement.createMany({
+        data: mergeResult.finalAchievements.map((achievement) => ({
+          description: achievement.description,
+          workHistoryId,
+        })),
+      });
+    },
+    {
+      timeout: 10000, // 10 second timeout for achievement operations
+      maxWait: 5000, // 5 second max wait
+    },
+  );
 
   return {
     success: true,
@@ -1082,20 +1088,26 @@ export async function applyApprovedWorkAchievements(
   }
 
   // Apply the approved achievements in a transaction
-  await db.$transaction(async (tx) => {
-    // Delete all existing achievements for this work history
-    await tx.workAchievement.deleteMany({
-      where: { workHistoryId },
-    });
+  await db.$transaction(
+    async (tx) => {
+      // Delete all existing achievements for this work history
+      await tx.workAchievement.deleteMany({
+        where: { workHistoryId },
+      });
 
-    // Create the approved achievements
-    await tx.workAchievement.createMany({
-      data: approvedAchievements.map((description) => ({
-        description,
-        workHistoryId,
-      })),
-    });
-  });
+      // Create the approved achievements
+      await tx.workAchievement.createMany({
+        data: approvedAchievements.map((description) => ({
+          description,
+          workHistoryId,
+        })),
+      });
+    },
+    {
+      timeout: 10000, // 10 second timeout for achievement operations
+      maxWait: 5000, // 5 second max wait
+    },
+  );
 
   return {
     success: true,

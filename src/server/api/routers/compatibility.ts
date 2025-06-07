@@ -32,75 +32,81 @@ export const compatibilityRouter = createTRPCRouter({
       const details = jobPosting.details;
 
       // Use the SkillNormalizationService for consistent skill handling
-      await ctx.db.$transaction(async (tx) => {
-        const skillNormalizer = new SkillNormalizationService(tx);
+      await ctx.db.$transaction(
+        async (tx) => {
+          const skillNormalizer = new SkillNormalizationService(tx);
 
-        // Create JobSkillRequirement records for required skills
-        const allRequiredSkills = [
-          ...details.technicalSkills,
-          ...details.softSkills,
-        ];
+          // Create JobSkillRequirement records for required skills
+          const allRequiredSkills = [
+            ...details.technicalSkills,
+            ...details.softSkills,
+          ];
 
-        const allBonusSkills = [
-          ...details.bonusTechnicalSkills,
-          ...details.bonusSoftSkills,
-        ];
+          const allBonusSkills = [
+            ...details.bonusTechnicalSkills,
+            ...details.bonusSoftSkills,
+          ];
 
-        // Process required skills with normalization
-        const requiredSkillResults =
-          await skillNormalizer.normalizeSkills(allRequiredSkills);
+          // Process required skills with normalization
+          const requiredSkillResults =
+            await skillNormalizer.normalizeSkills(allRequiredSkills);
 
-        // Process bonus skills with normalization
-        const bonusSkillResults =
-          await skillNormalizer.normalizeSkills(allBonusSkills);
+          // Process bonus skills with normalization
+          const bonusSkillResults =
+            await skillNormalizer.normalizeSkills(allBonusSkills);
 
-        // Collect unique skill requirements to avoid duplicates
-        const skillRequirements = new Map<
-          string,
-          {
-            skillId: string;
-            isRequired: boolean;
-            priority: number;
-          }
-        >();
+          // Collect unique skill requirements to avoid duplicates
+          const skillRequirements = new Map<
+            string,
+            {
+              skillId: string;
+              isRequired: boolean;
+              priority: number;
+            }
+          >();
 
-        // Process required skills first (higher priority)
-        for (const skillResult of requiredSkillResults) {
-          skillRequirements.set(skillResult.baseSkillId, {
-            skillId: skillResult.baseSkillId,
-            isRequired: true,
-            priority: 1,
-          });
-        }
-
-        // Process bonus skills (only add if not already required)
-        for (const skillResult of bonusSkillResults) {
-          if (!skillRequirements.has(skillResult.baseSkillId)) {
+          // Process required skills first (higher priority)
+          for (const skillResult of requiredSkillResults) {
             skillRequirements.set(skillResult.baseSkillId, {
               skillId: skillResult.baseSkillId,
-              isRequired: false,
-              priority: 2,
+              isRequired: true,
+              priority: 1,
             });
           }
-        }
 
-        // Create all unique skill requirements in a single batch
-        const skillRequirementData = Array.from(skillRequirements.values()).map(
-          (req) => ({
+          // Process bonus skills (only add if not already required)
+          for (const skillResult of bonusSkillResults) {
+            if (!skillRequirements.has(skillResult.baseSkillId)) {
+              skillRequirements.set(skillResult.baseSkillId, {
+                skillId: skillResult.baseSkillId,
+                isRequired: false,
+                priority: 2,
+              });
+            }
+          }
+
+          // Create all unique skill requirements in a single batch
+          const skillRequirementData = Array.from(
+            skillRequirements.values(),
+          ).map((req) => ({
             skillId: req.skillId,
             jobPostingId: jobPosting.id,
             isRequired: req.isRequired,
             priority: req.priority,
-          }),
-        );
+          }));
 
-        if (skillRequirementData.length > 0) {
-          await tx.jobSkillRequirement.createMany({
-            data: skillRequirementData,
-            skipDuplicates: true, // This will skip any duplicates instead of failing
-          });
-        }
-      });
+          if (skillRequirementData.length > 0) {
+            await tx.jobSkillRequirement.createMany({
+              data: skillRequirementData,
+              skipDuplicates: true, // This will skip any duplicates instead of failing
+            });
+          }
+        },
+        {
+          timeout: 15000, // 15 second timeout for skill migration
+          maxWait: 5000, // 5 second max wait
+        },
+      );
 
       migratedCount++;
     }

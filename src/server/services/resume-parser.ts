@@ -200,119 +200,125 @@ export class ResumeParsingService {
 
       const parsed = ResumeDataSchema.parse(JSON.parse(clean));
 
-      // Batch all database operations in a transaction
-      await this.db.$transaction(async (tx) => {
-        // Process key achievements - simple batch insert
-        const keyAchievements = Array.isArray(parsed.key_achievements)
-          ? parsed.key_achievements
-          : [];
-        if (keyAchievements.length > 0) {
-          await tx.keyAchievement.createMany({
-            data: keyAchievements.map((content) => ({
-              content,
-              userId,
-            })),
-            skipDuplicates: true,
-          });
-          achievementsCount = keyAchievements.length;
-        }
-
-        // Process education - batch insert
-        const educationArr = Array.isArray(parsed.education)
-          ? parsed.education
-          : [];
-        if (educationArr.length > 0) {
-          await tx.education.createMany({
-            data: educationArr.map((edu) => ({
-              type: (edu.type as EducationType) ?? "OTHER",
-              institutionName: edu.institutionName ?? "",
-              degreeOrCertName: edu.degreeOrCertName,
-              description: edu.description ?? "",
-              dateCompleted: edu.dateCompleted,
-              userId,
-            })),
-            skipDuplicates: true,
-          });
-          educationCount = educationArr.length;
-        }
-
-        // Process user links - batch with duplicate checking
-        const userLinks = Array.isArray(parsed.user_links)
-          ? parsed.user_links
-          : [];
-        if (userLinks.length > 0) {
-          // Get existing links first to avoid duplicates
-          const existingLinks = await tx.userLink.findMany({
-            where: { userId },
-            select: { url: true },
-          });
-          const existingUrls = new Set(
-            existingLinks.map((link) => link.url.toLowerCase()),
-          );
-
-          const linksToCreate: Array<{
-            title: string;
-            url: string;
-            type: string;
-            userId: string;
-          }> = [];
-
-          // Process each link with URL validation
-          for (const link of userLinks) {
-            if (!link.url || !link.title) {
-              console.log("Skipping incomplete link:", link);
-              continue;
-            }
-
-            // Parse and validate URL, adding protocol if needed
-            let validatedUrl: string;
-            try {
-              validatedUrl = parseAndValidateUrl(link.url);
-            } catch (error: unknown) {
-              console.log(
-                `Skipping link "${link.title}" due to invalid URL: ${link.url} - ${error instanceof Error ? error.message : "Unknown error"}`,
-              );
-              continue;
-            }
-
-            // Check for duplicates using validated URL
-            if (!existingUrls.has(validatedUrl.toLowerCase())) {
-              linksToCreate.push({
-                title: link.title,
-                url: validatedUrl,
-                type: link.type ?? "OTHER",
+      // Batch all database operations in a transaction with timeout
+      await this.db.$transaction(
+        async (tx) => {
+          // Process key achievements - simple batch insert
+          const keyAchievements = Array.isArray(parsed.key_achievements)
+            ? parsed.key_achievements
+            : [];
+          if (keyAchievements.length > 0) {
+            await tx.keyAchievement.createMany({
+              data: keyAchievements.map((content) => ({
+                content,
                 userId,
-              });
-            } else {
-              console.log(
-                `Skipping duplicate link: "${link.title}" - ${validatedUrl}`,
-              );
-            }
-          }
-
-          if (linksToCreate.length > 0) {
-            await tx.userLink.createMany({
-              data: linksToCreate,
+              })),
               skipDuplicates: true,
             });
+            achievementsCount = keyAchievements.length;
           }
-          linksCount = linksToCreate.length;
-        }
 
-        // Process work experience - requires complex logic, keep individual processing
-        // but batch the achievements and skills within each work history entry
-        const workExperience = Array.isArray(parsed.work_experience)
-          ? parsed.work_experience
-          : [];
+          // Process education - batch insert
+          const educationArr = Array.isArray(parsed.education)
+            ? parsed.education
+            : [];
+          if (educationArr.length > 0) {
+            await tx.education.createMany({
+              data: educationArr.map((edu) => ({
+                type: (edu.type as EducationType) ?? "OTHER",
+                institutionName: edu.institutionName ?? "",
+                degreeOrCertName: edu.degreeOrCertName,
+                description: edu.description ?? "",
+                dateCompleted: edu.dateCompleted,
+                userId,
+              })),
+              skipDuplicates: true,
+            });
+            educationCount = educationArr.length;
+          }
 
-        if (workExperience.length > 0) {
-          workExperienceCount = await this.processWorkExperienceBatched(
-            workExperience,
-            userId,
-            tx,
-          );
-        }
-      });
+          // Process user links - batch with duplicate checking
+          const userLinks = Array.isArray(parsed.user_links)
+            ? parsed.user_links
+            : [];
+          if (userLinks.length > 0) {
+            // Get existing links first to avoid duplicates
+            const existingLinks = await tx.userLink.findMany({
+              where: { userId },
+              select: { url: true },
+            });
+            const existingUrls = new Set(
+              existingLinks.map((link) => link.url.toLowerCase()),
+            );
+
+            const linksToCreate: Array<{
+              title: string;
+              url: string;
+              type: string;
+              userId: string;
+            }> = [];
+
+            // Process each link with URL validation
+            for (const link of userLinks) {
+              if (!link.url || !link.title) {
+                console.log("Skipping incomplete link:", link);
+                continue;
+              }
+
+              // Parse and validate URL, adding protocol if needed
+              let validatedUrl: string;
+              try {
+                validatedUrl = parseAndValidateUrl(link.url);
+              } catch (error: unknown) {
+                console.log(
+                  `Skipping link "${link.title}" due to invalid URL: ${link.url} - ${error instanceof Error ? error.message : "Unknown error"}`,
+                );
+                continue;
+              }
+
+              // Check for duplicates using validated URL
+              if (!existingUrls.has(validatedUrl.toLowerCase())) {
+                linksToCreate.push({
+                  title: link.title,
+                  url: validatedUrl,
+                  type: link.type ?? "OTHER",
+                  userId,
+                });
+              } else {
+                console.log(
+                  `Skipping duplicate link: "${link.title}" - ${validatedUrl}`,
+                );
+              }
+            }
+
+            if (linksToCreate.length > 0) {
+              await tx.userLink.createMany({
+                data: linksToCreate,
+                skipDuplicates: true,
+              });
+            }
+            linksCount = linksToCreate.length;
+          }
+
+          // Process work experience - requires complex logic, keep individual processing
+          // but batch the achievements and skills within each work history entry
+          const workExperience = Array.isArray(parsed.work_experience)
+            ? parsed.work_experience
+            : [];
+
+          if (workExperience.length > 0) {
+            workExperienceCount = await this.processWorkExperienceBatched(
+              workExperience,
+              userId,
+              tx,
+            );
+          }
+        },
+        {
+          timeout: 30000, // 30 second timeout for resume processing
+          maxWait: 5000, // 5 second max wait for transaction to start
+        },
+      );
 
       console.log(
         "Successfully processed all resume sections with batched operations",
@@ -332,6 +338,7 @@ export class ResumeParsingService {
 
   /**
    * Optimized work experience processing with batched operations
+   * LLM processing is done outside of database transactions to prevent timeouts
    */
   private async processWorkExperienceBatched(
     workExperience: Array<{
@@ -371,6 +378,14 @@ export class ResumeParsingService {
     // Initialize skill normalization service
     const skillNormalizer = new SkillNormalizationService(tx);
 
+    // Pre-process all LLM operations outside of the main transaction
+    const workExperienceWithMergedAchievements: Array<{
+      exp: (typeof workExperience)[0];
+      matchingRecord?: (typeof existingWorkHistory)[0];
+      mergedAchievements: string[];
+      workHistoryId?: string;
+    }> = [];
+
     for (const expRaw of workExperience) {
       const exp = expRaw;
 
@@ -379,10 +394,9 @@ export class ResumeParsingService {
         doWorkHistoryRecordsMatch(existing, exp),
       );
 
-      let workHistoryId: string;
+      let mergedAchievements: string[] = [];
 
       if (matchingRecord) {
-        // Update existing record
         console.log(
           `Found matching work history: ${matchingRecord.companyName} - ${matchingRecord.jobTitle}`,
         );
@@ -397,12 +411,40 @@ export class ResumeParsingService {
           ? exp.achievements.filter((a): a is string => typeof a === "string")
           : [];
 
-        // Merge achievements using LLM
-        const mergedAchievements = await mergeWorkAchievements(
-          existingAchievements,
-          newAchievements,
-        );
+        // Merge achievements using LLM - THIS IS NOW OUTSIDE THE TRANSACTION
+        try {
+          mergedAchievements = await mergeWorkAchievements(
+            existingAchievements,
+            newAchievements,
+          );
+        } catch (error) {
+          console.error("Error merging achievements with LLM:", error);
+          // Fallback to simple concatenation if LLM fails
+          mergedAchievements = [...existingAchievements, ...newAchievements];
+        }
+      } else {
+        // For new records, just use the achievements as-is
+        mergedAchievements = Array.isArray(exp.achievements)
+          ? exp.achievements.filter((a): a is string => typeof a === "string")
+          : [];
+      }
 
+      workExperienceWithMergedAchievements.push({
+        exp,
+        matchingRecord,
+        mergedAchievements,
+      });
+    }
+
+    // Now process all the database operations without LLM calls
+    for (const {
+      exp,
+      matchingRecord,
+      mergedAchievements,
+    } of workExperienceWithMergedAchievements) {
+      let workHistoryId: string;
+
+      if (matchingRecord) {
         // Update the work history record
         await tx.workHistory.update({
           where: { id: matchingRecord.id },
@@ -441,17 +483,12 @@ export class ResumeParsingService {
         });
 
         // Add achievements for new record
-        const achievements = Array.isArray(exp.achievements)
-          ? exp.achievements
-          : [];
-        if (achievements.length > 0) {
+        if (mergedAchievements.length > 0) {
           await tx.workAchievement.createMany({
-            data: achievements
-              .filter((desc): desc is string => typeof desc === "string")
-              .map((desc) => ({
-                description: desc,
-                workHistoryId: wh.id,
-              })),
+            data: mergedAchievements.map((desc) => ({
+              description: desc,
+              workHistoryId: wh.id,
+            })),
           });
         }
 

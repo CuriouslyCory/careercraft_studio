@@ -131,103 +131,117 @@ export async function deduplicateAndMergeKeyAchievements(
   userId: string,
   dryRun = false,
 ): Promise<DeduplicationResult> {
-  return await db.$transaction(async (tx) => {
-    // Get all key achievements for the user
-    const achievements = await tx.keyAchievement.findMany({
-      where: { userId },
-      orderBy: { createdAt: "asc" }, // Preserve chronological order
-    });
+  // Step 1: Get all key achievements for the user (outside transaction)
+  const achievements = await db.keyAchievement.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" }, // Preserve chronological order
+  });
 
-    if (achievements.length <= 1) {
-      return {
-        success: true,
-        message: "No deduplication needed - you have 1 or fewer achievements.",
-        originalCount: achievements.length,
-        finalCount: achievements.length,
-        exactDuplicatesRemoved: 0,
-        similarGroupsMerged: 0,
-        preview: [],
-      };
+  if (achievements.length <= 1) {
+    return {
+      success: true,
+      message: "No deduplication needed - you have 1 or fewer achievements.",
+      originalCount: achievements.length,
+      finalCount: achievements.length,
+      exactDuplicatesRemoved: 0,
+      similarGroupsMerged: 0,
+      preview: [],
+    };
+  }
+
+  // Step 2: Remove exact duplicates (outside transaction)
+  const { uniqueAchievements, exactDuplicatesRemoved } =
+    removeExactDuplicates(achievements);
+
+  if (uniqueAchievements.length <= 1) {
+    if (!dryRun && exactDuplicatesRemoved > 0) {
+      // Delete the duplicate records in a quick transaction
+      await db.$transaction(
+        async (tx) => {
+          const duplicateIds = achievements
+            .filter((a) => !uniqueAchievements.some((u) => u.id === a.id))
+            .map((a) => a.id);
+
+          await tx.keyAchievement.deleteMany({
+            where: {
+              id: { in: duplicateIds },
+              userId,
+            },
+          });
+        },
+        {
+          timeout: 10000, // 10 second timeout for duplicate removal
+          maxWait: 5000, // 5 second max wait
+        },
+      );
     }
-
-    // Step 1: Remove exact duplicates
-    const { uniqueAchievements, exactDuplicatesRemoved } =
-      removeExactDuplicates(achievements);
-
-    if (uniqueAchievements.length <= 1) {
-      if (!dryRun && exactDuplicatesRemoved > 0) {
-        // Delete the duplicate records
-        const duplicateIds = achievements
-          .filter((a) => !uniqueAchievements.some((u) => u.id === a.id))
-          .map((a) => a.id);
-
-        await tx.keyAchievement.deleteMany({
-          where: {
-            id: { in: duplicateIds },
-            userId,
-          },
-        });
-      }
-
-      return {
-        success: true,
-        message: `Removed ${exactDuplicatesRemoved} exact duplicates. No similar achievements to merge.`,
-        originalCount: achievements.length,
-        finalCount: uniqueAchievements.length,
-        exactDuplicatesRemoved,
-        similarGroupsMerged: 0,
-        preview: uniqueAchievements.map((a) => ({
-          content: a.content,
-          action: "kept" as const,
-        })),
-      };
-    }
-
-    // Step 2: Use AI to identify and merge similar achievements
-    const mergeResult = await mergeAchievementsWithAI(uniqueAchievements);
-
-    if (dryRun) {
-      return {
-        success: true,
-        message: "Preview of deduplication and merge process",
-        originalCount: achievements.length,
-        finalCount: mergeResult.mergedAchievements.length,
-        exactDuplicatesRemoved,
-        similarGroupsMerged: mergeResult.groupsMerged,
-        preview: mergeResult.mergedAchievements.map((a) => ({
-          content: a.content,
-          action: "merged" as const,
-        })),
-      };
-    }
-
-    // Step 3: Apply changes to database
-    // Delete all existing achievements
-    await tx.keyAchievement.deleteMany({
-      where: { userId },
-    });
-
-    // Create the merged achievements
-    await tx.keyAchievement.createMany({
-      data: mergeResult.mergedAchievements.map((achievement) => ({
-        content: achievement.content,
-        userId,
-      })),
-    });
 
     return {
       success: true,
-      message: `Successfully deduplicated and merged achievements. Removed ${exactDuplicatesRemoved} exact duplicates and merged ${mergeResult.groupsMerged} groups of similar achievements.`,
+      message: `Removed ${exactDuplicatesRemoved} exact duplicates. No similar achievements to merge.`,
+      originalCount: achievements.length,
+      finalCount: uniqueAchievements.length,
+      exactDuplicatesRemoved,
+      similarGroupsMerged: 0,
+      preview: uniqueAchievements.map((a) => ({
+        content: a.content,
+        action: "kept" as const,
+      })),
+    };
+  }
+
+  // Step 3: Use AI to identify and merge similar achievements (outside transaction)
+  const mergeResult = await mergeAchievementsWithAI(uniqueAchievements);
+
+  if (dryRun) {
+    return {
+      success: true,
+      message: "Preview of deduplication and merge process",
       originalCount: achievements.length,
       finalCount: mergeResult.mergedAchievements.length,
       exactDuplicatesRemoved,
       similarGroupsMerged: mergeResult.groupsMerged,
       preview: mergeResult.mergedAchievements.map((a) => ({
         content: a.content,
-        action: "final" as const,
+        action: "merged" as const,
       })),
     };
-  });
+  }
+
+  // Step 4: Apply changes to database (quick transaction for DB operations only)
+  await db.$transaction(
+    async (tx) => {
+      // Delete all existing achievements
+      await tx.keyAchievement.deleteMany({
+        where: { userId },
+      });
+
+      // Create the merged achievements
+      await tx.keyAchievement.createMany({
+        data: mergeResult.mergedAchievements.map((achievement) => ({
+          content: achievement.content,
+          userId,
+        })),
+      });
+    },
+    {
+      timeout: 10000, // 10 second timeout for achievement operations
+      maxWait: 5000, // 5 second max wait
+    },
+  );
+
+  return {
+    success: true,
+    message: `Successfully deduplicated and merged achievements. Removed ${exactDuplicatesRemoved} exact duplicates and merged ${mergeResult.groupsMerged} groups of similar achievements.`,
+    originalCount: achievements.length,
+    finalCount: mergeResult.mergedAchievements.length,
+    exactDuplicatesRemoved,
+    similarGroupsMerged: mergeResult.groupsMerged,
+    preview: mergeResult.mergedAchievements.map((a) => ({
+      content: a.content,
+      action: "final" as const,
+    })),
+  };
 }
 
 /**
