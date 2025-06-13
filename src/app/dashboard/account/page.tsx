@@ -34,24 +34,24 @@ export default function AccountPage() {
   // tRPC mutations
   const utils = api.useUtils();
   const dataExportMutation = api.account.requestDataExport.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(
         "Your data export request was submitted. You'll receive your data via email within 48 hours.",
       );
       setShowExportDialog(false);
-      utils.account.listDataRequests.invalidate();
+      await utils.account.listDataRequests.invalidate();
     },
     onError: (err) => {
       toast.error(err.message || "Failed to submit data export request.");
     },
   });
   const deleteMutation = api.account.requestAccountDeletion.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(
         "Your account deletion request was submitted. Your account is now flagged for deletion.",
       );
       setShowDeleteDialog(false);
-      utils.account.listDataRequests.invalidate();
+      await utils.account.listDataRequests.invalidate();
     },
     onError: (err) => {
       toast.error(err.message || "Failed to submit account deletion request.");
@@ -61,8 +61,8 @@ export default function AccountPage() {
   // List previous requests
   const { data: requests, isLoading } = api.account.listDataRequests.useQuery();
 
-  const userName = session?.user?.name || session?.user?.email || "User";
-  const userEmail = session?.user?.email || "-";
+  const userName = session?.user?.name ?? session?.user?.email ?? "User";
+  const userEmail = session?.user?.email ?? "-";
 
   return (
     <div className="mx-auto max-w-2xl py-10">
@@ -128,7 +128,7 @@ export default function AccountPage() {
             <DialogTitle>Request Data Export</DialogTitle>
             <DialogDescription>
               Are you sure you want to request a copy of all your personal data?
-              You'll receive an email within 48 hours.
+              You&apos;ll receive an email within 48 hours.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
