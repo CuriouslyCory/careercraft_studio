@@ -227,6 +227,11 @@ model User {
     subscription    Subscription?
     usageRecords    UsageRecord[]
     userProfile     UserProfile?
+    dataRequests    DataRequest[]
+
+    // Soft delete fields
+    isDeleted Boolean   @default(false)
+    deletedAt DateTime?
 }
 
 model UserProfile {
@@ -655,4 +660,32 @@ model UsageRecord {
     @@index([userId])
     @@index([userId, action, year, month]) // Optimized for limit checking
     @@index([action, timestamp]) // For analytics
+}
+
+// New model for tracking user data requests (export or deletion)
+model DataRequest {
+    id          String            @id @default(cuid())
+    user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId      String
+    type        DataRequestType
+    status      DataRequestStatus @default(PENDING)
+    createdAt   DateTime          @default(now())
+    processedAt DateTime?
+    // Optionally, store result file location or error message
+    resultUrl   String?
+    error       String?
+
+    @@index([userId])
+}
+
+enum DataRequestType {
+    EXPORT
+    DELETE
+}
+
+enum DataRequestStatus {
+    PENDING
+    PROCESSING
+    COMPLETED
+    FAILED
 }

@@ -4,6 +4,7 @@ import { compatibilityRouter } from "~/server/api/routers/compatibility";
 import { userSkillsRouter } from "~/server/api/routers/user-skills";
 import { skillsRouter } from "~/server/api/routers/skills";
 import { subscriptionRouter } from "~/server/api/routers/subscription";
+import { accountRouter } from "~/server/api/routers/account";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -18,6 +19,7 @@ export const appRouter = createTRPCRouter({
   userSkills: userSkillsRouter,
   skills: skillsRouter,
   subscription: subscriptionRouter,
+  account: accountRouter,
 });
 
 // export type definition of API

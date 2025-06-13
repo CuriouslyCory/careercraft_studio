@@ -85,6 +85,15 @@ export function TopNavigation() {
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem asChild>
                     <Link
+                      href="/dashboard/account"
+                      className="flex items-center"
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      Account
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link
                       href="/dashboard/subscription"
                       className="flex items-center"
                     >
@@ -152,6 +161,14 @@ export function TopNavigation() {
                   {session?.user?.name ?? session?.user?.email ?? "User"}
                 </span>
               </div>
+              <Link
+                href="/dashboard/account"
+                className="flex items-center px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <User className="mr-3 h-4 w-4" />
+                Account
+              </Link>
               <Link
                 href="/dashboard/subscription"
                 className="flex items-center px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600"

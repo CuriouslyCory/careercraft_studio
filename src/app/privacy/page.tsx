@@ -420,8 +420,13 @@ export default function PrivacyPage() {
                 </li>
               </ul>
               <p className="mt-4 text-gray-600">
-                To exercise these rights, please contact us using the
-                information provided below.
+                To exercise these rights, please use the Account page in your
+                dashboard. You can request a copy of your data or request
+                account deletion at any time. Data requests and deletion
+                requests are processed within 48 hours. When you request
+                deletion, your account is immediately flagged for deletion (soft
+                delete) and will be permanently deleted soon after. You will
+                receive confirmation via email when your request is processed.
               </p>
             </div>
           </section>

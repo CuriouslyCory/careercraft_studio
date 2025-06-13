@@ -52,6 +52,7 @@ Below is an index of the documented features. Each link will take you to a more 
 - **[Subscription System](./subscription-system.md)**: Documents the comprehensive subscription and usage tracking system with tiered access controls and user interface for plan management.
 - **[User Link URL Validation](./user-link-url-validation.md)**: Details the enhanced URL validation system that automatically adds protocols to user links, improving data consistency and user experience.
 - **[Tooling Infrastructure](./tooling-infrastructure.md)**: Describes the shared configuration, error handling, and type definition files for LangChain tools.
+- **[Account Management](./account-management.md)**: Documents the user-facing account management page, data export and deletion request process, and soft-delete system for privacy compliance.
 
 ## Architectural Guidelines
 
